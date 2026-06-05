@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { brl, num, pct, statusBadge } from "@/lib/ads-utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
-import { Pause, Play, Loader2 } from "lucide-react";
+import { DuplicarAdDialog, type DupTarget } from "@/components/ads/DuplicarAdDialog";
+import { Pause, Play, Loader2, Copy } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export const Route = createFileRoute("/_authenticated/ads/anuncios")({
@@ -28,6 +29,7 @@ function Anuncios() {
 
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
+  const [dupAd, setDupAd] = useState<DupTarget | null>(null);
   const [camp, setCamp] = useState("all");
   const [status, setStatus] = useState("all");
 
@@ -95,15 +97,20 @@ function Anuncios() {
                   <TableCell className="text-right tabular-nums">{brl(a.cpc_brl)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(a.cpl_brl)}</TableCell>
                   <TableCell className="text-center">
-                    {(a.status ?? "").toLowerCase() === "ativa" ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "pause")}>
-                        {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                    <div className="flex items-center justify-center gap-1">
+                      {(a.status ?? "").toLowerCase() === "ativa" ? (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "pause")}>
+                          {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "activate")}>
+                          {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Duplicar com variação" onClick={() => setDupAd({ id: a.ad_uuid ?? "", nome: a.ad_nome ?? "" })}>
+                        <Copy className="h-4 w-4" />
                       </Button>
-                    ) : (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "activate")}>
-                        {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                      </Button>
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -111,6 +118,8 @@ function Anuncios() {
           </Table>
         </CardContent>
       </Card>
+
+      <DuplicarAdDialog ad={dupAd} onClose={() => setDupAd(null)} />
     </div>
   );
 }
