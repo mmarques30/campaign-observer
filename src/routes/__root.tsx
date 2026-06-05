@@ -87,8 +87,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "ADS IAplicada" },
       { name: "twitter:description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b77aaa2f-accd-4227-abf7-27fb2b30d35c/id-preview-68018c00--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780630517638.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b77aaa2f-accd-4227-abf7-27fb2b30d35c/id-preview-68018c00--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780630517638.png" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
     ],
     links: [
       {
