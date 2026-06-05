@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdsAnunciosRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
 import { Route as AuthenticatedAdsCampanhasNovaRouteImport } from './routes/_authenticated/ads.campanhas.nova'
 import { Route as AuthenticatedAdsCampanhasIdRouteImport } from './routes/_authenticated/ads.campanhas.$id'
+import { Route as AuthenticatedAdsAdsetsIdAdicionarAdRouteImport } from './routes/_authenticated/ads.adsets.$id.adicionar-ad'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -79,6 +80,12 @@ const AuthenticatedAdsCampanhasIdRoute =
     path: '/campanhas/$id',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
+const AuthenticatedAdsAdsetsIdAdicionarAdRoute =
+  AuthenticatedAdsAdsetsIdAdicionarAdRouteImport.update({
+    id: '/adsets/$id/adicionar-ad',
+    path: '/adsets/$id/adicionar-ad',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +110,7 @@ export interface FileRoutesByTo {
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/ads/campanhas': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +125,7 @@ export interface FileRoutesById {
   '/_authenticated/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
   '/_authenticated/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/_authenticated/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/_authenticated/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
     | '/ads/campanhas/'
+    | '/ads/adsets/$id/adicionar-ad'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -141,6 +152,7 @@ export interface FileRouteTypes {
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
     | '/ads/campanhas'
+    | '/ads/adsets/$id/adicionar-ad'
   id:
     | '__root__'
     | '/'
@@ -154,6 +166,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ads/campanhas/$id'
     | '/_authenticated/ads/campanhas/nova'
     | '/_authenticated/ads/campanhas/'
+    | '/_authenticated/ads/adsets/$id/adicionar-ad'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -241,6 +254,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdsCampanhasIdRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
+    '/_authenticated/ads/adsets/$id/adicionar-ad': {
+      id: '/_authenticated/ads/adsets/$id/adicionar-ad'
+      path: '/adsets/$id/adicionar-ad'
+      fullPath: '/ads/adsets/$id/adicionar-ad'
+      preLoaderRoute: typeof AuthenticatedAdsAdsetsIdAdicionarAdRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
   }
 }
 
@@ -252,6 +272,7 @@ interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsCampanhasIdRoute: typeof AuthenticatedAdsCampanhasIdRoute
   AuthenticatedAdsCampanhasNovaRoute: typeof AuthenticatedAdsCampanhasNovaRoute
   AuthenticatedAdsCampanhasIndexRoute: typeof AuthenticatedAdsCampanhasIndexRoute
+  AuthenticatedAdsAdsetsIdAdicionarAdRoute: typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
 }
 
 const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
@@ -262,6 +283,8 @@ const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsCampanhasIdRoute: AuthenticatedAdsCampanhasIdRoute,
   AuthenticatedAdsCampanhasNovaRoute: AuthenticatedAdsCampanhasNovaRoute,
   AuthenticatedAdsCampanhasIndexRoute: AuthenticatedAdsCampanhasIndexRoute,
+  AuthenticatedAdsAdsetsIdAdicionarAdRoute:
+    AuthenticatedAdsAdsetsIdAdicionarAdRoute,
 }
 
 const AuthenticatedAdsRouteWithChildren =
