@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut } from "lucide-react";
+import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -57,19 +57,19 @@ export function AdsLayout() {
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
-      <aside className="w-60 border-r border-border bg-card/40 flex flex-col">
-        <div className="h-16 flex items-center gap-2 px-5 border-b border-border">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <BarChart3 className="h-4 w-4 text-primary" />
+      <aside className="w-60 border-r border-sidebar-border bg-sidebar flex flex-col">
+        <div className="h-16 flex items-center gap-2.5 px-5 border-b border-sidebar-border">
+          <div className="h-9 w-9 rounded-xl bg-foreground flex items-center justify-center shadow-sm">
+            <Leaf className="h-5 w-5 text-primary" strokeWidth={2.5} />
           </div>
           <div>
-            <div className="text-sm font-semibold tracking-tight">IAplicada Ads</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Read-only</div>
+            <div className="text-sm font-bold tracking-tight">IAplicada Cockpit</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Ads · Read-only</div>
           </div>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {nav.map((n) => (
-            <Link key={n.to} to={n.to} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive(n.to, n.exact) ? "bg-primary/10 text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}>
+            <Link key={n.to} to={n.to} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive(n.to, n.exact) ? "bg-primary text-primary-foreground font-semibold shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}>
               <n.icon className="h-4 w-4" />
               {n.label}
             </Link>
