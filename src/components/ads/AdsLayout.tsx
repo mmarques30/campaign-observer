@@ -116,18 +116,6 @@ export function AdsLayout() {
               <X className="h-4 w-4" />
             </Button>
           )}
-          {!isMobile && showLabels && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
-              onClick={() => setCollapsed(true)}
-              aria-label="Ocultar menu"
-              title="Ocultar menu"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </Button>
-          )}
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
