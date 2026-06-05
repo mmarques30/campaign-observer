@@ -309,7 +309,7 @@ function NovaCampanha() {
                         checked={selectedAudiences.includes(a.meta_audience_id)}
                         onCheckedChange={(c) => setSelectedAudiences((prev) => c ? [...prev, a.meta_audience_id] : prev.filter((x) => x !== a.meta_audience_id))}
                       />
-                      {a.tipo === "lookalike" ? "🎯" : "📋"} {a.nome}{a.tipo === "lookalike" && a.ratio != null ? ` (LAL ${(a.ratio * 100).toFixed(0)}%)` : ""}
+                      {a.nome}{a.tipo === "lookalike" && a.ratio != null ? ` (LAL ${(a.ratio * 100).toFixed(0)}%)` : ""}
                     </label>
                   ))}
                 </div>

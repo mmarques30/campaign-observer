@@ -98,8 +98,8 @@ function Audiencias() {
 
       <Tabs defaultValue="custom">
         <TabsList>
-          <TabsTrigger value="custom">📋 Custom Audiences</TabsTrigger>
-          <TabsTrigger value="lookalike">🎯 Lookalike Audiences</TabsTrigger>
+          <TabsTrigger value="custom">Custom Audiences</TabsTrigger>
+          <TabsTrigger value="lookalike">Lookalike Audiences</TabsTrigger>
         </TabsList>
 
         <TabsContent value="custom">
