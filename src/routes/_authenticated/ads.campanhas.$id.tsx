@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { AbrirNoMetaButton, AbrirNoMetaIcon, urlMetaCampaign, urlMetaAdSet } from "@/components/ads/AbrirNoMeta";
+import { PdfButton } from "@/components/ads/PdfButton";
 import { ArrowLeft, MessageSquare, Play, Pause, DollarSign, Archive, Loader2, Layers, Plus } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
@@ -195,6 +196,16 @@ function CampanhaDetail() {
             {busy === "archive" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Archive className="h-4 w-4 mr-2" />} Arquivar
           </Button>
           {c.meta_campaign_id && <AbrirNoMetaButton url={urlMetaCampaign(c.meta_campaign_id)} />}
+          <PdfButton
+            build={async () => {
+              const { baixarRelatorioCampanha } = await import("@/lib/pdf/relatorios");
+              const { data: adsMetrics } = await supabase
+                .from("mads_v_top_ads_30d")
+                .select("ad_nome, status, gasto_brl, ctr_pct, cpl_brl")
+                .eq("campanha_nome", c.campanha_nome ?? "");
+              await baixarRelatorioCampanha(c, adsMetrics ?? []);
+            }}
+          />
         </div>
       )}
 

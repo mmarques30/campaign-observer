@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, BarChart, Bar } from "recharts";
 import { CheckCircle2, AlertTriangle, DollarSign, Users, TrendingUp, UserPlus } from "lucide-react";
+import { PdfButton } from "@/components/ads/PdfButton";
 import { format, subDays } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/ads/")({
@@ -70,9 +71,29 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Visão geral dos últimos 30 dias</p>
+        </div>
+        <PdfButton
+          label="Relatório mensal"
+          build={async () => {
+            const { baixarRelatorioGeral } = await import("@/lib/pdf/relatorios");
+            const lista = [...(conv.data ?? [])].sort((a, b) => (b.gasto_30d_brl ?? 0) - (a.gasto_30d_brl ?? 0));
+            const ativas = lista.filter((c) => (c.status ?? "").toLowerCase() === "ativa").length;
+            const { data: topAds } = await supabase
+              .from("mads_v_top_ads_30d")
+              .select("ad_nome, gasto_brl, ctr_pct, cpl_brl")
+              .order("gasto_brl", { ascending: false })
+              .limit(10);
+            await baixarRelatorioGeral(
+              { gasto: totalGasto, leadsMeta: totalLeadsMeta, contactsCrm: totalCrm, conv: taxa, campanhasAtivas: ativas },
+              lista,
+              topAds ?? [],
+            );
+          }}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
