@@ -2895,6 +2895,224 @@ export type Database = {
           },
         ]
       }
+      mads_lp_credentials: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          nome: string
+          provedor: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          nome: string
+          provedor: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          nome?: string
+          provedor?: string
+          token?: string
+        }
+        Relationships: []
+      }
+      mads_lp_health_log: {
+        Row: {
+          created_at: string | null
+          erro: string | null
+          form_submit_detectado: boolean | null
+          id: string
+          lp_id: string | null
+          pixel_meta_detectado: boolean | null
+          status_http: number | null
+          tamanho_html_bytes: number | null
+          tempo_ms: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          erro?: string | null
+          form_submit_detectado?: boolean | null
+          id?: string
+          lp_id?: string | null
+          pixel_meta_detectado?: boolean | null
+          status_http?: number | null
+          tamanho_html_bytes?: number | null
+          tempo_ms?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          erro?: string | null
+          form_submit_detectado?: boolean | null
+          id?: string
+          lp_id?: string | null
+          pixel_meta_detectado?: boolean | null
+          status_http?: number | null
+          tamanho_html_bytes?: number | null
+          tempo_ms?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mads_lp_health_log_lp_id_fkey"
+            columns: ["lp_id"]
+            isOneToOne: false
+            referencedRelation: "mads_lps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mads_lp_health_log_lp_id_fkey"
+            columns: ["lp_id"]
+            isOneToOne: false
+            referencedRelation: "mads_v_lp_performance"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mads_lp_metrics_daily: {
+        Row: {
+          dead_clicks: number | null
+          dia: string
+          distinct_users: number | null
+          engagement_time_seg: number | null
+          excessive_scroll: number | null
+          id: string
+          lp_id: string | null
+          quick_back_clicks: number | null
+          rage_clicks: number | null
+          raw_clarity_response: Json | null
+          script_errors: number | null
+          scroll_depth_pct: number | null
+          sincronizado_em: string | null
+          total_bot_sessions: number | null
+          total_sessions: number | null
+        }
+        Insert: {
+          dead_clicks?: number | null
+          dia: string
+          distinct_users?: number | null
+          engagement_time_seg?: number | null
+          excessive_scroll?: number | null
+          id?: string
+          lp_id?: string | null
+          quick_back_clicks?: number | null
+          rage_clicks?: number | null
+          raw_clarity_response?: Json | null
+          script_errors?: number | null
+          scroll_depth_pct?: number | null
+          sincronizado_em?: string | null
+          total_bot_sessions?: number | null
+          total_sessions?: number | null
+        }
+        Update: {
+          dead_clicks?: number | null
+          dia?: string
+          distinct_users?: number | null
+          engagement_time_seg?: number | null
+          excessive_scroll?: number | null
+          id?: string
+          lp_id?: string | null
+          quick_back_clicks?: number | null
+          rage_clicks?: number | null
+          raw_clarity_response?: Json | null
+          script_errors?: number | null
+          scroll_depth_pct?: number | null
+          sincronizado_em?: string | null
+          total_bot_sessions?: number | null
+          total_sessions?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mads_lp_metrics_daily_lp_id_fkey"
+            columns: ["lp_id"]
+            isOneToOne: false
+            referencedRelation: "mads_lps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mads_lp_metrics_daily_lp_id_fkey"
+            columns: ["lp_id"]
+            isOneToOne: false
+            referencedRelation: "mads_v_lp_performance"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mads_lps: {
+        Row: {
+          ativa: boolean | null
+          clarity_credential_id: string | null
+          clarity_project_id: string | null
+          created_at: string | null
+          descricao: string | null
+          form_slug: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          pixel_meta_detectado: boolean | null
+          produto: string | null
+          tipo_lead: string | null
+          ultimo_check_em: string | null
+          ultimo_status_http: number | null
+          ultimo_tempo_ms: number | null
+          updated_at: string | null
+          url: string
+          utm_campaign_vinculada: string | null
+        }
+        Insert: {
+          ativa?: boolean | null
+          clarity_credential_id?: string | null
+          clarity_project_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          form_slug?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          pixel_meta_detectado?: boolean | null
+          produto?: string | null
+          tipo_lead?: string | null
+          ultimo_check_em?: string | null
+          ultimo_status_http?: number | null
+          ultimo_tempo_ms?: number | null
+          updated_at?: string | null
+          url: string
+          utm_campaign_vinculada?: string | null
+        }
+        Update: {
+          ativa?: boolean | null
+          clarity_credential_id?: string | null
+          clarity_project_id?: string | null
+          created_at?: string | null
+          descricao?: string | null
+          form_slug?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          pixel_meta_detectado?: boolean | null
+          produto?: string | null
+          tipo_lead?: string | null
+          ultimo_check_em?: string | null
+          ultimo_status_http?: number | null
+          ultimo_tempo_ms?: number | null
+          updated_at?: string | null
+          url?: string
+          utm_campaign_vinculada?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_clarity_cred"
+            columns: ["clarity_credential_id"]
+            isOneToOne: false
+            referencedRelation: "mads_lp_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_templates: {
         Row: {
           body_text: string | null
@@ -4450,6 +4668,41 @@ export type Database = {
           campanhas: string | null
           status_conexao: string | null
           total_campanhas: number | null
+        }
+        Relationships: []
+      }
+      mads_v_lp_performance: {
+        Row: {
+          alerta: string | null
+          ativa: boolean | null
+          dead_clicks_30d: number | null
+          engagement_seg_avg: number | null
+          form_slug: string | null
+          health_status: string | null
+          id: string | null
+          meta_lp_views_30d: number | null
+          nome: string | null
+          pixel_meta_detectado: boolean | null
+          rage_clicks_30d: number | null
+          script_errors_30d: number | null
+          scroll_depth_pct_avg: number | null
+          sessions_clarity_30d: number | null
+          sessions_clarity_7d: number | null
+          submissions_24h: number | null
+          submissions_30d: number | null
+          submissions_7d: number | null
+          submissions_direct_30d: number | null
+          submissions_linktree_30d: number | null
+          submissions_meta_30d: number | null
+          taxa_conversao_clarity_pct: number | null
+          taxa_conversao_meta_pct: number | null
+          tipo_lead: string | null
+          ultimo_check_em: string | null
+          ultimo_status_http: number | null
+          ultimo_tempo_ms: number | null
+          url: string | null
+          users_clarity_30d: number | null
+          utm_campaign_vinculada: string | null
         }
         Relationships: []
       }
