@@ -5,8 +5,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export const Route = createFileRoute("/_authenticated/ads/campanhas/")({
@@ -39,9 +40,14 @@ function CampanhasList() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
-        <p className="text-sm text-muted-foreground">Performance vs CRM nos últimos 30 dias</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
+          <p className="text-sm text-muted-foreground">Performance vs CRM nos últimos 30 dias</p>
+        </div>
+        <Button asChild>
+          <Link to="/ads/campanhas/nova"><Plus className="h-4 w-4 mr-2" /> Nova campanha</Link>
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-3">
