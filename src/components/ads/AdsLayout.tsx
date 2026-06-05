@@ -69,7 +69,7 @@ export function AdsLayout() {
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {nav.map((n) => (
-            <Link key={n.to} to={n.to} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive(n.to, n.exact) ? "bg-primary/10 text-foreground font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"}`}>
+            <Link key={n.to} to={n.to} className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive(n.to, n.exact) ? "bg-primary text-primary-foreground font-semibold shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"}`}>
               <n.icon className="h-4 w-4" />
               {n.label}
             </Link>
