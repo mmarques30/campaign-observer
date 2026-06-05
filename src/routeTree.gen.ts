@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedAdsRouteImport } from './routes/_authenticated/ads'
 import { Route as AuthenticatedAdsIndexRouteImport } from './routes/_authenticated/ads.index'
 import { Route as AuthenticatedAdsSaudeRouteImport } from './routes/_authenticated/ads.saude'
+import { Route as AuthenticatedAdsLpsRouteImport } from './routes/_authenticated/ads.lps'
 import { Route as AuthenticatedAdsAnunciosRouteImport } from './routes/_authenticated/ads.anuncios'
 import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
 import { Route as AuthenticatedAdsCampanhasIdRouteImport } from './routes/_authenticated/ads.campanhas.$id'
@@ -48,6 +49,11 @@ const AuthenticatedAdsSaudeRoute = AuthenticatedAdsSaudeRouteImport.update({
   path: '/saude',
   getParentRoute: () => AuthenticatedAdsRoute,
 } as any)
+const AuthenticatedAdsLpsRoute = AuthenticatedAdsLpsRouteImport.update({
+  id: '/lps',
+  path: '/lps',
+  getParentRoute: () => AuthenticatedAdsRoute,
+} as any)
 const AuthenticatedAdsAnunciosRoute =
   AuthenticatedAdsAnunciosRouteImport.update({
     id: '/anuncios',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/ads': typeof AuthenticatedAdsRouteWithChildren
   '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/ads/': typeof AuthenticatedAdsIndexRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/ads': typeof AuthenticatedAdsIndexRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/ads': typeof AuthenticatedAdsRouteWithChildren
   '/_authenticated/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/_authenticated/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/_authenticated/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/_authenticated/ads/': typeof AuthenticatedAdsIndexRoute
   '/_authenticated/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/ads'
     | '/ads/anuncios'
+    | '/ads/lps'
     | '/ads/saude'
     | '/ads/'
     | '/ads/campanhas/$id'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/ads/anuncios'
+    | '/ads/lps'
     | '/ads/saude'
     | '/ads'
     | '/ads/campanhas/$id'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/ads'
     | '/_authenticated/ads/anuncios'
+    | '/_authenticated/ads/lps'
     | '/_authenticated/ads/saude'
     | '/_authenticated/ads/'
     | '/_authenticated/ads/campanhas/$id'
@@ -181,6 +193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdsSaudeRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
+    '/_authenticated/ads/lps': {
+      id: '/_authenticated/ads/lps'
+      path: '/lps'
+      fullPath: '/ads/lps'
+      preLoaderRoute: typeof AuthenticatedAdsLpsRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
     '/_authenticated/ads/anuncios': {
       id: '/_authenticated/ads/anuncios'
       path: '/anuncios'
@@ -207,6 +226,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsAnunciosRoute: typeof AuthenticatedAdsAnunciosRoute
+  AuthenticatedAdsLpsRoute: typeof AuthenticatedAdsLpsRoute
   AuthenticatedAdsSaudeRoute: typeof AuthenticatedAdsSaudeRoute
   AuthenticatedAdsIndexRoute: typeof AuthenticatedAdsIndexRoute
   AuthenticatedAdsCampanhasIdRoute: typeof AuthenticatedAdsCampanhasIdRoute
@@ -215,6 +235,7 @@ interface AuthenticatedAdsRouteChildren {
 
 const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsAnunciosRoute: AuthenticatedAdsAnunciosRoute,
+  AuthenticatedAdsLpsRoute: AuthenticatedAdsLpsRoute,
   AuthenticatedAdsSaudeRoute: AuthenticatedAdsSaudeRoute,
   AuthenticatedAdsIndexRoute: AuthenticatedAdsIndexRoute,
   AuthenticatedAdsCampanhasIdRoute: AuthenticatedAdsCampanhasIdRoute,
