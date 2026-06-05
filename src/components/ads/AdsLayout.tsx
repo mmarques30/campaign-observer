@@ -107,13 +107,25 @@ export function AdsLayout() {
           </div>
           {showLabels && (
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold tracking-tight truncate">IAplicada Cockpit</div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Ads · Read-only</div>
+              <div className="text-sm font-bold tracking-tight truncate">ADS IAplicada</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Read-only</div>
             </div>
           )}
           {isMobile && (
             <Button variant="ghost" size="icon" className="ml-auto h-8 w-8" onClick={() => setMobileOpen(false)} aria-label="Fechar menu">
               <X className="h-4 w-4" />
+            </Button>
+          )}
+          {!isMobile && showLabels && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => setCollapsed(true)}
+              aria-label="Ocultar menu"
+              title="Ocultar menu"
+            >
+              <PanelLeftClose className="h-4 w-4" />
             </Button>
           )}
         </div>
@@ -176,7 +188,7 @@ export function AdsLayout() {
         </header>
 
         <div className="flex-1 overflow-auto">
-          <div className="p-4 sm:p-6 max-w-[1600px] mx-auto w-full">
+          <div className="p-4 sm:p-6 w-full">
             <Outlet />
           </div>
           <footer className="border-t border-border mt-8 py-4 px-6 text-center text-xs text-muted-foreground">
