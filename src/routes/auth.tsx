@@ -44,7 +44,7 @@ function AuthPage() {
           <div className="mx-auto h-14 w-14 rounded-2xl bg-foreground flex items-center justify-center shadow-md">
             <Leaf className="h-7 w-7 text-primary" strokeWidth={2.5} />
           </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">IAplicada Cockpit</CardTitle>
+          <CardTitle className="text-2xl font-bold tracking-tight">ADS IAplicada</CardTitle>
           <CardDescription>Dashboard de Ads · acesso restrito @iaplicada.com</CardDescription>
         </CardHeader>
         <CardContent>
