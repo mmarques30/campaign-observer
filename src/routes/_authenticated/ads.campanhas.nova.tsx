@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,8 +101,22 @@ function NovaCampanha() {
   const [pageId, setPageId] = useState("");
   const [instagramActorId, setInstagramActorId] = useState("");
 
+  const [selectedAudiences, setSelectedAudiences] = useState<string[]>([]);
+
   // Step 3
   const [anuncios, setAnuncios] = useState<Anuncio[]>([novoAnuncio()]);
+
+  const audiencias = useQuery({
+    queryKey: ["mads", "audiences-pronta"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("mads_audiences")
+        .select("meta_audience_id, nome, tipo, ratio, status")
+        .eq("status", "pronta");
+      if (error) throw error;
+      return (data ?? []) as { meta_audience_id: string; nome: string; tipo: string | null; ratio: number | null; status: string | null }[];
+    },
+  });
 
   function addInteresse() {
     const v = interesseInput.trim();
@@ -155,6 +170,7 @@ function NovaCampanha() {
         age_min: ageMin,
         age_max: ageMax,
         interests: interesses,
+        custom_audiences: selectedAudiences.length > 0 ? selectedAudiences.map((id) => ({ id })) : undefined,
       },
       posicionamentos: posicionamento === "manual" ? manualPlacements : null,
     },
@@ -169,7 +185,7 @@ function NovaCampanha() {
       utm_content: ad.utmContent || `ad_${slugify(ad.nome)}`,
       thumbnail_url: ad.formato === "video" ? ad.thumbnailUrl || null : null,
     })),
-  }), [nome, tipoLead, objetivo, orcamentoBrl, lpDestino, utmFinal, pageId, instagramActorId, adsetNome, optimizationGoal, geoCountry, ageMin, ageMax, interesses, posicionamento, manualPlacements, anuncios]);
+  }), [nome, tipoLead, objetivo, orcamentoBrl, lpDestino, utmFinal, pageId, instagramActorId, adsetNome, optimizationGoal, geoCountry, ageMin, ageMax, interesses, posicionamento, manualPlacements, anuncios, selectedAudiences]);
 
   const step1Valid = nome.trim() && orcamentoBrl >= 1 && lpDestino.trim();
   const step2Valid = adsetNome.trim() && pageId.trim();
@@ -277,6 +293,24 @@ function NovaCampanha() {
                       {i}
                       <button type="button" onClick={() => setInteresses((p) => p.filter((x) => x !== i))} className="hover:text-destructive">×</button>
                     </Badge>
+                  ))}
+                </div>
+              )}
+            </Field>
+            <Separator />
+            <Field label="Audiência adicional (opcional)" hint="Soma com o targeting de interesses (intersect). Só lista audiências prontas.">
+              {(audiencias.data?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma audiência pronta. Crie em Audiências.</p>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-1.5">
+                  {(audiencias.data ?? []).map((a) => (
+                    <label key={a.meta_audience_id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <Checkbox
+                        checked={selectedAudiences.includes(a.meta_audience_id)}
+                        onCheckedChange={(c) => setSelectedAudiences((prev) => c ? [...prev, a.meta_audience_id] : prev.filter((x) => x !== a.meta_audience_id))}
+                      />
+                      {a.tipo === "lookalike" ? "🎯" : "📋"} {a.nome}{a.tipo === "lookalike" && a.ratio != null ? ` (LAL ${(a.ratio * 100).toFixed(0)}%)` : ""}
+                    </label>
                   ))}
                 </div>
               )}
