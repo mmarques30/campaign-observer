@@ -57,7 +57,7 @@ export function AdsLayout() {
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
-      <aside className="w-60 border-r border-border bg-card/40 flex flex-col">
+      <aside className="w-60 border-r border-sidebar-border bg-sidebar flex flex-col">
         <div className="h-16 flex items-center gap-2.5 px-5 border-b border-sidebar-border">
           <div className="h-9 w-9 rounded-xl bg-foreground flex items-center justify-center shadow-sm">
             <Leaf className="h-5 w-5 text-primary" strokeWidth={2.5} />
