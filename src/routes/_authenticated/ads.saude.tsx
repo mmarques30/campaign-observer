@@ -1,11 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { healthColor, healthLabel, brl, num } from "@/lib/ads-utils";
-import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight } from "lucide-react";
+
+function acaoBadge(acao: string | null | undefined) {
+  const a = (acao ?? "").toLowerCase();
+  if (a.includes("create") || a.includes("activate") || a.includes("criar") || a.includes("ativar")) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
+  if (a.includes("pause") || a.includes("pausar")) return "bg-yellow-500/15 text-yellow-600 border-yellow-500/30";
+  if (a.includes("archive") || a.includes("arquivar") || a.includes("delete")) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (a.includes("budget") || a.includes("orcamento") || a.includes("update")) return "bg-blue-500/15 text-blue-600 border-blue-500/30";
+  return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+}
 
 export const Route = createFileRoute("/_authenticated/ads/saude")({
   component: Saude,
@@ -54,6 +65,23 @@ function Saude() {
     },
   });
 
+  const acoes = useQuery({
+    queryKey: ["mads", "auditoria"],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("mads_execution_log")
+        .select("id, acao, entidade_tipo, sucesso, duracao_ms, created_at, origem, iniciado_por, erro_mensagem")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const [expandido, setExpandido] = useState<string | null>(null);
+
   const problemas = (conv.data ?? []).filter((c) => c.precisa_atencao === true);
   const activeCampaigns = new Set((conv.data ?? []).filter((c) => c.status === "ativa").map((c) => c.utm_campaign).filter(Boolean));
 
@@ -63,6 +91,65 @@ function Saude() {
         <h1 className="text-2xl font-bold tracking-tight">Saúde & diagnóstico</h1>
         <p className="text-sm text-muted-foreground">Health check, logs de execução e UTMs perdidos</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Últimas ações</CardTitle>
+          <CardDescription>Auditoria de mutações dos últimos 7 dias (quem fez o quê)</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data</TableHead>
+                <TableHead>Ação</TableHead>
+                <TableHead>Entidade</TableHead>
+                <TableHead>Resultado</TableHead>
+                <TableHead className="text-right">Duração</TableHead>
+                <TableHead>Quem</TableHead>
+                <TableHead>Origem</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {acoes.isLoading && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
+              {!acoes.isLoading && (acoes.data?.length ?? 0) === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Nenhuma ação nos últimos 7 dias.</TableCell></TableRow>}
+              {(acoes.data ?? []).map((l: any) => {
+                const ok = l.sucesso === true;
+                const aberto = expandido === l.id;
+                return (
+                  <Fragment key={l.id}>
+                    <TableRow className={!ok ? "bg-red-500/5" : ""}>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                      <TableCell><Badge variant="outline" className={acaoBadge(l.acao)}>{l.acao ?? "—"}</Badge></TableCell>
+                      <TableCell className="text-xs">{l.entidade_tipo ?? "—"}</TableCell>
+                      <TableCell>
+                        {ok ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> sucesso</span>
+                        ) : (
+                          <button type="button" onClick={() => setExpandido(aberto ? null : l.id)} className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline">
+                            {aberto ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                            <XCircle className="h-3.5 w-3.5" /> erro
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">{l.duracao_ms != null ? `${l.duracao_ms} ms` : "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono max-w-[160px] truncate" title={l.iniciado_por ?? ""}>{l.iniciado_por ?? "—"}</TableCell>
+                      <TableCell><span className="text-xs text-muted-foreground">{l.origem ?? "—"}</span></TableCell>
+                    </TableRow>
+                    {!ok && aberto && (
+                      <TableRow className="bg-red-500/5">
+                        <TableCell colSpan={7} className="text-xs text-red-700 whitespace-pre-wrap py-2">
+                          {l.erro_mensagem ?? "Sem detalhes de erro."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Health check</CardTitle></CardHeader>
