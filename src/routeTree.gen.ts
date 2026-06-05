@@ -9,38 +9,150 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedAdsRouteImport } from './routes/_authenticated/ads'
+import { Route as AuthenticatedAdsIndexRouteImport } from './routes/_authenticated/ads.index'
+import { Route as AuthenticatedAdsSaudeRouteImport } from './routes/_authenticated/ads.saude'
+import { Route as AuthenticatedAdsAnunciosRouteImport } from './routes/_authenticated/ads.anuncios'
+import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
+import { Route as AuthenticatedAdsCampanhasIdRouteImport } from './routes/_authenticated/ads.campanhas.$id'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedAdsRoute = AuthenticatedAdsRouteImport.update({
+  id: '/ads',
+  path: '/ads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAdsIndexRoute = AuthenticatedAdsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedAdsRoute,
+} as any)
+const AuthenticatedAdsSaudeRoute = AuthenticatedAdsSaudeRouteImport.update({
+  id: '/saude',
+  path: '/saude',
+  getParentRoute: () => AuthenticatedAdsRoute,
+} as any)
+const AuthenticatedAdsAnunciosRoute =
+  AuthenticatedAdsAnunciosRouteImport.update({
+    id: '/anuncios',
+    path: '/anuncios',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsCampanhasIndexRoute =
+  AuthenticatedAdsCampanhasIndexRouteImport.update({
+    id: '/campanhas/',
+    path: '/campanhas/',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsCampanhasIdRoute =
+  AuthenticatedAdsCampanhasIdRouteImport.update({
+    id: '/campanhas/$id',
+    path: '/campanhas/$id',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ads': typeof AuthenticatedAdsRouteWithChildren
+  '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/ads/saude': typeof AuthenticatedAdsSaudeRoute
+  '/ads/': typeof AuthenticatedAdsIndexRoute
+  '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
+  '/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/ads/saude': typeof AuthenticatedAdsSaudeRoute
+  '/ads': typeof AuthenticatedAdsIndexRoute
+  '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
+  '/ads/campanhas': typeof AuthenticatedAdsCampanhasIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/ads': typeof AuthenticatedAdsRouteWithChildren
+  '/_authenticated/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
+  '/_authenticated/ads/saude': typeof AuthenticatedAdsSaudeRoute
+  '/_authenticated/ads/': typeof AuthenticatedAdsIndexRoute
+  '/_authenticated/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRoute
+  '/_authenticated/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/ads'
+    | '/ads/anuncios'
+    | '/ads/saude'
+    | '/ads/'
+    | '/ads/campanhas/$id'
+    | '/ads/campanhas/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/ads/anuncios'
+    | '/ads/saude'
+    | '/ads'
+    | '/ads/campanhas/$id'
+    | '/ads/campanhas'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/ads'
+    | '/_authenticated/ads/anuncios'
+    | '/_authenticated/ads/saude'
+    | '/_authenticated/ads/'
+    | '/_authenticated/ads/campanhas/$id'
+    | '/_authenticated/ads/campanhas/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,22 +160,86 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/ads': {
+      id: '/_authenticated/ads'
+      path: '/ads'
+      fullPath: '/ads'
+      preLoaderRoute: typeof AuthenticatedAdsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/ads/': {
+      id: '/_authenticated/ads/'
+      path: '/'
+      fullPath: '/ads/'
+      preLoaderRoute: typeof AuthenticatedAdsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/saude': {
+      id: '/_authenticated/ads/saude'
+      path: '/saude'
+      fullPath: '/ads/saude'
+      preLoaderRoute: typeof AuthenticatedAdsSaudeRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/anuncios': {
+      id: '/_authenticated/ads/anuncios'
+      path: '/anuncios'
+      fullPath: '/ads/anuncios'
+      preLoaderRoute: typeof AuthenticatedAdsAnunciosRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/campanhas/': {
+      id: '/_authenticated/ads/campanhas/'
+      path: '/campanhas'
+      fullPath: '/ads/campanhas/'
+      preLoaderRoute: typeof AuthenticatedAdsCampanhasIndexRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/campanhas/$id': {
+      id: '/_authenticated/ads/campanhas/$id'
+      path: '/campanhas/$id'
+      fullPath: '/ads/campanhas/$id'
+      preLoaderRoute: typeof AuthenticatedAdsCampanhasIdRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
   }
 }
 
+interface AuthenticatedAdsRouteChildren {
+  AuthenticatedAdsAnunciosRoute: typeof AuthenticatedAdsAnunciosRoute
+  AuthenticatedAdsSaudeRoute: typeof AuthenticatedAdsSaudeRoute
+  AuthenticatedAdsIndexRoute: typeof AuthenticatedAdsIndexRoute
+  AuthenticatedAdsCampanhasIdRoute: typeof AuthenticatedAdsCampanhasIdRoute
+  AuthenticatedAdsCampanhasIndexRoute: typeof AuthenticatedAdsCampanhasIndexRoute
+}
+
+const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
+  AuthenticatedAdsAnunciosRoute: AuthenticatedAdsAnunciosRoute,
+  AuthenticatedAdsSaudeRoute: AuthenticatedAdsSaudeRoute,
+  AuthenticatedAdsIndexRoute: AuthenticatedAdsIndexRoute,
+  AuthenticatedAdsCampanhasIdRoute: AuthenticatedAdsCampanhasIdRoute,
+  AuthenticatedAdsCampanhasIndexRoute: AuthenticatedAdsCampanhasIndexRoute,
+}
+
+const AuthenticatedAdsRouteWithChildren =
+  AuthenticatedAdsRoute._addFileChildren(AuthenticatedAdsRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdsRoute: typeof AuthenticatedAdsRouteWithChildren
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdsRoute: AuthenticatedAdsRouteWithChildren,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
