@@ -45,9 +45,9 @@ function Saude() {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const { data, error } = await supabase
         .from("form_submissions")
-        .select("id, created_at, form_id, utm_source, utm_campaign, email")
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
+        .select("id, submitted_at, form_id, utm_source, utm_campaign, contacts:contact_id(email)")
+        .gte("submitted_at", since)
+        .order("submitted_at", { ascending: false })
         .limit(100);
       if (error) throw error;
       return data ?? [];
