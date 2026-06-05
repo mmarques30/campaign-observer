@@ -39,13 +39,13 @@ function AuthPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-lg border-border/60">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-            <BarChart3 className="h-6 w-6 text-primary" />
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-foreground flex items-center justify-center shadow-md">
+            <Leaf className="h-7 w-7 text-primary" strokeWidth={2.5} />
           </div>
-          <CardTitle className="text-2xl">IAplicada Ads</CardTitle>
-          <CardDescription>Dashboard de campanhas Meta Ads (read-only)</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight">IAplicada Cockpit</CardTitle>
+          <CardDescription>Dashboard de Ads · acesso restrito @iaplicada.com</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
