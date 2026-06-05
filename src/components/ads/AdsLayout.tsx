@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { BarChart3, LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut } from "lucide-react";
+import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
