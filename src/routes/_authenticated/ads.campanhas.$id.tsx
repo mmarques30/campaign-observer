@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
-import { ArrowLeft, MessageSquare, Play, Pause, DollarSign, Archive, Loader2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Play, Pause, DollarSign, Archive, Loader2, Layers, Plus } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/ads/campanhas/$id")({
@@ -77,6 +77,7 @@ function CampanhaDetail() {
 
   const qc = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
+  const [adsetBusy, setAdsetBusy] = useState<string | null>(null);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [novoOrc, setNovoOrc] = useState("");
 
@@ -119,6 +120,24 @@ function CampanhaDetail() {
     if (!confirm("Arquivar campanha? Ela deixa de veicular e some da lista ativa.")) return;
     await mutate("archive", {}, "Campanha arquivada ✅");
   }
+  async function toggleAdset(adsetId: string, acao: "pause" | "activate") {
+    setAdsetBusy(adsetId);
+    try {
+      const r = await callEdgeFunction("meta-update-campaign", { entidade_tipo: "adset", local_id: adsetId, acao });
+      if (r.ok) {
+        toast.success(acao === "pause" ? "Ad set pausado ✅" : "Ad set ativado ✅");
+        await adSets.refetch();
+        qc.invalidateQueries();
+      } else {
+        toast.error(`Falhou: ${r.error ?? "erro desconhecido"}`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAdsetBusy(null);
+    }
+  }
+
   async function salvarOrcamento() {
     const v = parseFloat(novoOrc.replace(",", "."));
     if (!v || v < 1) {
@@ -165,6 +184,11 @@ function CampanhaDetail() {
           )}
           <Button size="sm" variant="outline" onClick={() => { setNovoOrc(String(c.orcamento_diario_brl ?? "")); setBudgetOpen(true); }} disabled={!!busy}>
             <DollarSign className="h-4 w-4 mr-2" /> Editar orçamento
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/ads/campanhas/$id/adicionar-adset" params={{ id: c.campanha_uuid ?? "" }}>
+              <Layers className="h-4 w-4 mr-2" /> Adicionar adset
+            </Link>
           </Button>
           <Button size="sm" variant="destructive" onClick={arquivar} disabled={!!busy || status === "arquivada"}>
             {busy === "archive" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Archive className="h-4 w-4 mr-2" />} Arquivar
@@ -221,16 +245,41 @@ function CampanhaDetail() {
         <CardHeader><CardTitle>Ad Sets ({adSets.data?.length ?? 0})</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow><TableHead>Nome</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Orçamento diário</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow>
+              <TableHead>Ad Set</TableHead><TableHead>Status</TableHead>
+              <TableHead className="text-right">Orçamento</TableHead><TableHead>Otimização</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
-              {(adSets.data ?? []).map((a: any) => (
-                <TableRow key={a.id}>
-                  <TableCell className="font-medium">{a.nome ?? a.name}</TableCell>
-                  <TableCell><Badge variant="outline" className={statusBadge(a.status)}>{a.status}</Badge></TableCell>
-                  <TableCell className="text-right tabular-nums">{brl(a.orcamento_diario_brl ?? a.daily_budget_brl)}</TableCell>
-                </TableRow>
-              ))}
-              {adSets.data?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">Sem ad sets.</TableCell></TableRow>}
+              {(adSets.data ?? []).map((a: any) => {
+                const orcBrl = a.orcamento_diario_brl ?? (a.orcamento_diario_centavos != null ? a.orcamento_diario_centavos / 100 : a.daily_budget_brl);
+                const ativo = (a.status ?? "").toLowerCase() === "ativa";
+                return (
+                  <TableRow key={a.id}>
+                    <TableCell className="font-medium">{a.nome ?? a.name}</TableCell>
+                    <TableCell><Badge variant="outline" className={statusBadge(a.status)}>{a.status}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{brl(orcBrl)}/dia</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.optimization_goal ?? "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to="/ads/adsets/$id/adicionar-ad" params={{ id: a.id }}><Plus className="h-3.5 w-3.5 mr-1" /> Ad</Link>
+                        </Button>
+                        {ativo ? (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "pause")}>
+                            {adsetBusy === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "activate")}>
+                            {adsetBusy === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {adSets.data?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">Sem ad sets.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </CardContent>
