@@ -153,11 +153,11 @@ function Saude() {
                 const suspeito = (f.utm_source ?? "").toLowerCase() === "direct" && activeCampaigns.size > 0;
                 return (
                   <TableRow key={f.id} className={suspeito ? "bg-red-500/5" : ""}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{f.created_at ? new Date(f.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{f.submitted_at ? new Date(f.submitted_at).toLocaleString("pt-BR") : "—"}</TableCell>
                     <TableCell className="text-xs">{f.form_id ?? "—"}</TableCell>
                     <TableCell className="text-xs">{suspeito ? <span className="text-red-400 font-medium">{f.utm_source}</span> : (f.utm_source ?? "—")}</TableCell>
                     <TableCell className="text-xs">{f.utm_campaign ?? "—"}</TableCell>
-                    <TableCell className="text-xs">{f.email ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{(f.contacts as any)?.email ?? "—"}</TableCell>
                   </TableRow>
                 );
               })}
