@@ -37,16 +37,18 @@ function CampanhaDetail() {
   const adSets = useQuery({
     queryKey: ["mads", "adsets", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mads_ad_sets").select("*").eq("campaign_id", id);
+      const { data, error } = await supabase.from("mads_ad_sets").select("*").eq("campanha_id", id);
       if (error) throw error;
       return data ?? [];
     },
   });
 
+  const adSetIds = (adSets.data ?? []).map((a) => a.id);
   const ads = useQuery({
-    queryKey: ["mads", "ads", id],
+    enabled: adSetIds.length > 0,
+    queryKey: ["mads", "ads", id, adSetIds.join(",")],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mads_ads").select("*").eq("campaign_id", id);
+      const { data, error } = await supabase.from("mads_ads").select("*").in("ad_set_id", adSetIds);
       if (error) throw error;
       return data ?? [];
     },
