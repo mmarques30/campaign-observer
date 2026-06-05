@@ -1,11 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { brl, num, pct, statusBadge } from "@/lib/ads-utils";
+import { callEdgeFunction } from "@/lib/ads-mutations";
+import { Pause, Play, Loader2 } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export const Route = createFileRoute("/_authenticated/ads/anuncios")({
@@ -22,8 +26,27 @@ function Anuncios() {
     },
   });
 
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
   const [camp, setCamp] = useState("all");
   const [status, setStatus] = useState("all");
+
+  async function toggleAd(adId: string, acao: "pause" | "activate") {
+    setBusy(adId);
+    try {
+      const r = await callEdgeFunction("meta-update-campaign", { entidade_tipo: "ad", local_id: adId, acao });
+      if (r.ok) {
+        toast.success(acao === "pause" ? "Anúncio pausado ✅" : "Anúncio ativado ✅");
+        await qc.invalidateQueries({ queryKey: ["mads", "topAds"] });
+      } else {
+        toast.error(`Falhou: ${r.error ?? "erro desconhecido"}`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
   const camps = useMemo(() => [...new Set((data ?? []).map((d) => d.campanha_nome).filter(Boolean))] as string[], [data]);
   const statuses = useMemo(() => [...new Set((data ?? []).map((d) => d.status).filter(Boolean))] as string[], [data]);
 
@@ -53,10 +76,11 @@ function Anuncios() {
               <TableHead className="text-right">LP Views</TableHead><TableHead className="text-right">Leads</TableHead>
               <TableHead className="text-right">Gasto</TableHead><TableHead className="text-right">CTR</TableHead>
               <TableHead className="text-right">CPC</TableHead><TableHead className="text-right">CPL</TableHead>
+              <TableHead className="text-center">Ações</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
-              {!isLoading && rows.length === 0 && <TableRow><TableCell colSpan={11} className="text-center py-8 text-muted-foreground">Nenhum anúncio.</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
+              {!isLoading && rows.length === 0 && <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum anúncio.</TableCell></TableRow>}
               {rows.map((a) => (
                 <TableRow key={a.ad_uuid}>
                   <TableCell className="font-medium max-w-[260px] truncate">{a.ad_nome}</TableCell>
@@ -70,6 +94,17 @@ function Anuncios() {
                   <TableCell className="text-right tabular-nums">{pct(a.ctr_pct)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(a.cpc_brl)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(a.cpl_brl)}</TableCell>
+                  <TableCell className="text-center">
+                    {(a.status ?? "").toLowerCase() === "ativa" ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "pause")}>
+                        {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "activate")}>
+                        {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
