@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
+import { AbrirNoMetaButton, AbrirNoMetaIcon, urlMetaCampaign, urlMetaAdSet } from "@/components/ads/AbrirNoMeta";
 import { ArrowLeft, MessageSquare, Play, Pause, DollarSign, Archive, Loader2, Layers, Plus } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
@@ -193,6 +194,7 @@ function CampanhaDetail() {
           <Button size="sm" variant="destructive" onClick={arquivar} disabled={!!busy || status === "arquivada"}>
             {busy === "archive" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Archive className="h-4 w-4 mr-2" />} Arquivar
           </Button>
+          {c.meta_campaign_id && <AbrirNoMetaButton url={urlMetaCampaign(c.meta_campaign_id)} />}
         </div>
       )}
 
@@ -262,6 +264,7 @@ function CampanhaDetail() {
                     <TableCell className="text-xs text-muted-foreground">{a.optimization_goal ?? "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-1">
+                        {a.meta_adset_id && <AbrirNoMetaIcon url={urlMetaAdSet(a.meta_adset_id)} title="Abrir ad set no Meta" />}
                         <Button size="sm" variant="outline" asChild>
                           <Link to="/ads/adsets/$id/adicionar-ad" params={{ id: a.id }}><Plus className="h-3.5 w-3.5 mr-1" /> Ad</Link>
                         </Button>

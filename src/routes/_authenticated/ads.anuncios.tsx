@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { brl, num, pct, statusBadge } from "@/lib/ads-utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { DuplicarAdDialog, type DupTarget } from "@/components/ads/DuplicarAdDialog";
+import { AbrirNoMetaIcon, urlMetaAd } from "@/components/ads/AbrirNoMeta";
 import { Pause, Play, Loader2, Copy } from "lucide-react";
 import { useState, useMemo } from "react";
 
@@ -110,6 +111,7 @@ function Anuncios() {
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Duplicar com variação" onClick={() => setDupAd({ id: a.ad_uuid ?? "", nome: a.ad_nome ?? "" })}>
                         <Copy className="h-4 w-4" />
                       </Button>
+                      {a.meta_ad_id && <AbrirNoMetaIcon url={urlMetaAd(a.meta_ad_id)} title="Abrir anúncio no Meta" />}
                     </div>
                   </TableCell>
                 </TableRow>
