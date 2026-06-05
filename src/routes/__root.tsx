@@ -77,14 +77,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "ADS IAplicada" },
+      { name: "description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "ADS IAplicada" },
+      { property: "og:description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "ADS IAplicada" },
+      { name: "twitter:description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b77aaa2f-accd-4227-abf7-27fb2b30d35c/id-preview-68018c00--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780630517638.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/b77aaa2f-accd-4227-abf7-27fb2b30d35c/id-preview-68018c00--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780630517638.png" },
     ],
     links: [
       {
