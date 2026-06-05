@@ -1,12 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import { callEdgeFunction } from "@/lib/ads-mutations";
+import { ArrowLeft, MessageSquare, Play, Pause, DollarSign, Archive, Loader2 } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/ads/campanhas/$id")({
@@ -69,7 +75,60 @@ function CampanhaDetail() {
     },
   });
 
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [novoOrc, setNovoOrc] = useState("");
+
   const c = camp.data;
+  const status = (c?.status ?? "").toLowerCase();
+
+  async function mutate(acao: string, extra: Record<string, unknown> = {}, okMsg = "Feito ✅") {
+    if (!c?.campanha_uuid) return;
+    setBusy(acao);
+    try {
+      const r = await callEdgeFunction("meta-update-campaign", {
+        entidade_tipo: "campaign",
+        local_id: c.campanha_uuid,
+        acao,
+        ...extra,
+      });
+      if (r.ok) {
+        toast.success(okMsg);
+        await camp.refetch();
+        qc.invalidateQueries();
+      } else {
+        toast.error(`Falhou: ${r.error ?? "erro desconhecido"}`);
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function pausar() {
+    if (!confirm("Pausar campanha agora?")) return;
+    await mutate("pause", {}, "Campanha pausada no Meta ✅");
+  }
+  async function ativar() {
+    if (!confirm("Ativar campanha agora?")) return;
+    await mutate("activate", {}, "Campanha ativada no Meta ✅");
+  }
+  async function arquivar() {
+    if (!confirm("Arquivar campanha? Ela deixa de veicular e some da lista ativa.")) return;
+    await mutate("archive", {}, "Campanha arquivada ✅");
+  }
+  async function salvarOrcamento() {
+    const v = parseFloat(novoOrc.replace(",", "."));
+    if (!v || v < 1) {
+      toast.error("Informe um valor válido (mín R$1).");
+      return;
+    }
+    await mutate("update_budget", { novo_orcamento_diario_centavos: Math.round(v * 100) }, `Orçamento atualizado para ${brl(v)}/dia ✅`);
+    setBudgetOpen(false);
+    setNovoOrc("");
+  }
 
   return (
     <div className="space-y-6">
@@ -91,6 +150,46 @@ function CampanhaDetail() {
           <MessageSquare className="h-4 w-4 mr-2" /> Falar com Claude para gerenciar
         </Button>
       </div>
+
+      {c && (
+        <div className="flex flex-wrap items-center gap-2">
+          {status === "pausada" && (
+            <Button size="sm" onClick={ativar} disabled={!!busy}>
+              {busy === "activate" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />} Ativar
+            </Button>
+          )}
+          {status === "ativa" && (
+            <Button size="sm" variant="outline" onClick={pausar} disabled={!!busy} className="border-yellow-500/40 text-yellow-600 hover:text-yellow-700">
+              {busy === "pause" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Pause className="h-4 w-4 mr-2" />} Pausar
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={() => { setNovoOrc(String(c.orcamento_diario_brl ?? "")); setBudgetOpen(true); }} disabled={!!busy}>
+            <DollarSign className="h-4 w-4 mr-2" /> Editar orçamento
+          </Button>
+          <Button size="sm" variant="destructive" onClick={arquivar} disabled={!!busy || status === "arquivada"}>
+            {busy === "archive" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Archive className="h-4 w-4 mr-2" />} Arquivar
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={budgetOpen} onOpenChange={setBudgetOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar orçamento diário</DialogTitle>
+            <DialogDescription>Valor em reais. Atual: {brl(c?.orcamento_diario_brl)}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="orc">Novo orçamento diário (R$)</Label>
+            <Input id="orc" type="number" min={1} step="1" value={novoOrc} onChange={(e) => setNovoOrc(e.target.value)} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBudgetOpen(false)}>Cancelar</Button>
+            <Button onClick={salvarOrcamento} disabled={busy === "update_budget"}>
+              {busy === "update_budget" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null} Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="Gasto 30d" value={brl(c?.gasto_30d_brl)} />
