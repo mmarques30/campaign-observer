@@ -54,7 +54,7 @@ function Saude() {
     },
   });
 
-  const problemas = (conv.data ?? []).filter((c) => c.status_conexao !== "ok");
+  const problemas = (conv.data ?? []).filter((c) => c.precisa_atencao === true);
   const activeCampaigns = new Set((conv.data ?? []).filter((c) => c.status === "ativa").map((c) => c.utm_campaign).filter(Boolean));
 
   return (

@@ -4638,6 +4638,7 @@ export type Database = {
           lp_views_30d: number | null
           meta_campaign_id: string | null
           orcamento_diario_brl: number | null
+          precisa_atencao: boolean | null
           status: string | null
           status_conexao: string | null
           taxa_conversao_crm_pct: number | null
