@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { num, pct } from "@/lib/ads-utils";
-import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle } from "lucide-react";
+import { num, pct, brl } from "@/lib/ads-utils";
+import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/lps")({
   component: LPs,
@@ -20,6 +20,30 @@ function healthBadge(s: string | null | undefined) {
   if (v === "erro_cliente") return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
   if (v === "erro_servidor") return "bg-red-500/15 text-red-700 border-red-500/30";
   return "bg-zinc-500/15 text-zinc-600 border-zinc-500/30";
+}
+
+// Fração do tráfego que o Clarity capturou: verde ≥30%, amarelo 10-29%, vermelho <10%.
+function sampleColor(v: number | null | undefined) {
+  if (v == null) return "text-muted-foreground";
+  if (v >= 30) return "text-emerald-600";
+  if (v >= 10) return "text-yellow-600";
+  return "text-red-600";
+}
+
+// Conv % (Meta) — métrica primária: ≥10% verde forte, 2-9.99% amarelo, <2% vermelho.
+function convMetaClass(v: number | null | undefined) {
+  if (v == null) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (v >= 10) return "bg-emerald-500/20 text-emerald-700 border-emerald-500/40";
+  if (v >= 2) return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
+  return "bg-red-500/15 text-red-700 border-red-500/30";
+}
+
+// CPL real: ≤R$50 verde, R$50-150 amarelo, >R$150 vermelho.
+function cplColor(v: number | null | undefined) {
+  if (v == null) return "text-muted-foreground";
+  if (v <= 50) return "text-emerald-600";
+  if (v <= 150) return "text-yellow-600";
+  return "text-red-600";
 }
 
 function tipoBadge(t: string | null | undefined) {
@@ -143,16 +167,38 @@ function LPs() {
                   <TableHead className="text-right">Resp. (ms)</TableHead>
                   <TableHead className="text-center">Pixel</TableHead>
                   <TableHead className="text-right">Sessions Clarity</TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">% Clarity captura <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Fração do tráfego real (Meta LP Views) que o Clarity conseguiu rastrear. Quanto menor, mais o tráfego vem de in-app browsers (FB/IG) que bloqueiam o script.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
                   <TableHead className="text-right">LP Views Meta</TableHead>
                   <TableHead className="text-right">Forms 30d</TableHead>
-                  <TableHead className="text-right">Conv % (Meta)</TableHead>
-                  <TableHead className="text-right">Conv % (Clarity)</TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">Conv % (Meta) <Star className="h-3 w-3 text-amber-500 fill-amber-500" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Conversion rate real: submissions com utm_source=meta ÷ LP views da Meta. Esta é a métrica primária pra decisão de escalonamento.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">CPL real <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Custo por form-submit. Gasto Meta total ÷ submissions com utm_source=meta.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">Conv % (amostra Clarity) <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Conversion rate calculada com sessões do Clarity. Como Clarity captura só 3-49% do tráfego real (in-app browsers bloqueiam), esse valor é impreciso. Use "Conv % (Meta)" pra decisões.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
                   <TableHead>Alerta</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lps.isLoading && <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
-                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
+                {lps.isLoading && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
+                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
                 {filtered.map((r) => (
                   <TableRow key={r.lp_id ?? r.id ?? r.url}>
                     <TableCell>
@@ -171,10 +217,20 @@ function LPs() {
                       {r.pixel_meta_detectado ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> : <XCircle className="h-4 w-4 text-red-500 inline" />}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{num(r.sessions_clarity_30d)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.clarity_sample_rate_pct == null ? <span className="text-muted-foreground">—</span> : <span className={sampleColor(r.clarity_sample_rate_pct)}>{Number(r.clarity_sample_rate_pct).toFixed(1)}%</span>}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums">{num(r.meta_lp_views_30d)}</TableCell>
                     <TableCell className="text-right tabular-nums">{num(r.submissions_30d)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{pct(r.taxa_conversao_meta_pct)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{pct(r.taxa_conversao_clarity_pct)}</TableCell>
+                    <TableCell className="text-right">
+                      {(() => { const m = r.cvr_meta_pct_30d ?? r.taxa_conversao_meta_pct; return <Badge variant="outline" className={`tabular-nums ${convMetaClass(m)}`}>{m == null ? "—" : pct(m)}</Badge>; })()}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {r.cpl_real_30d == null ? <span className="text-muted-foreground">—</span> : <span className={cplColor(r.cpl_real_30d)}>{brl(r.cpl_real_30d)}</span>}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                      {(() => { const c = r.cvr_clarity_pct_30d ?? r.taxa_conversao_clarity_pct; return c == null ? "—" : pct(c); })()}
+                    </TableCell>
                     <TableCell>
                       {r.alerta ? <Badge variant="outline" className="bg-red-500/15 text-red-700 border-red-500/30">{r.alerta}</Badge> : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
