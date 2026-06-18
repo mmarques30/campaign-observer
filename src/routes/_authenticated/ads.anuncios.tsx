@@ -22,9 +22,39 @@ function Anuncios() {
   const { data, isLoading } = useQuery({
     queryKey: ["mads", "topAds"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mads_v_top_ads_30d").select("*");
-      if (error) throw error;
-      return data ?? [];
+      // Lista TODOS os anúncios (mads_ads) e enriquece com as métricas 30d da view
+      // (a view top_ads corta em 50 por gasto e deixa de fora anúncios ativos sem volume).
+      const [adsRes, viewRes, adsetRes, convRes] = await Promise.all([
+        supabase.from("mads_ads").select("id, nome, status, ad_set_id, meta_ad_id"),
+        supabase.from("mads_v_top_ads_30d").select("*"),
+        supabase.from("mads_ad_sets").select("id, campanha_id"),
+        supabase.from("mads_v_conversao_vs_crm").select("campanha_uuid, campanha_nome"),
+      ]);
+      if (adsRes.error) throw adsRes.error;
+      if (viewRes.error) throw viewRes.error;
+
+      const viewByAd = new Map((viewRes.data ?? []).map((v: any) => [v.ad_uuid, v]));
+      const adsetCamp = new Map((adsetRes.data ?? []).map((a: any) => [a.id, a.campanha_id]));
+      const campNome = new Map((convRes.data ?? []).map((c: any) => [c.campanha_uuid, c.campanha_nome]));
+
+      return (adsRes.data ?? []).map((a: any) => {
+        const v: any = viewByAd.get(a.id) ?? {};
+        return {
+          ad_uuid: a.id,
+          ad_nome: a.nome,
+          status: a.status,
+          meta_ad_id: a.meta_ad_id ?? v.meta_ad_id ?? null,
+          campanha_nome: v.campanha_nome ?? campNome.get(adsetCamp.get(a.ad_set_id)) ?? null,
+          impressoes: v.impressoes ?? null,
+          cliques_link: v.cliques_link ?? null,
+          lp_views: v.lp_views ?? null,
+          leads: v.leads ?? null,
+          gasto_brl: v.gasto_brl ?? null,
+          ctr_pct: v.ctr_pct ?? null,
+          cpc_brl: v.cpc_brl ?? null,
+          cpl_brl: v.cpl_brl ?? null,
+        };
+      });
     },
   });
 
@@ -61,8 +91,8 @@ function Anuncios() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Top anúncios</h1>
-        <p className="text-sm text-muted-foreground">Performance dos últimos 30 dias</p>
+        <h1 className="text-2xl font-bold tracking-tight">Anúncios</h1>
+        <p className="text-sm text-muted-foreground">Todos os anúncios · métricas dos últimos 30 dias</p>
       </div>
 
       <div className="flex flex-wrap gap-3">
