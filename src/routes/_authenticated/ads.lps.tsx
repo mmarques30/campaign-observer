@@ -13,13 +13,23 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { num, pct, brl } from "@/lib/ads-utils";
-import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, X } from "lucide-react";
+import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, X, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/lps")({
   component: LPs,
 });
 
-const LS_KEY = "lps-filtros";
+const LS_FILTROS = "lps-filtros";
+const LS_PERIODO = "mads_periodo_lps";
+
+type Periodo = "24h" | "7d" | "30d" | "90d" | "desde_reset";
+const PERIODOS: { v: Periodo; l: string }[] = [
+  { v: "24h", l: "Últimas 24h" },
+  { v: "7d", l: "Últimos 7 dias" },
+  { v: "30d", l: "Últimos 30 dias" },
+  { v: "90d", l: "Últimos 90 dias" },
+  { v: "desde_reset", l: "Desde reset" },
+];
 
 const SORTS = [
   { v: "manual", l: "Manual" },
@@ -70,30 +80,35 @@ function tipoBadge(t: string | null | undefined) {
   return "bg-zinc-500/15 text-zinc-600 border-zinc-500/30";
 }
 
-function readLS(): { sortBy?: SortKey; periodo?: "30d" | "7d"; tipos?: string[]; soAtivas?: boolean } {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "{}"); } catch { return {}; }
+function readLS(key: string): any {
+  try { return JSON.parse(localStorage.getItem(key) ?? "null"); } catch { return null; }
 }
 
 function LPs() {
-  const saved = typeof window !== "undefined" ? readLS() : {};
-  const [sortBy, setSortBy] = useState<SortKey>(saved.sortBy ?? "manual");
-  const [periodo, setPeriodo] = useState<"30d" | "7d">(saved.periodo ?? "30d");
-  const [soAtivas, setSoAtivas] = useState<boolean>(saved.soAtivas ?? true);
-  const [tiposSel, setTiposSel] = useState<string[] | null>(saved.tipos ?? null);
+  const savedF = typeof window !== "undefined" ? (readLS(LS_FILTROS) ?? {}) : {};
+  const savedP = typeof window !== "undefined" ? readLS(LS_PERIODO) : null;
+  const [sortBy, setSortBy] = useState<SortKey>(savedF.sortBy ?? "manual");
+  const [periodo, setPeriodo] = useState<Periodo>(savedP ?? "30d");
+  const [soAtivas, setSoAtivas] = useState<boolean>(savedF.soAtivas ?? true);
+  const [tiposSel, setTiposSel] = useState<string[] | null>(savedF.tipos ?? null);
   const [busca, setBusca] = useState("");
 
   const lps = useQuery({
-    queryKey: ["mads", "lp_performance"],
+    queryKey: ["mads", "lp_performance_multi"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mads_v_lp_performance").select("*");
-      if (error) throw error;
-      return data ?? [];
+      const [baseRes, multiRes] = await Promise.all([
+        supabase.from("mads_v_lp_performance").select("*"),
+        (supabase as any).from("mads_v_lp_performance_multi").select("*"),
+      ]);
+      if (baseRes.error) throw baseRes.error;
+      const multiById = new Map((multiRes.data ?? []).map((m: any) => [m.id, m]));
+      // multi traz as janelas + refeita_em; base traz health/clarity/alerta/engajamento.
+      return (baseRes.data ?? []).map((b: any) => ({ ...(multiById.get(b.id) ?? {}), ...b }));
     },
   });
 
   const rows = (lps.data ?? []) as any[];
 
-  // Tipos disponíveis (isca/advocacia só se houver LP ativa desse tipo).
   const tiposDisponiveis = useMemo(() => {
     const all = Array.from(new Set(rows.map((r) => r.tipo_lead).filter(Boolean))) as string[];
     return all.filter((t) => {
@@ -103,16 +118,18 @@ function LPs() {
     });
   }, [rows]);
 
-  // Default: todos marcados quando ainda não escolhido.
   useEffect(() => {
     if (tiposSel === null && tiposDisponiveis.length > 0) setTiposSel(tiposDisponiveis);
   }, [tiposDisponiveis, tiposSel]);
 
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify({ sortBy, periodo, tipos: tiposSel, soAtivas })); } catch { /* ignore */ }
-  }, [sortBy, periodo, tiposSel, soAtivas]);
+    try { localStorage.setItem(LS_FILTROS, JSON.stringify({ sortBy, soAtivas, tipos: tiposSel })); } catch { /* ignore */ }
+  }, [sortBy, soAtivas, tiposSel]);
+  useEffect(() => {
+    try { localStorage.setItem(LS_PERIODO, JSON.stringify(periodo)); } catch { /* ignore */ }
+  }, [periodo]);
 
-  const tiposAtivos = tiposSel; // null = todos
+  const tiposAtivos = tiposSel;
 
   const filtered = useMemo(() => {
     const list = rows.filter((r) => {
@@ -142,6 +159,7 @@ function LPs() {
 
   const is30 = periodo === "30d";
   const sortLabel = SORTS.find((s) => s.v === sortBy)?.l;
+  const periodoLabel = PERIODOS.find((p) => p.v === periodo)?.l;
   const tipoLabel = !tiposAtivos || tiposAtivos.length === tiposDisponiveis.length ? "Todos" : `${tiposAtivos.length} tipo(s)`;
 
   function toggleTipo(t: string, on: boolean) {
@@ -178,26 +196,20 @@ function LPs() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <CardTitle>Performance por LP</CardTitle>
-                <CardDescription>Métricas dos últimos {is30 ? "30" : "7"} dias · {filtered.length} LP(s)</CardDescription>
-              </div>
+            <div>
+              <CardTitle>Performance por LP</CardTitle>
+              <CardDescription>Métricas · {periodoLabel} · {filtered.length} LP(s)</CardDescription>
             </div>
 
-            {/* Barra de controles */}
             <div className="flex flex-wrap items-center gap-2 mt-3">
+              <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+                <SelectTrigger className="w-[190px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
+                <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
+              </Select>
+
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
                 <SelectTrigger className="w-[190px]"><span className="text-muted-foreground mr-1">Ordenar:</span><SelectValue /></SelectTrigger>
                 <SelectContent>{SORTS.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
-              </Select>
-
-              <Select value={periodo} onValueChange={(v) => setPeriodo(v as "30d" | "7d")}>
-                <SelectTrigger className="w-[130px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30d">30 dias</SelectItem>
-                  <SelectItem value="7d">7 dias</SelectItem>
-                </SelectContent>
               </Select>
 
               <Popover>
@@ -251,7 +263,7 @@ function LPs() {
                   <TableHead className="text-right">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1">% Clarity captura <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">Fração do tráfego real (Meta LP Views) que o Clarity conseguiu rastrear. Só disponível em 30d.</TooltipContent>
+                      <TooltipContent className="max-w-xs">Fração do tráfego real (Meta LP Views) que o Clarity rastreou. Só disponível em 30d.</TooltipContent>
                     </Tooltip>
                   </TableHead>
                   <TableHead className="text-right">LP Views Meta</TableHead>
@@ -259,19 +271,19 @@ function LPs() {
                   <TableHead className="text-right">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">Conv % (Meta) <Star className="h-3 w-3 text-amber-500 fill-amber-500" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">Conversion rate real: submissions com utm_source=meta ÷ LP views da Meta. Métrica primária pra decisão.</TooltipContent>
+                      <TooltipContent className="max-w-xs">CVR real: submissions meta ÷ LP views da Meta (no período escolhido). Métrica primária.</TooltipContent>
                     </Tooltip>
                   </TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1">CPL real <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">Custo por form-submit (Gasto Meta ÷ submissions meta). Só disponível em 30d.</TooltipContent>
+                      <TooltipContent className="max-w-xs">Custo por form-submit: gasto Meta ÷ submissions meta (no período escolhido).</TooltipContent>
                     </Tooltip>
                   </TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1">Conv % (amostra Clarity) <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">CVR com sessões Clarity (amostra 3-49%, imprecisa). Use "Conv % (Meta)". Só 30d.</TooltipContent>
+                      <TooltipContent className="max-w-xs">CVR com sessões Clarity (amostra imprecisa). Só 30d.</TooltipContent>
                     </Tooltip>
                   </TableHead>
                   <TableHead>Alerta</TableHead>
@@ -281,17 +293,33 @@ function LPs() {
                 {lps.isLoading && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
                 {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
                 {filtered.map((r) => {
-                  const sClarity = is30 ? r.sessions_clarity_30d : r.sessions_clarity_7d;
-                  const views = is30 ? r.meta_lp_views_30d : r.meta_lp_views_7d;
-                  const forms = is30 ? r.submissions_30d : r.submissions_7d;
-                  const cvrMeta = is30 ? (r.cvr_meta_pct_30d ?? r.taxa_conversao_meta_pct) : r.cvr_meta_pct_7d;
+                  const semReset = periodo === "desde_reset" && !r.refeita_em;
+                  const views = semReset ? null : r[`meta_lp_views_${periodo}`];
+                  const gasto = semReset ? null : r[`gasto_meta_${periodo}`];
+                  const forms = semReset ? null : r[`submissions_${periodo}`];
+                  const subsMeta = semReset ? null : r[`submissions_meta_${periodo}`];
+                  const cvrMeta = views > 0 && subsMeta != null ? (subsMeta / views) * 100 : null;
+                  const cpl = subsMeta > 0 && gasto != null ? gasto / subsMeta : null;
                   const inativa = r.ativa !== true;
+                  const dash = <span className="text-muted-foreground">—</span>;
                   return (
                     <TableRow key={r.id ?? r.url}>
                       <TableCell>
-                        <div className="font-medium flex items-center gap-2">
+                        <div className="font-medium flex items-center gap-2 flex-wrap">
                           {r.nome ?? "—"}
                           {inativa && <Badge variant="outline" className="bg-zinc-500/15 text-zinc-500 border-zinc-500/30 text-[10px]">inativa</Badge>}
+                          {r.refeita_em && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px]">
+                                  <RefreshCw className="h-2.5 w-2.5" /> refeita há {r.dias_desde_reset ?? "?"} dias
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                LP refeita em {new Date(r.refeita_em).toLocaleDateString("pt-BR")}. O histórico anterior fica preservado, mas "Desde reset" te dá a visão limpa da versão atual — selecione no dropdown de período.
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
                         </div>
                         {r.url && (
                           <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1">
@@ -306,19 +334,17 @@ function LPs() {
                       <TableCell className="text-center">
                         {r.pixel_meta_detectado ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> : <XCircle className="h-4 w-4 text-red-500 inline" />}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{num(sClarity)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{is30 ? num(r.sessions_clarity_30d) : dash}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {!is30 ? <span className="text-muted-foreground">—</span> : r.clarity_sample_rate_pct == null ? <span className="text-muted-foreground">—</span> : <span className={sampleColor(r.clarity_sample_rate_pct)}>{Number(r.clarity_sample_rate_pct).toFixed(1)}%</span>}
+                        {!is30 ? dash : r.clarity_sample_rate_pct == null ? dash : <span className={sampleColor(r.clarity_sample_rate_pct)}>{Number(r.clarity_sample_rate_pct).toFixed(1)}%</span>}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums">{num(views)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{num(forms)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{semReset ? dash : num(views)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{semReset ? dash : num(forms)}</TableCell>
                       <TableCell className="text-right">
-                        <Badge variant="outline" className={`tabular-nums ${convMetaClass(cvrMeta)}`}>{cvrMeta == null ? "—" : pct(cvrMeta)}</Badge>
+                        {semReset ? dash : <Badge variant="outline" className={`tabular-nums ${convMetaClass(cvrMeta)}`}>{cvrMeta == null ? "—" : pct(cvrMeta)}</Badge>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {!is30 ? <span className="text-muted-foreground">—</span>
-                          : r.cpl_real_30d == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge>
-                          : <span className={cplColor(r.cpl_real_30d)}>{brl(r.cpl_real_30d)}</span>}
+                        {semReset ? dash : cpl == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge> : <span className={cplColor(cpl)}>{brl(cpl)}</span>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {!is30 ? "—" : (() => { const c = r.cvr_clarity_pct_30d ?? r.taxa_conversao_clarity_pct; return c == null ? "—" : pct(c); })()}
