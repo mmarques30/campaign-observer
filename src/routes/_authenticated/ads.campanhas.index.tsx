@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
+import { PERIODOS, rangeFromPeriodo, periodoLabel, minFetchSince, type Periodo } from "@/lib/periodo";
 import { AlertTriangle, CheckCircle2, Plus } from "lucide-react";
 import { useEffect, useState, useMemo } from "react";
 
@@ -14,58 +15,74 @@ export const Route = createFileRoute("/_authenticated/ads/campanhas/")({
   component: CampanhasList,
 });
 
-const LS_PERIODO = "mads_periodo_campanhas";
-type Periodo = "24h" | "7d" | "30d" | "90d";
-const PERIODOS: { v: Periodo; l: string }[] = [
-  { v: "24h", l: "Últimas 24h" },
-  { v: "7d", l: "Últimos 7 dias" },
-  { v: "30d", l: "Últimos 30 dias" },
-  { v: "90d", l: "Últimos 90 dias" },
-];
+// Período compartilhado com dashboard/insights/criativos/anúncios.
+const LS_PERIODO = "mads_periodo_dashboard";
 
 function CampanhasList() {
   const savedP = (() => { try { return JSON.parse(localStorage.getItem(LS_PERIODO) ?? "null"); } catch { return null; } })();
-  const [periodo, setPeriodo] = useState<Periodo>(typeof window !== "undefined" ? (savedP ?? "30d") : "30d");
+  const [periodo, setPeriodo] = useState<Periodo>(typeof window !== "undefined" ? (savedP ?? "7d") : "7d");
   const [status, setStatus] = useState("all");
   const [tipo, setTipo] = useState("all");
   const [health, setHealth] = useState("all");
 
-  useEffect(() => {
-    try { localStorage.setItem(LS_PERIODO, JSON.stringify(periodo)); } catch { /* ignore */ }
-  }, [periodo]);
+  useEffect(() => { try { localStorage.setItem(LS_PERIODO, JSON.stringify(periodo)); } catch { /* ignore */ } }, [periodo]);
+
+  const desde = minFetchSince();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["mads", "campanhas_multi"],
+    queryKey: ["mads", "campanhas_conv"],
     queryFn: async () => {
-      const [convRes, multiRes] = await Promise.all([
-        supabase.from("mads_v_conversao_vs_crm").select("*"),
-        (supabase as any).from("mads_v_campaign_performance_multi").select("*"),
-      ]);
-      if (convRes.error) throw convRes.error;
-      // multi traz as janelas de impressões/cliques/lp_views/leads/gasto; conversao traz CRM/diagnóstico.
-      const multiById = new Map((multiRes.data ?? []).map((m: any) => [m.id, m]));
-      return (convRes.data ?? []).map((c: any) => ({ ...(multiById.get(c.campanha_uuid) ?? {}), ...c }));
+      const { data, error } = await supabase.from("mads_v_conversao_vs_crm").select("*");
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
-  const tipos = useMemo(() => [...new Set((data ?? []).map((d) => d.tipo_lead).filter(Boolean))] as string[], [data]);
-  const statuses = useMemo(() => [...new Set((data ?? []).map((d) => d.status).filter(Boolean))] as string[], [data]);
-  const healths = useMemo(() => [...new Set((data ?? []).map((d) => d.status_conexao).filter(Boolean))] as string[], [data]);
+  // Grão diário por campanha — reperiodizado no front (mesma fonte do dashboard).
+  const funil = useQuery({
+    queryKey: ["mads", "funil_diario_campanhas", desde],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("mads_v_funil_diario")
+        .select("dia, campanha_uuid, lp_views, leads_meta, gasto_brl")
+        .gte("dia", desde);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { since, until } = rangeFromPeriodo(periodo);
+
+  // Soma por campanha dentro do período selecionado.
+  const metricasPorCamp = useMemo(() => {
+    const m = new Map<string, { gasto: number; lp_views: number; leads: number }>();
+    for (const r of (funil.data ?? []) as any[]) {
+      if (r.dia < since || r.dia > until) continue;
+      const cur = m.get(r.campanha_uuid) ?? { gasto: 0, lp_views: 0, leads: 0 };
+      cur.gasto += Number(r.gasto_brl ?? 0);
+      cur.lp_views += Number(r.lp_views ?? 0);
+      cur.leads += Number(r.leads_meta ?? 0);
+      m.set(r.campanha_uuid, cur);
+    }
+    return m;
+  }, [funil.data, since, until]);
+
+  const tipos = useMemo(() => [...new Set((data ?? []).map((d: any) => d.tipo_lead).filter(Boolean))] as string[], [data]);
+  const statuses = useMemo(() => [...new Set((data ?? []).map((d: any) => d.status).filter(Boolean))] as string[], [data]);
+  const healths = useMemo(() => [...new Set((data ?? []).map((d: any) => d.status_conexao).filter(Boolean))] as string[], [data]);
 
   const rows = (data ?? []).filter((r: any) =>
     (status === "all" || r.status === status) &&
     (tipo === "all" || r.tipo_lead === tipo) &&
     (health === "all" || r.status_conexao === health)
-  ).sort((a: any, b: any) => Number(b[`gasto_${periodo}`] ?? 0) - Number(a[`gasto_${periodo}`] ?? 0));
-
-  const periodoLabel = PERIODOS.find((p) => p.v === periodo)?.l;
+  ).sort((a: any, b: any) => (metricasPorCamp.get(b.campanha_uuid)?.gasto ?? 0) - (metricasPorCamp.get(a.campanha_uuid)?.gasto ?? 0));
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
-          <p className="text-sm text-muted-foreground">Performance vs CRM · {periodoLabel}</p>
+          <p className="text-sm text-muted-foreground">Performance vs CRM · {periodoLabel(periodo)}</p>
         </div>
         <Button asChild>
           <Link to="/ads/campanhas/nova"><Plus className="h-4 w-4 mr-2" /> Nova campanha</Link>
@@ -74,7 +91,7 @@ function CampanhasList() {
 
       <div className="flex flex-wrap gap-3">
         <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
-          <SelectTrigger className="w-[200px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[190px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
           <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
         </Select>
         <Filter v={status} on={setStatus} placeholder="Status" opts={statuses} />
@@ -100,15 +117,13 @@ function CampanhasList() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Carregando...</TableCell></TableRow>}
+              {(isLoading || funil.isLoading) && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Carregando...</TableCell></TableRow>}
               {!isLoading && rows.length === 0 && <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma campanha encontrada.</TableCell></TableRow>}
               {rows.map((c: any) => {
                 const ok = c.status_conexao === "ok";
-                const gasto = c[`gasto_${periodo}`];
-                const lpViews = c[`lp_views_${periodo}`];
-                const leads = c[`leads_${periodo}`];
-                const cvr = lpViews > 0 && leads != null ? (leads / lpViews) * 100 : null;
-                const cpl = leads > 0 && gasto != null ? gasto / leads : null;
+                const met = metricasPorCamp.get(c.campanha_uuid) ?? { gasto: 0, lp_views: 0, leads: 0 };
+                const cvr = met.lp_views > 0 ? (met.leads / met.lp_views) * 100 : null;
+                const cpl = met.leads > 0 ? met.gasto / met.leads : null;
                 return (
                   <TableRow key={c.campanha_uuid} className="cursor-pointer">
                     <TableCell>
@@ -118,9 +133,9 @@ function CampanhasList() {
                     </TableCell>
                     <TableCell><Badge variant="outline">{c.tipo_lead ?? "—"}</Badge></TableCell>
                     <TableCell><Badge variant="outline" className={statusBadge(c.status)}>{c.status}</Badge></TableCell>
-                    <TableCell className="text-right tabular-nums">{brl(gasto)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{num(lpViews)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{num(leads)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{brl(met.gasto)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(met.lp_views)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(met.leads)}</TableCell>
                     <TableCell className="text-right tabular-nums">{num(c.contacts_crm_30d)}</TableCell>
                     <TableCell className="text-right tabular-nums">{cvr == null ? "—" : pct(cvr)}</TableCell>
                     <TableCell className="text-right tabular-nums">{cpl == null ? "—" : brl(cpl)}</TableCell>
