@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film } from "lucide-react";
+import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ const nav = [
   { to: "/ads/campanhas", label: "Campanhas", icon: Megaphone, exact: false },
   { to: "/ads/anuncios", label: "Anúncios", icon: Image, exact: false },
   { to: "/ads/criativos", label: "Criativos", icon: Film, exact: false },
+  { to: "/ads/insights", label: "Insights", icon: Sparkles, exact: false },
   { to: "/ads/capi-events", label: "Eventos CAPI", icon: Webhook, exact: false },
   { to: "/ads/lps", label: "Landing Pages", icon: Globe, exact: false },
   { to: "/ads/audiencias", label: "Audiências", icon: Users, exact: false },
