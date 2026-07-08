@@ -71,11 +71,13 @@ function CampanhasList() {
   const statuses = useMemo(() => [...new Set((data ?? []).map((d: any) => d.status).filter(Boolean))] as string[], [data]);
   const healths = useMemo(() => [...new Set((data ?? []).map((d: any) => d.status_conexao).filter(Boolean))] as string[], [data]);
 
+  // Ativas primeiro, depois pausadas; dentro do grupo, maior gasto no período no topo.
+  const ativoRank = (r: any) => ((r.status ?? "").toLowerCase() === "ativa" ? 0 : 1);
   const rows = (data ?? []).filter((r: any) =>
     (status === "all" || r.status === status) &&
     (tipo === "all" || r.tipo_lead === tipo) &&
     (health === "all" || r.status_conexao === health)
-  ).sort((a: any, b: any) => (metricasPorCamp.get(b.campanha_uuid)?.gasto ?? 0) - (metricasPorCamp.get(a.campanha_uuid)?.gasto ?? 0));
+  ).sort((a: any, b: any) => ativoRank(a) - ativoRank(b) || (metricasPorCamp.get(b.campanha_uuid)?.gasto ?? 0) - (metricasPorCamp.get(a.campanha_uuid)?.gasto ?? 0));
 
   return (
     <div className="space-y-6">

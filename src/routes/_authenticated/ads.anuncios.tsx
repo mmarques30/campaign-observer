@@ -112,11 +112,12 @@ function Anuncios() {
   const camps = useMemo(() => [...new Set((data ?? []).map((d: any) => d.campanha_nome).filter(Boolean))] as string[], [data]);
   const statuses = useMemo(() => [...new Set((data ?? []).map((d: any) => d.status).filter(Boolean))] as string[], [data]);
 
-  // Default: menor CPMQL primeiro (NULLS LAST) — quem qualifica mais barato no topo.
+  // Ordenação: ativos primeiro, depois pausados; dentro de cada grupo, menor CPMQL no topo.
+  const ativoRank = (r: any) => ((r.status ?? "").toLowerCase() === "ativa" ? 0 : 1);
   const rows = (data ?? []).filter((r: any) =>
     (camp === "all" || r.campanha_nome === camp) &&
     (status === "all" || r.status === status)
-  ).sort((a: any, b: any) => (a.cpmql_brl ?? Infinity) - (b.cpmql_brl ?? Infinity));
+  ).sort((a: any, b: any) => ativoRank(a) - ativoRank(b) || (a.cpmql_brl ?? Infinity) - (b.cpmql_brl ?? Infinity));
 
   return (
     <div className="space-y-6">

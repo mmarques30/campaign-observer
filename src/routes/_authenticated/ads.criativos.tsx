@@ -80,6 +80,7 @@ function Criativos() {
 
   const campanhas = useMemo(() => [...new Set(base.map((r) => r.campanha_nome).filter(Boolean))] as string[], [base]);
 
+  // Ativos primeiro, depois pausados; dentro do grupo mantém a ordem por CPMQL (vinda da função).
   const rows = useMemo(() => base.filter((r) => {
     const st = (r.ad_status ?? "").toLowerCase();
     if (status === "ativos" && st !== "ativa") return false;
@@ -87,7 +88,7 @@ function Criativos() {
     if (campanha !== "all" && r.campanha_nome !== campanha) return false;
     if (busca && !(r.ad_nome ?? "").toLowerCase().includes(busca.toLowerCase())) return false;
     return true;
-  }), [base, status, campanha, busca]);
+  }).sort((a, b) => ((a.ad_status ?? "").toLowerCase() === "ativa" ? 0 : 1) - ((b.ad_status ?? "").toLowerCase() === "ativa" ? 0 : 1)), [base, status, campanha, busca]);
 
   // Cards de decisão — agora orientados por CPMQL (KPI real), não CVR.
   const melhor = useMemo(() => base
