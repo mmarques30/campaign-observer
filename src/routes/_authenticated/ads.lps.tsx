@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { num, pct, brl } from "@/lib/ads-utils";
+import { PERIODOS as STD_PERIODOS, rangeFromPeriodo, periodoLabel as stdLabel, type Periodo as StdPeriodo } from "@/lib/periodo";
 import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, X, RefreshCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/lps")({
@@ -20,16 +21,12 @@ export const Route = createFileRoute("/_authenticated/ads/lps")({
 });
 
 const LS_FILTROS = "lps-filtros";
-const LS_PERIODO = "mads_periodo_lps";
+const LS_SHARED = "mads_periodo_dashboard"; // período padrão compartilhado com as outras telas
+const LS_RESET = "mads_lps_desde_reset";     // "Desde reset" é exclusivo das LPs (não polui o compartilhado)
 
-type Periodo = "24h" | "7d" | "30d" | "90d" | "desde_reset";
-const PERIODOS: { v: Periodo; l: string }[] = [
-  { v: "24h", l: "Últimas 24h" },
-  { v: "7d", l: "Últimos 7 dias" },
-  { v: "30d", l: "Últimos 30 dias" },
-  { v: "90d", l: "Últimos 90 dias" },
-  { v: "desde_reset", l: "Desde reset" },
-];
+// Períodos: os 5 padrão (compartilhados) + "Desde reset" (só nas LPs).
+type LpPeriodo = StdPeriodo | "desde_reset";
+const PERIODOS: { v: LpPeriodo; l: string }[] = [...STD_PERIODOS, { v: "desde_reset", l: "Desde reset" }];
 
 const SORTS = [
   { v: "manual", l: "Manual" },
@@ -86,24 +83,42 @@ function readLS(key: string): any {
 
 function LPs() {
   const savedF = typeof window !== "undefined" ? (readLS(LS_FILTROS) ?? {}) : {};
-  const savedP = typeof window !== "undefined" ? readLS(LS_PERIODO) : null;
+  const savedShared = typeof window !== "undefined" ? readLS(LS_SHARED) : null;
+  const savedReset = typeof window !== "undefined" && localStorage.getItem(LS_RESET) === "1";
   const [sortBy, setSortBy] = useState<SortKey>(savedF.sortBy ?? "manual");
-  const [periodo, setPeriodo] = useState<Periodo>(savedP ?? "30d");
+  const [periodo, setPeriodo] = useState<LpPeriodo>(savedReset ? "desde_reset" : (savedShared ?? "7d"));
   const [soAtivas, setSoAtivas] = useState<boolean>(savedF.soAtivas ?? true);
   const [tiposSel, setTiposSel] = useState<string[] | null>(savedF.tipos ?? null);
   const [busca, setBusca] = useState("");
 
+  // "Desde reset" fica no localStorage local; os padrão vão pro compartilhado (propaga entre telas).
+  useEffect(() => {
+    try {
+      if (periodo === "desde_reset") { localStorage.setItem(LS_RESET, "1"); }
+      else { localStorage.setItem(LS_RESET, "0"); localStorage.setItem(LS_SHARED, JSON.stringify(periodo)); }
+    } catch { /* ignore */ }
+  }, [periodo]);
+
+  const stdPeriodo: StdPeriodo = periodo === "desde_reset" ? "30d" : periodo;
+  const { since, until } = rangeFromPeriodo(stdPeriodo);
+
   const lps = useQuery({
-    queryKey: ["mads", "lp_performance_multi"],
+    queryKey: ["mads", "lp_performance", since, until],
     queryFn: async () => {
-      const [baseRes, multiRes] = await Promise.all([
+      const [baseRes, multiRes, fnRes] = await Promise.all([
         supabase.from("mads_v_lp_performance").select("*"),
-        (supabase as any).from("mads_v_lp_performance_multi").select("*"),
+        (supabase as any).from("mads_v_lp_performance_multi").select("id, refeita_em, dias_desde_reset, meta_lp_views_desde_reset, gasto_meta_desde_reset, submissions_desde_reset, submissions_meta_desde_reset"),
+        (supabase as any).rpc("mads_f_lp_performance", { p_since: since, p_until: until }),
       ]);
       if (baseRes.error) throw baseRes.error;
       const multiById = new Map((multiRes.data ?? []).map((m: any) => [m.id, m]));
-      // multi traz as janelas + refeita_em; base traz health/clarity/alerta/engajamento.
-      return (baseRes.data ?? []).map((b: any) => ({ ...(multiById.get(b.id) ?? {}), ...b }));
+      const fnById = new Map((fnRes.data ?? []).map((f: any) => [f.id, f]));
+      // base: health/clarity/alerta/engajamento + *_30d p/ ordenação; multi: refeita_em + desde_reset; fn: janela escolhida.
+      return (baseRes.data ?? []).map((b: any) => {
+        const m: any = multiById.get(b.id) ?? {};
+        const f: any = fnById.get(b.id) ?? {};
+        return { ...m, ...b, fn_views: f.meta_lp_views, fn_gasto: f.gasto_meta, fn_forms: f.submissions, fn_subs_meta: f.submissions_meta };
+      });
     },
   });
 
@@ -125,9 +140,6 @@ function LPs() {
   useEffect(() => {
     try { localStorage.setItem(LS_FILTROS, JSON.stringify({ sortBy, soAtivas, tipos: tiposSel })); } catch { /* ignore */ }
   }, [sortBy, soAtivas, tiposSel]);
-  useEffect(() => {
-    try { localStorage.setItem(LS_PERIODO, JSON.stringify(periodo)); } catch { /* ignore */ }
-  }, [periodo]);
 
   const tiposAtivos = tiposSel;
 
@@ -157,9 +169,9 @@ function LPs() {
   const comPixel = rows.filter((r) => r.pixel_meta_detectado).length;
   const comAlertas = rows.filter((r) => r.alerta).length;
 
-  const is30 = periodo === "30d";
+  const is30 = periodo === "30d"; // Clarity só tem 30d
   const sortLabel = SORTS.find((s) => s.v === sortBy)?.l;
-  const periodoLabel = PERIODOS.find((p) => p.v === periodo)?.l;
+  const periodoLabel = periodo === "desde_reset" ? "Desde reset" : stdLabel(periodo);
   const tipoLabel = !tiposAtivos || tiposAtivos.length === tiposDisponiveis.length ? "Todos" : `${tiposAtivos.length} tipo(s)`;
 
   function toggleTipo(t: string, on: boolean) {
@@ -202,7 +214,7 @@ function LPs() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mt-3">
-              <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+              <Select value={periodo} onValueChange={(v) => setPeriodo(v as LpPeriodo)}>
                 <SelectTrigger className="w-[190px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
                 <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
               </Select>
@@ -293,11 +305,12 @@ function LPs() {
                 {lps.isLoading && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
                 {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
                 {filtered.map((r) => {
-                  const semReset = periodo === "desde_reset" && !r.refeita_em;
-                  const views = semReset ? null : r[`meta_lp_views_${periodo}`];
-                  const gasto = semReset ? null : r[`gasto_meta_${periodo}`];
-                  const forms = semReset ? null : r[`submissions_${periodo}`];
-                  const subsMeta = semReset ? null : r[`submissions_meta_${periodo}`];
+                  const reset = periodo === "desde_reset";
+                  const semReset = reset && !r.refeita_em;
+                  const views = reset ? (semReset ? null : r.meta_lp_views_desde_reset) : r.fn_views;
+                  const gasto = reset ? (semReset ? null : r.gasto_meta_desde_reset) : r.fn_gasto;
+                  const forms = reset ? (semReset ? null : r.submissions_desde_reset) : r.fn_forms;
+                  const subsMeta = reset ? (semReset ? null : r.submissions_meta_desde_reset) : r.fn_subs_meta;
                   const cvrMeta = views > 0 && subsMeta != null ? (subsMeta / views) * 100 : null;
                   const cpl = subsMeta > 0 && gasto != null ? gasto / subsMeta : null;
                   const inativa = r.ativa !== true;
