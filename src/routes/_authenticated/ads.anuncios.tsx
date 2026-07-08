@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { brl, num, pct, statusBadge } from "@/lib/ads-utils";
+import { cn } from "@/lib/utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { DuplicarAdDialog, type DupTarget } from "@/components/ads/DuplicarAdDialog";
 import { AbrirNoMetaIcon, urlMetaAd } from "@/components/ads/AbrirNoMeta";
@@ -18,17 +19,33 @@ export const Route = createFileRoute("/_authenticated/ads/anuncios")({
   component: Anuncios,
 });
 
+function semaforoText(s: string | null | undefined) {
+  switch ((s ?? "").toLowerCase()) {
+    case "verde": return "text-emerald-600";
+    case "amarelo": return "text-yellow-600";
+    case "vermelho": return "text-red-600";
+    default: return "text-muted-foreground";
+  }
+}
+// Célula CRM colorida por semáforo (taxa qualif. em % ou CPMQL em R$). sem_dado → "—".
+function CrmCell({ value, semaforo, kind }: { value: number | null | undefined; semaforo: string | null | undefined; kind: "pct" | "brl" }) {
+  if ((semaforo ?? "") === "sem_dado" || value == null) return <span className="text-muted-foreground">—</span>;
+  const txt = kind === "pct" ? `${Number(value).toFixed(1).replace(".", ",")}%` : brl(value);
+  return <span className={cn("tabular-nums font-semibold", semaforoText(semaforo))}>{txt}</span>;
+}
+
 function Anuncios() {
   const { data, isLoading } = useQuery({
     queryKey: ["mads", "topAds"],
     queryFn: async () => {
       // Lista TODOS os anúncios (mads_ads) e enriquece com as métricas 30d da view
       // (a view top_ads corta em 50 por gasto e deixa de fora anúncios ativos sem volume).
-      const [adsRes, viewRes, adsetRes, convRes] = await Promise.all([
+      const [adsRes, viewRes, adsetRes, convRes, crmRes] = await Promise.all([
         supabase.from("mads_ads").select("id, nome, status, ad_set_id, meta_ad_id"),
         supabase.from("mads_v_top_ads_30d").select("*"),
         supabase.from("mads_ad_sets").select("id, campanha_id"),
         supabase.from("mads_v_conversao_vs_crm").select("campanha_uuid, campanha_nome"),
+        (supabase as any).from("mads_v_ads_crm_30d").select("*"),
       ]);
       if (adsRes.error) throw adsRes.error;
       if (viewRes.error) throw viewRes.error;
@@ -36,9 +53,11 @@ function Anuncios() {
       const viewByAd = new Map((viewRes.data ?? []).map((v: any) => [v.ad_uuid, v]));
       const adsetCamp = new Map((adsetRes.data ?? []).map((a: any) => [a.id, a.campanha_id]));
       const campNome = new Map((convRes.data ?? []).map((c: any) => [c.campanha_uuid, c.campanha_nome]));
+      const crmByAd = new Map((crmRes.data ?? []).map((c: any) => [c.ad_uuid, c]));
 
       return (adsRes.data ?? []).map((a: any) => {
         const v: any = viewByAd.get(a.id) ?? {};
+        const crm: any = crmByAd.get(a.id) ?? {};
         return {
           ad_uuid: a.id,
           ad_nome: a.nome,
@@ -53,6 +72,14 @@ function Anuncios() {
           ctr_pct: v.ctr_pct ?? null,
           cpc_brl: v.cpc_brl ?? null,
           cpl_brl: v.cpl_brl ?? null,
+          // CRM (dupla-chave por ad)
+          leads_crm: crm.leads_crm ?? null,
+          mql: crm.mql ?? null,
+          sal: crm.sal ?? null,
+          taxa_qualif_pct: crm.taxa_qualif_pct ?? null,
+          taxa_qualif_semaforo: crm.taxa_qualif_semaforo ?? "sem_dado",
+          cpmql_brl: crm.cpmql_brl ?? null,
+          cpmql_semaforo: crm.cpmql_semaforo ?? "sem_dado",
         };
       });
     },
@@ -83,10 +110,11 @@ function Anuncios() {
   const camps = useMemo(() => [...new Set((data ?? []).map((d) => d.campanha_nome).filter(Boolean))] as string[], [data]);
   const statuses = useMemo(() => [...new Set((data ?? []).map((d) => d.status).filter(Boolean))] as string[], [data]);
 
+  // Default: menor CPMQL primeiro (NULLS LAST) — quem qualifica mais barato no topo.
   const rows = (data ?? []).filter((r) =>
     (camp === "all" || r.campanha_nome === camp) &&
     (status === "all" || r.status === status)
-  ).sort((a, b) => (b.gasto_brl ?? 0) - (a.gasto_brl ?? 0));
+  ).sort((a, b) => (a.cpmql_brl ?? Infinity) - (b.cpmql_brl ?? Infinity));
 
   return (
     <div className="space-y-6">
@@ -106,14 +134,20 @@ function Anuncios() {
             <TableHeader><TableRow>
               <TableHead>Nome</TableHead><TableHead>Campanha</TableHead><TableHead>Status</TableHead>
               <TableHead className="text-right">Impr.</TableHead><TableHead className="text-right">Cliques</TableHead>
-              <TableHead className="text-right">LP Views</TableHead><TableHead className="text-right">Leads</TableHead>
+              <TableHead className="text-right">LP Views</TableHead>
+              <TableHead className="text-right">Leads Meta</TableHead>
+              <TableHead className="text-right">Leads CRM</TableHead>
+              <TableHead className="text-right">MQL</TableHead>
+              <TableHead className="text-right">SAL</TableHead>
+              <TableHead className="text-right">Taxa qualif.</TableHead>
+              <TableHead className="text-right font-bold text-foreground">CPMQL ★</TableHead>
               <TableHead className="text-right">Gasto</TableHead><TableHead className="text-right">CTR</TableHead>
               <TableHead className="text-right">CPC</TableHead><TableHead className="text-right">CPL</TableHead>
               <TableHead className="text-center">Ações</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {isLoading && <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
-              {!isLoading && rows.length === 0 && <TableRow><TableCell colSpan={12} className="text-center py-8 text-muted-foreground">Nenhum anúncio.</TableCell></TableRow>}
+              {isLoading && <TableRow><TableCell colSpan={17} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
+              {!isLoading && rows.length === 0 && <TableRow><TableCell colSpan={17} className="text-center py-8 text-muted-foreground">Nenhum anúncio.</TableCell></TableRow>}
               {rows.map((a) => (
                 <TableRow key={a.ad_uuid}>
                   <TableCell className="font-medium max-w-[260px] truncate">{a.ad_nome}</TableCell>
@@ -123,6 +157,11 @@ function Anuncios() {
                   <TableCell className="text-right tabular-nums">{num(a.cliques_link)}</TableCell>
                   <TableCell className="text-right tabular-nums">{num(a.lp_views)}</TableCell>
                   <TableCell className="text-right tabular-nums">{num(a.leads)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{(a.leads_crm ?? 0) > 0 ? num(a.leads_crm) : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-right tabular-nums">{(a.mql ?? 0) > 0 ? num(a.mql) : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-right tabular-nums">{(a.sal ?? 0) > 0 ? num(a.sal) : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-right"><CrmCell value={a.taxa_qualif_pct} semaforo={a.taxa_qualif_semaforo} kind="pct" /></TableCell>
+                  <TableCell className="text-right"><CrmCell value={a.cpmql_brl} semaforo={a.cpmql_semaforo} kind="brl" /></TableCell>
                   <TableCell className="text-right tabular-nums">{brl(a.gasto_brl)}</TableCell>
                   <TableCell className="text-right tabular-nums">{pct(a.ctr_pct)}</TableCell>
                   <TableCell className="text-right tabular-nums">{brl(a.cpc_brl)}</TableCell>
