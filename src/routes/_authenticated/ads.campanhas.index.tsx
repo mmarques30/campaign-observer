@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { brl, num, pct, statusBadge, healthColor, healthLabel } from "@/lib/ads-utils";
 import { PERIODOS, rangeFromPeriodo, periodoLabel, minFetchSince, type Periodo } from "@/lib/periodo";
-import { AlertTriangle, CheckCircle2, Plus } from "lucide-react";
-import { useEffect, useState, useMemo } from "react";
+import { AlertTriangle, CheckCircle2, Plus, ChevronRight, ChevronDown, Globe } from "lucide-react";
+import { Fragment, useEffect, useState, useMemo } from "react";
 
 export const Route = createFileRoute("/_authenticated/ads/campanhas/")({
   component: CampanhasList,
@@ -17,6 +17,16 @@ export const Route = createFileRoute("/_authenticated/ads/campanhas/")({
 
 // Período compartilhado com dashboard/insights/criativos/anúncios.
 const LS_PERIODO = "mads_periodo_dashboard";
+
+function urlKey(u: string | null | undefined): string {
+  return (u ?? "").replace(/^https?:\/\//, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+}
+function cpmqlColor(v: number | null | undefined) {
+  if (v == null) return "text-muted-foreground";
+  if (v <= 100) return "text-emerald-600";
+  if (v <= 200) return "text-yellow-600";
+  return "text-red-600";
+}
 
 function CampanhasList() {
   const savedP = (() => { try { return JSON.parse(localStorage.getItem(LS_PERIODO) ?? "null"); } catch { return null; } })();
@@ -52,6 +62,36 @@ function CampanhasList() {
   });
 
   const { since, until } = rangeFromPeriodo(periodo);
+
+  // Drill-down: LP de destino de cada campanha + qualificação da LP no período.
+  const lpDrill = useQuery({
+    queryKey: ["mads", "camp_lp_drill", since, until],
+    queryFn: async () => {
+      const [campRes, lpsRes, fnRes] = await Promise.all([
+        supabase.from("mads_campaigns").select("id, lp_destino"),
+        supabase.from("mads_lps").select("id, nome, url"),
+        (supabase as any).rpc("mads_f_lp_performance", { p_since: since, p_until: until }),
+      ]);
+      const fnById = new Map((fnRes.data ?? []).map((f: any) => [f.id, f]));
+      const lpByKey = new Map<string, any>();
+      for (const l of (lpsRes.data ?? []) as any[]) {
+        const f: any = fnById.get(l.id) ?? {};
+        lpByKey.set(urlKey(l.url), {
+          nome: l.nome, url: l.url,
+          forms: Number(f.submissions ?? 0), mql: Number(f.mql ?? 0), gasto: Number(f.gasto_meta ?? 0),
+          cvrMql: Number(f.submissions ?? 0) > 0 ? (Number(f.mql ?? 0) / Number(f.submissions)) * 100 : null,
+          cpmql: Number(f.mql ?? 0) > 0 ? Number(f.gasto_meta ?? 0) / Number(f.mql) : null,
+        });
+      }
+      const lpDestByCamp = new Map((campRes.data ?? []).map((c: any) => [c.id, urlKey(c.lp_destino)]));
+      return { lpByKey, lpDestByCamp };
+    },
+  });
+  const lpDaCampanha = (campId: string) => {
+    const key = lpDrill.data?.lpDestByCamp.get(campId);
+    return key ? lpDrill.data?.lpByKey.get(key) : undefined;
+  };
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   // Soma por campanha dentro do período selecionado.
   const metricasPorCamp = useMemo(() => {
@@ -126,12 +166,20 @@ function CampanhasList() {
                 const met = metricasPorCamp.get(c.campanha_uuid) ?? { gasto: 0, lp_views: 0, leads: 0 };
                 const cvr = met.lp_views > 0 ? (met.leads / met.lp_views) * 100 : null;
                 const cpl = met.leads > 0 ? met.gasto / met.leads : null;
+                const lp = lpDaCampanha(c.campanha_uuid);
+                const isOpen = expanded === c.campanha_uuid;
                 return (
-                  <TableRow key={c.campanha_uuid} className="cursor-pointer">
+                  <Fragment key={c.campanha_uuid}>
+                  <TableRow>
                     <TableCell>
-                      <Link to="/ads/campanhas/$id" params={{ id: c.campanha_uuid ?? "" }} className="font-medium hover:underline">
-                        {c.campanha_nome}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setExpanded(isOpen ? null : c.campanha_uuid)} className="text-muted-foreground hover:text-foreground shrink-0" title="Ver LP de destino e qualificação" disabled={!lp}>
+                          {!lp ? <ChevronRight className="h-3.5 w-3.5 opacity-30" /> : isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                        </button>
+                        <Link to="/ads/campanhas/$id" params={{ id: c.campanha_uuid ?? "" }} className="font-medium hover:underline">
+                          {c.campanha_nome}
+                        </Link>
+                      </div>
                     </TableCell>
                     <TableCell><Badge variant="outline">{c.tipo_lead ?? "—"}</Badge></TableCell>
                     <TableCell><Badge variant="outline" className={statusBadge(c.status)}>{c.status}</Badge></TableCell>
@@ -148,6 +196,23 @@ function CampanhasList() {
                       </div>
                     </TableCell>
                   </TableRow>
+                  {isOpen && lp && (
+                    <TableRow>
+                      <TableCell colSpan={10} className="bg-muted/30 p-0">
+                        <div className="p-3">
+                          <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1"><Globe className="h-3.5 w-3.5" /> LP de destino · {periodoLabel(periodo)}</div>
+                          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                            <a href={lp.url} target="_blank" rel="noreferrer" className="font-medium hover:text-primary">{lp.nome}</a>
+                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">Forms </span>{num(lp.forms)}</span>
+                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">MQL </span>{(lp.mql ?? 0) > 0 ? num(lp.mql) : "—"}</span>
+                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">CVR→MQL </span>{lp.cvrMql == null ? "—" : pct(lp.cvrMql)}</span>
+                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">CPMQL </span>{lp.cpmql == null ? <span className="text-muted-foreground">sem MQL</span> : <span className={cpmqlColor(lp.cpmql)}>{brl(lp.cpmql)}</span>}</span>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  </Fragment>
                 );
               })}
             </TableBody>
