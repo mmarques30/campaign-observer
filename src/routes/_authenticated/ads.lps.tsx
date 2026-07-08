@@ -68,6 +68,20 @@ function cplColor(v: number | null | undefined) {
   if (v <= 150) return "text-yellow-600";
   return "text-red-600";
 }
+// CPMQL por LP: ≤R$100 verde, ≤R$200 amarelo, >R$200 vermelho (régua padrão do app).
+function cpmqlColor(v: number | null | undefined) {
+  if (v == null) return "text-muted-foreground";
+  if (v <= 100) return "text-emerald-600";
+  if (v <= 200) return "text-yellow-600";
+  return "text-red-600";
+}
+// Taxa de qualificação lead→MQL: ≥25% verde, ≥10% amarelo, <10% vermelho.
+function taxaMqlClass(v: number | null | undefined) {
+  if (v == null) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (v >= 25) return "bg-emerald-500/20 text-emerald-700 border-emerald-500/40";
+  if (v >= 10) return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
+  return "bg-red-500/15 text-red-700 border-red-500/30";
+}
 function tipoBadge(t: string | null | undefined) {
   const v = (t ?? "").toLowerCase();
   if (v === "business") return "bg-blue-500/15 text-blue-700 border-blue-500/30";
@@ -117,7 +131,7 @@ function LPs() {
       return (baseRes.data ?? []).map((b: any) => {
         const m: any = multiById.get(b.id) ?? {};
         const f: any = fnById.get(b.id) ?? {};
-        return { ...m, ...b, fn_views: f.meta_lp_views, fn_gasto: f.gasto_meta, fn_forms: f.submissions, fn_subs_meta: f.submissions_meta };
+        return { ...m, ...b, fn_views: f.meta_lp_views, fn_gasto: f.gasto_meta, fn_forms: f.submissions, fn_subs_meta: f.submissions_meta, fn_mql: f.mql };
       });
     },
   });
@@ -294,6 +308,24 @@ function LPs() {
                   </TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">MQL <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Leads desta LP (por page_url do form) que viraram MQL no CRM (qualification_status='mql').</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">CVR → MQL <Star className="h-3 w-3 text-amber-500 fill-amber-500" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Taxa de qualificação REAL da LP: MQL ÷ forms. É o que mostra se a LP gera lead que presta, não só volume.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">CPMQL <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">Custo por MQL: gasto Meta das campanhas que apontam pra esta LP ÷ MQL gerados.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1">Conv % (amostra Clarity) <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                       <TooltipContent className="max-w-xs">CVR com sessões Clarity (amostra imprecisa). Só 30d.</TooltipContent>
                     </Tooltip>
@@ -302,8 +334,8 @@ function LPs() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lps.isLoading && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
-                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
+                {lps.isLoading && <TableRow><TableCell colSpan={16} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
+                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={16} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
                 {filtered.map((r) => {
                   const reset = periodo === "desde_reset";
                   const semReset = reset && !r.refeita_em;
@@ -313,6 +345,10 @@ function LPs() {
                   const subsMeta = reset ? (semReset ? null : r.submissions_meta_desde_reset) : r.fn_subs_meta;
                   const cvrMeta = views > 0 && subsMeta != null ? (subsMeta / views) * 100 : null;
                   const cpl = subsMeta > 0 && gasto != null ? gasto / subsMeta : null;
+                  // MQL por LP (só nos períodos padrão; "desde reset" não tem recorte de MQL).
+                  const mqlLp = reset ? null : r.fn_mql;
+                  const cvrMql = !reset && forms > 0 && mqlLp != null ? (mqlLp / forms) * 100 : null;
+                  const cpmqlLp = !reset && mqlLp > 0 && gasto != null ? gasto / mqlLp : null;
                   const inativa = r.ativa !== true;
                   const dash = <span className="text-muted-foreground">—</span>;
                   return (
@@ -358,6 +394,13 @@ function LPs() {
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {semReset ? dash : cpl == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge> : <span className={cplColor(cpl)}>{brl(cpl)}</span>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{reset ? dash : (mqlLp ?? 0) > 0 ? num(mqlLp) : <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="text-right">
+                        {reset ? dash : <Badge variant="outline" className={`tabular-nums ${taxaMqlClass(cvrMql)}`}>{cvrMql == null ? "—" : pct(cvrMql)}</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {reset ? dash : cpmqlLp == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge> : <span className={cpmqlColor(cpmqlLp)}>{brl(cpmqlLp)}</span>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {!is30 ? "—" : (() => { const c = r.cvr_clarity_pct_30d ?? r.taxa_conversao_clarity_pct; return c == null ? "—" : pct(c); })()}
