@@ -169,8 +169,8 @@ function Insights() {
                 <span>Gasto {brl(a.gasto)}</span><span>{num(a.mql)} MQL</span>
                 <span className="font-bold text-emerald-700">CPMQL {brl(a.cpmql_brl)}</span>
               </div>
-              <Button size="sm" variant="outline" className="w-full" onClick={() => setDupAd({ id: a.ad_uuid, nome: a.ad_nome })}>
-                <Copy className="h-3.5 w-3.5 mr-1" /> Duplicar para campanha
+              <Button size="sm" variant="outline" className="w-full" title="Cria uma cópia deste ad (PAUSADA) em outro ad set, pra escalar o que funciona sem recomeçar do zero" onClick={() => setDupAd({ id: a.ad_uuid, nome: a.ad_nome })}>
+                <Copy className="h-3.5 w-3.5 mr-1" /> Escalar: duplicar ad (PAUSED)
               </Button>
             </div>
           ))}

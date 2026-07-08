@@ -141,7 +141,6 @@ function Dashboard() {
             <SelectTrigger className="w-[180px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
             <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
           </Select>
-          <Link to="/ads/insights" className="inline-flex items-center gap-1 text-sm text-primary hover:underline"><Sparkles className="h-4 w-4" />Insights</Link>
           <PdfButton
             label="Relatório mensal"
             build={async () => {
