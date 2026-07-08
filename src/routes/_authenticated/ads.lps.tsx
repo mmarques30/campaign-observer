@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { num, pct, brl } from "@/lib/ads-utils";
 import { PERIODOS as STD_PERIODOS, rangeFromPeriodo, periodoLabel as stdLabel, type Periodo as StdPeriodo } from "@/lib/periodo";
-import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, X, RefreshCw } from "lucide-react";
+import { AbrirNoMetaButton, urlMetaAd } from "@/components/ads/AbrirNoMeta";
+import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, ChevronRight, X, RefreshCw } from "lucide-react";
+
+// Normaliza URL pra casar LP (mads_lps.url) com o destino da campanha (lp_destino).
+function urlKey(u: string | null | undefined): string {
+  return (u ?? "").replace(/^https?:\/\//, "").replace(/[?#].*$/, "").replace(/\/+$/, "").toLowerCase();
+}
 
 export const Route = createFileRoute("/_authenticated/ads/lps")({
   component: LPs,
@@ -137,6 +143,33 @@ function LPs() {
   });
 
   const rows = (lps.data ?? []) as any[];
+
+  // Etapa 2 — ads que apontam pra cada LP (drill-down por lp_destino da campanha).
+  const adsLp = useQuery({
+    queryKey: ["mads", "ads_por_lp", since, until],
+    queryFn: async () => {
+      const [adsRes, adsetRes, campRes] = await Promise.all([
+        (supabase as any).rpc("mads_f_ads_crm", { p_since: since, p_until: until }),
+        supabase.from("mads_ad_sets").select("id, campanha_id"),
+        supabase.from("mads_campaigns").select("id, lp_destino"),
+      ]);
+      const lpDestByCamp = new Map((campRes.data ?? []).map((c: any) => [c.id, c.lp_destino]));
+      const campByAdset = new Map((adsetRes.data ?? []).map((a: any) => [a.id, a.campanha_id]));
+      return (adsRes.data ?? []).map((r: any) => ({ ...r, lpKey: urlKey(lpDestByCamp.get(campByAdset.get(r.ad_set_id))) }));
+    },
+  });
+  const adsByLp = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const a of (adsLp.data ?? []) as any[]) {
+      if (!a.lpKey) continue;
+      // só ads com atividade no período (evita despejar dezenas de ads zerados)
+      if (Number(a.gasto ?? 0) <= 0 && Number(a.leads_meta ?? 0) <= 0 && Number(a.mql ?? 0) <= 0) continue;
+      const arr = m.get(a.lpKey) ?? []; arr.push(a); m.set(a.lpKey, arr);
+    }
+    for (const arr of m.values()) arr.sort((x, y) => Number(y.gasto ?? 0) - Number(x.gasto ?? 0));
+    return m;
+  }, [adsLp.data]);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const tiposDisponiveis = useMemo(() => {
     const all = Array.from(new Set(rows.map((r) => r.tipo_lead).filter(Boolean))) as string[];
@@ -351,11 +384,18 @@ function LPs() {
                   const cpmqlLp = !reset && mqlLp > 0 && gasto != null ? gasto / mqlLp : null;
                   const inativa = r.ativa !== true;
                   const dash = <span className="text-muted-foreground">—</span>;
+                  const lpAds = adsByLp.get(urlKey(r.url)) ?? [];
+                  const isOpen = expanded === (r.id ?? r.url);
                   return (
-                    <TableRow key={r.id ?? r.url}>
+                    <Fragment key={r.id ?? r.url}>
+                    <TableRow>
                       <TableCell>
                         <div className="font-medium flex items-center gap-2 flex-wrap">
+                          <button type="button" onClick={() => setExpanded(isOpen ? null : (r.id ?? r.url))} className="text-muted-foreground hover:text-foreground shrink-0" title="Ver criativos/anúncios que apontam pra esta LP" disabled={lpAds.length === 0}>
+                            {lpAds.length === 0 ? <ChevronRight className="h-3.5 w-3.5 opacity-30" /> : isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                          </button>
                           {r.nome ?? "—"}
+                          {lpAds.length > 0 && <span className="text-[10px] text-muted-foreground">({lpAds.length} ad{lpAds.length > 1 ? "s" : ""})</span>}
                           {inativa && <Badge variant="outline" className="bg-zinc-500/15 text-zinc-500 border-zinc-500/30 text-[10px]">inativa</Badge>}
                           {r.refeita_em && (
                             <Tooltip>
@@ -409,6 +449,44 @@ function LPs() {
                         {r.alerta ? <Badge variant="outline" className="bg-red-500/15 text-red-700 border-red-500/30">{r.alerta}</Badge> : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                     </TableRow>
+                    {isOpen && (
+                      <TableRow>
+                        <TableCell colSpan={16} className="bg-muted/30 p-0">
+                          <div className="p-3">
+                            <div className="text-xs font-semibold text-muted-foreground mb-2">Criativos / anúncios que apontam pra esta LP · {periodoLabel}</div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="text-left text-muted-foreground border-b border-border/50">
+                                    <th className="py-1 pr-3 font-medium">Ad</th>
+                                    <th className="py-1 pr-3 font-medium">Campanha</th>
+                                    <th className="py-1 pr-3 font-medium text-right">Gasto</th>
+                                    <th className="py-1 pr-3 font-medium text-right">Leads Meta</th>
+                                    <th className="py-1 pr-3 font-medium text-right">MQL</th>
+                                    <th className="py-1 pr-3 font-medium text-right">CPMQL</th>
+                                    <th className="py-1"></th>
+                                  </tr>
+                                </thead>
+                                <tbody className="[&>tr]:border-b [&>tr]:border-border/30">
+                                  {lpAds.map((a: any) => (
+                                    <tr key={a.ad_uuid}>
+                                      <td className="py-1.5 pr-3 font-medium max-w-[220px] truncate" title={a.ad_nome}>{a.ad_nome}</td>
+                                      <td className="py-1.5 pr-3 text-muted-foreground max-w-[180px] truncate">{a.campanha_nome}</td>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums">{brl(a.gasto)}</td>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums">{num(a.leads_meta)}</td>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums">{(a.mql ?? 0) > 0 ? num(a.mql) : <span className="text-muted-foreground">—</span>}</td>
+                                      <td className="py-1.5 pr-3 text-right tabular-nums">{a.cpmql_brl == null ? <span className="text-muted-foreground">—</span> : <span className={cpmqlColor(Number(a.cpmql_brl))}>{brl(a.cpmql_brl)}</span>}</td>
+                                      <td className="py-1.5 text-right">{a.meta_ad_id && <AbrirNoMetaButton url={urlMetaAd(a.meta_ad_id)} label="Meta" />}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    </Fragment>
                   );
                 })}
               </TableBody>
