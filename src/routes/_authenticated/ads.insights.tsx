@@ -11,7 +11,7 @@ import { brl, num } from "@/lib/ads-utils";
 import { PERIODOS, rangeFromPeriodo, rangeAnterior, periodoLabel, type Periodo } from "@/lib/periodo";
 import { DuplicarAdDialog, type DupTarget } from "@/components/ads/DuplicarAdDialog";
 import { AbrirNoMetaButton, urlMetaAd } from "@/components/ads/AbrirNoMeta";
-import { Trophy, Flame, Lightbulb, Copy, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { Trophy, Flame, Lightbulb, Copy, ArrowUpRight, ArrowDownRight, Minus, Globe } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/insights")({
   component: Insights,
@@ -58,8 +58,32 @@ function Insights() {
     },
   });
 
+  // Qualificação por LP na janela (reusa a função das LPs).
+  const lpPerf = useQuery({
+    queryKey: ["mads", "lp_perf_insights", since, until],
+    queryFn: async () => {
+      const [fnRes, lpsRes] = await Promise.all([
+        (supabase as any).rpc("mads_f_lp_performance", { p_since: since, p_until: until }),
+        supabase.from("mads_lps").select("id, nome, ativa"),
+      ]);
+      const lpById = new Map((lpsRes.data ?? []).map((l: any) => [l.id, l]));
+      return (fnRes.data ?? []).map((f: any) => {
+        const l: any = lpById.get(f.id) ?? {};
+        return {
+          id: f.id, nome: l.nome ?? "—", gasto: Number(f.gasto_meta ?? 0),
+          submissions: Number(f.submissions ?? 0), mql: Number(f.mql ?? 0),
+          cpmql: Number(f.mql ?? 0) > 0 ? Number(f.gasto_meta ?? 0) / Number(f.mql) : null,
+          cvrMql: Number(f.submissions ?? 0) > 0 ? (Number(f.mql ?? 0) / Number(f.submissions)) * 100 : null,
+        };
+      });
+    },
+  });
+
   const [dupAd, setDupAd] = useState<DupTarget | null>(null);
   const ads: any[] = adsCrm.data ?? [];
+  const lps: any[] = lpPerf.data ?? [];
+  const lpMelhor = useMemo(() => lps.filter((l) => l.mql > 0 && l.cpmql != null).sort((a, b) => a.cpmql - b.cpmql).slice(0, 3), [lps]);
+  const lpQueimando = useMemo(() => lps.filter((l) => l.mql === 0 && l.gasto > 0).sort((a, b) => b.gasto - a.gasto).slice(0, 3), [lps]);
 
   // ---- Seção 1: diagnóstico geral (período atual vs período anterior de mesma duração) ----
   const somaEntre = (rows: any[], campo: string, a: string, b: string) =>
@@ -195,6 +219,37 @@ function Insights() {
                 : <Badge variant="outline" className="text-muted-foreground">sem meta_ad_id</Badge>}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Seção 3.5 — Qualificação por LP */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> Qualificação por LP</CardTitle><CardDescription>Quais landing pages qualificam melhor (menor CPMQL) e quais queimam verba · {periodoLabel(periodo)}</CardDescription></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1"><Trophy className="h-4 w-4" /> Mais qualificam (menor CPMQL)</div>
+            {lpMelhor.length === 0 && <div className="text-sm text-muted-foreground">Nenhuma LP com MQL no período.</div>}
+            <div className="space-y-1.5">
+              {lpMelhor.map((l) => (
+                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-emerald-500/20 bg-emerald-500/5">
+                  <span className="font-medium truncate">{l.nome}</span>
+                  <span className="tabular-nums text-xs shrink-0"><span className="text-muted-foreground">{num(l.mql)} MQL · </span><span className="font-bold text-emerald-700">CPMQL {brl(l.cpmql)}</span></span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-red-700 mb-2 flex items-center gap-1"><Flame className="h-4 w-4" /> Queimando verba (gasto e 0 MQL)</div>
+            {lpQueimando.length === 0 && <div className="text-sm text-muted-foreground">Nenhuma LP gastando sem MQL. 🎉</div>}
+            <div className="space-y-1.5">
+              {lpQueimando.map((l) => (
+                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-red-500/20 bg-red-500/5">
+                  <span className="font-medium truncate">{l.nome}</span>
+                  <span className="tabular-nums text-xs shrink-0"><span className="font-bold text-red-700">Gasto {brl(l.gasto)}</span><span className="text-muted-foreground"> · {num(l.submissions)} forms · 0 MQL</span></span>
+                </div>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
