@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { PERIODOS, rangeFromPeriodo, periodoLabel, type Periodo } from "@/lib/periodo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,12 +57,17 @@ function Criativos() {
   const [campanha, setCampanha] = useState("all");
   const [busca, setBusca] = useState("");
 
+  // Período compartilhado com dashboard/insights.
+  const savedP = (() => { try { return JSON.parse(localStorage.getItem("mads_periodo_dashboard") ?? "null"); } catch { return null; } })();
+  const [periodo, setPeriodo] = useState<Periodo>(typeof window !== "undefined" ? (savedP ?? "7d") : "7d");
+  useEffect(() => { try { localStorage.setItem("mads_periodo_dashboard", JSON.stringify(periodo)); } catch { /* ignore */ } }, [periodo]);
+  const { since, until } = rangeFromPeriodo(periodo);
+
   const criativos = useQuery({
-    queryKey: ["mads", "criativos"],
+    queryKey: ["mads", "criativos", since, until],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
-        .from("mads_v_criativos_metricas")
-        .select("*")
+        .rpc("mads_f_criativos_metricas", { p_since: since, p_until: until })
         .gt("video_plays", 0)
         .order("cpmql_brl", { ascending: true, nullsFirst: false });
       if (error) throw error;
@@ -104,7 +110,7 @@ function Criativos() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Film className="h-6 w-6 text-primary" /> Métricas de Criativos</h1>
-        <p className="text-sm text-muted-foreground">KPI primário: <strong className="text-foreground">CPMQL</strong> (custo por MQL) · funil do criativo (Hook → Body → Retenção → CTR → CVR) · Business & Contábil · 30 dias</p>
+        <p className="text-sm text-muted-foreground">KPI primário: <strong className="text-foreground">CPMQL</strong> (custo por MQL) · funil do criativo (Hook → Body → Retenção → CTR → CVR) · Business & Contábil · {periodoLabel(periodo)}</p>
       </div>
 
       {semAtribuicaoCrm && (
@@ -183,6 +189,10 @@ function Criativos() {
 
       {/* Bloco 2 — Tabela */}
       <div className="flex flex-wrap gap-3">
+        <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+          <SelectTrigger className="w-[180px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
+          <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
+        </Select>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
