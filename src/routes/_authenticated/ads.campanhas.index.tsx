@@ -206,7 +206,7 @@ function CampanhasList() {
                             <span className="tabular-nums text-xs"><span className="text-muted-foreground">Forms </span>{num(lp.forms)}</span>
                             <span className="tabular-nums text-xs"><span className="text-muted-foreground">MQL </span>{(lp.mql ?? 0) > 0 ? num(lp.mql) : "—"}</span>
                             <span className="tabular-nums text-xs"><span className="text-muted-foreground">CVR→MQL </span>{lp.cvrMql == null ? "—" : pct(lp.cvrMql)}</span>
-                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">CPMQL </span>{lp.cpmql == null ? <span className="text-muted-foreground">sem MQL</span> : <span className={cpmqlColor(lp.cpmql)}>{brl(lp.cpmql)}</span>}</span>
+                            <span className="tabular-nums text-xs"><span className="text-muted-foreground">CPMQL </span>{lp.cpmql == null ? <span className="text-muted-foreground">—</span> : <span className={cpmqlColor(lp.cpmql)}>{brl(lp.cpmql)}</span>}</span>
                           </div>
                         </div>
                       </TableCell>

@@ -38,10 +38,10 @@ function MetricCell({ pct, semaforo }: { pct: number | null | undefined; semafor
   const kill = (semaforo ?? "") === "kill";
   return <Badge className={`${semaforoClass(semaforo)} border-transparent tabular-nums gap-1`}>{kill && <AlertTriangle className="h-3 w-3" />}{fmtPct1(pct)}</Badge>;
 }
-// Célula de custo (CPMQL / CP SAL) colorida pelo semáforo. sem_dado → "sem dado" cinza.
+// Célula de custo (CPMQL / CP SAL) colorida pelo semáforo. sem_dado → traço.
 function MoneyCell({ value, semaforo, primary }: { value: number | null | undefined; semaforo: string | null | undefined; primary?: boolean }) {
   if ((semaforo ?? "") === "sem_dado" || value == null) {
-    return <Badge className="bg-gray-200 text-gray-500 border-transparent text-[11px]">sem dado</Badge>;
+    return <span className="text-muted-foreground">—</span>;
   }
   return <Badge className={`${semaforoClass(semaforo)} border-transparent tabular-nums ${primary ? "font-bold" : ""}`}>{brl(value)}</Badge>;
 }
