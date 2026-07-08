@@ -110,6 +110,9 @@ function LPs() {
   const [soAtivas, setSoAtivas] = useState<boolean>(savedF.soAtivas ?? true);
   const [tiposSel, setTiposSel] = useState<string[] | null>(savedF.tipos ?? null);
   const [busca, setBusca] = useState("");
+  const [segmento, setSegmento] = useState<"total" | "pago" | "organico">(() => (typeof window !== "undefined" ? (readLS("mads_lps_origem") ?? "pago") : "pago"));
+  useEffect(() => { try { localStorage.setItem("mads_lps_origem", JSON.stringify(segmento)); } catch { /* ignore */ } }, [segmento]);
+  const segLabel = segmento === "pago" ? "Pago" : segmento === "organico" ? "Orgânico" : "Total";
 
   // "Desde reset" fica no localStorage local; os padrão vão pro compartilhado (propaga entre telas).
   useEffect(() => {
@@ -125,19 +128,26 @@ function LPs() {
   const lps = useQuery({
     queryKey: ["mads", "lp_performance", since, until],
     queryFn: async () => {
-      const [baseRes, multiRes, fnRes] = await Promise.all([
+      const [baseRes, multiRes, fnRes, origemRes] = await Promise.all([
         supabase.from("mads_v_lp_performance").select("*"),
         (supabase as any).from("mads_v_lp_performance_multi").select("id, refeita_em, dias_desde_reset, meta_lp_views_desde_reset, gasto_meta_desde_reset, submissions_desde_reset, submissions_meta_desde_reset"),
         (supabase as any).rpc("mads_f_lp_performance", { p_since: since, p_until: until }),
+        (supabase as any).rpc("mads_f_lp_por_origem", { p_since: since, p_until: until }),
       ]);
       if (baseRes.error) throw baseRes.error;
       const multiById = new Map((multiRes.data ?? []).map((m: any) => [m.id, m]));
       const fnById = new Map((fnRes.data ?? []).map((f: any) => [f.id, f]));
-      // base: health/clarity/alerta/engajamento + *_30d p/ ordenação; multi: refeita_em + desde_reset; fn: janela escolhida.
+      const origById = new Map((origemRes.data ?? []).map((o: any) => [o.id, o]));
+      // base: health/clarity/alerta/engajamento + *_30d p/ ordenação; multi: refeita_em + desde_reset; fn: janela escolhida; orig: por origem de tráfego.
       return (baseRes.data ?? []).map((b: any) => {
         const m: any = multiById.get(b.id) ?? {};
         const f: any = fnById.get(b.id) ?? {};
-        return { ...m, ...b, fn_views: f.meta_lp_views, fn_gasto: f.gasto_meta, fn_forms: f.submissions, fn_subs_meta: f.submissions_meta, fn_mql: f.mql };
+        const o: any = origById.get(b.id) ?? {};
+        return {
+          ...m, ...b,
+          fn_views: f.meta_lp_views, fn_gasto: f.gasto_meta, fn_forms: f.submissions, fn_subs_meta: f.submissions_meta, fn_mql: f.mql,
+          org_pct_pago: o.pct_pago, org_cvr_pago: o.cvr_pago, org_cvr_organico: o.cvr_organico, org_cvr_total: o.cvr_total,
+        };
       });
     },
   });
@@ -266,6 +276,15 @@ function LPs() {
                 <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
               </Select>
 
+              <Select value={segmento} onValueChange={(v) => setSegmento(v as "total" | "pago" | "organico")}>
+                <SelectTrigger className="w-[170px]"><span className="text-muted-foreground mr-1">Ver:</span><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="total">Total</SelectItem>
+                  <SelectItem value="pago">Só Pago</SelectItem>
+                  <SelectItem value="organico">Só Orgânico</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortKey)}>
                 <SelectTrigger className="w-[190px]"><span className="text-muted-foreground mr-1">Ordenar:</span><SelectValue /></SelectTrigger>
                 <SelectContent>{SORTS.map((s) => <SelectItem key={s.v} value={s.v}>{s.l}</SelectItem>)}</SelectContent>
@@ -335,6 +354,18 @@ function LPs() {
                   </TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">CVR {segLabel} <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">CVR por origem (leads ÷ visitas do rastreamento próprio), segmentado pelo toggle "Ver". Desmistura tráfego pago do direct/orgânico.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
+                      <TooltipTrigger className="inline-flex items-center gap-1">CVR total <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">CVR de TODO o tráfego (pago + direct + orgânico + referral). Serve pra medir SEO/growth; compare com o CVR pago pra ver diluição.</TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <Tooltip>
                       <TooltipTrigger className="inline-flex items-center gap-1">CPL real <Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                       <TooltipContent className="max-w-xs">Custo por form-submit: gasto Meta ÷ submissions meta (no período escolhido).</TooltipContent>
                     </Tooltip>
@@ -367,8 +398,8 @@ function LPs() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lps.isLoading && <TableRow><TableCell colSpan={16} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
-                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={16} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
+                {lps.isLoading && <TableRow><TableCell colSpan={18} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
+                {!lps.isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={18} className="text-center py-6 text-muted-foreground">Nenhuma LP encontrada.</TableCell></TableRow>}
                 {filtered.map((r) => {
                   const reset = periodo === "desde_reset";
                   const semReset = reset && !r.refeita_em;
@@ -382,6 +413,8 @@ function LPs() {
                   const mqlLp = reset ? null : r.fn_mql;
                   const cvrMql = !reset && forms > 0 && mqlLp != null ? (mqlLp / forms) * 100 : null;
                   const cpmqlLp = !reset && mqlLp > 0 && gasto != null ? gasto / mqlLp : null;
+                  // CVR por origem (leads/visitas do pageview); toggle escolhe o segmento. Não vale p/ "desde reset".
+                  const cvrSeg = reset ? null : segmento === "pago" ? r.org_cvr_pago : segmento === "organico" ? r.org_cvr_organico : r.org_cvr_total;
                   const inativa = r.ativa !== true;
                   const dash = <span className="text-muted-foreground">—</span>;
                   const lpAds = adsByLp.get(urlKey(r.url)) ?? [];
@@ -396,6 +429,14 @@ function LPs() {
                           </button>
                           {r.nome ?? "—"}
                           {lpAds.length > 0 && <span className="text-[10px] text-muted-foreground">({lpAds.length} ad{lpAds.length > 1 ? "s" : ""})</span>}
+                          {r.org_pct_pago != null && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge variant="outline" className={`text-[10px] ${r.org_pct_pago >= 80 ? "bg-blue-500/10 text-blue-600 border-blue-500/30" : "bg-amber-500/10 text-amber-700 border-amber-500/30"}`}>{Number(r.org_pct_pago).toFixed(0)}% pago</Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">% das visitas que vieram de tráfego pago (o resto é direct/orgânico/referral). Abaixo de ~80% a LP está "diluída" — o CVR total mistura pago com não-pago.</TooltipContent>
+                            </Tooltip>
+                          )}
                           {inativa && <Badge variant="outline" className="bg-zinc-500/15 text-zinc-500 border-zinc-500/30 text-[10px]">inativa</Badge>}
                           {r.refeita_em && (
                             <Tooltip>
@@ -432,6 +473,12 @@ function LPs() {
                       <TableCell className="text-right">
                         {semReset ? dash : <Badge variant="outline" className={`tabular-nums ${convMetaClass(cvrMeta)}`}>{cvrMeta == null ? "—" : pct(cvrMeta)}</Badge>}
                       </TableCell>
+                      <TableCell className="text-right">
+                        {reset ? dash : <Badge variant="outline" className={`tabular-nums ${convMetaClass(cvrSeg)}`}>{cvrSeg == null ? "—" : pct(cvrSeg)}</Badge>}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {reset ? dash : r.org_cvr_total == null ? dash : pct(r.org_cvr_total)}
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {semReset ? dash : cpl == null ? dash : <span className={cplColor(cpl)}>{brl(cpl)}</span>}
                       </TableCell>
@@ -451,7 +498,7 @@ function LPs() {
                     </TableRow>
                     {isOpen && (
                       <TableRow>
-                        <TableCell colSpan={16} className="bg-muted/30 p-0">
+                        <TableCell colSpan={18} className="bg-muted/30 p-0">
                           <div className="p-3">
                             <div className="text-xs font-semibold text-muted-foreground mb-2">Criativos / anúncios que apontam pra esta LP · {periodoLabel}</div>
                             <div className="overflow-x-auto">
