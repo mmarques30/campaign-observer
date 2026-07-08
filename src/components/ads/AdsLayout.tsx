@@ -1,28 +1,50 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film, Sparkles } from "lucide-react";
+import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film, Sparkles, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
-const nav = [
-  { to: "/ads", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/ads/campanhas", label: "Campanhas", icon: Megaphone, exact: false },
-  { to: "/ads/anuncios", label: "Anúncios", icon: Image, exact: false },
-  { to: "/ads/criativos", label: "Criativos", icon: Film, exact: false },
-  { to: "/ads/insights", label: "Insights", icon: Sparkles, exact: false },
-  { to: "/ads/capi-events", label: "Eventos CAPI", icon: Webhook, exact: false },
-  { to: "/ads/lps", label: "Landing Pages", icon: Globe, exact: false },
-  { to: "/ads/audiencias", label: "Audiências", icon: Users, exact: false },
-  { to: "/ads/saude", label: "Saúde", icon: Activity, exact: false },
+type NavItem = { to: string; label: string; icon: any; exact?: boolean };
+type NavGroup = { id: string; label: string; icon: any; items: NavItem[] };
+
+// Item avulso no topo.
+const DASHBOARD: NavItem = { to: "/ads", label: "Dashboard", icon: LayoutDashboard, exact: true };
+
+// Menus agrupados por assunto (colapsáveis).
+const GROUPS: NavGroup[] = [
+  {
+    id: "midia", label: "Mídia paga", icon: Megaphone, items: [
+      { to: "/ads/campanhas", label: "Campanhas", icon: Megaphone },
+      { to: "/ads/anuncios", label: "Anúncios", icon: Image },
+      { to: "/ads/criativos", label: "Criativos", icon: Film },
+      { to: "/ads/audiencias", label: "Audiências", icon: Users },
+    ],
+  },
+  {
+    id: "conversao", label: "Conversão", icon: Globe, items: [
+      { to: "/ads/lps", label: "Landing Pages", icon: Globe },
+      { to: "/ads/capi-events", label: "Eventos CAPI", icon: Webhook },
+    ],
+  },
+  {
+    id: "analise", label: "Análise & Saúde", icon: Sparkles, items: [
+      { to: "/ads/insights", label: "Insights", icon: Sparkles },
+      { to: "/ads/saude", label: "Saúde", icon: Activity },
+    ],
+  },
 ];
 
+// Lista achatada (usada no modo recolhido, só ícones).
+const ALL_ITEMS: NavItem[] = [DASHBOARD, ...GROUPS.flatMap((g) => g.items)];
+
 const COLLAPSE_KEY = "ads-sidebar-collapsed";
+const GROUPS_KEY = "ads-sidebar-groups";
 
 export function AdsLayout() {
   const navigate = useNavigate();
@@ -36,6 +58,9 @@ export function AdsLayout() {
   // Desktop: icon-only collapse. Mobile: off-canvas drawer.
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem(GROUPS_KEY) ?? "{}"); } catch { return {}; }
+  });
 
   useEffect(() => {
     try {
@@ -48,6 +73,10 @@ export function AdsLayout() {
     try { localStorage.setItem(COLLAPSE_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
   }, [collapsed]);
 
+  useEffect(() => {
+    try { localStorage.setItem(GROUPS_KEY, JSON.stringify(openGroups)); } catch { /* ignore */ }
+  }, [openGroups]);
+
   // Close the mobile drawer whenever the route changes.
   useEffect(() => { setMobileOpen(false); }, [path]);
 
@@ -59,6 +88,14 @@ export function AdsLayout() {
     const t = setInterval(() => setTick((x) => x + 1), 30_000);
     return () => { clearInterval(i); clearInterval(t); };
   }, [qc]);
+
+  const isActive = (to: string, exact = false) => exact ? path === to : path === to || path.startsWith(to + "/");
+
+  // Grupo da página atual — sempre aberto (auto-expand), sem fechar os que o usuário abriu.
+  const activeGroupId = useMemo(() => GROUPS.find((g) => g.items.some((it) => isActive(it.to)))?.id, [path]);
+  useEffect(() => {
+    if (activeGroupId) setOpenGroups((o) => (o[activeGroupId] ? o : { ...o, [activeGroupId]: true }));
+  }, [activeGroupId]);
 
   async function refresh() {
     setSyncing(true);
@@ -81,10 +118,16 @@ export function AdsLayout() {
     navigate({ to: "/auth" });
   }
 
-  const isActive = (to: string, exact: boolean) => exact ? path === to : path === to || path.startsWith(to + "/");
-
   // On mobile the sidebar is never icon-collapsed; it is full-width inside the drawer.
   const showLabels = isMobile ? true : !collapsed;
+
+  const itemClass = (active: boolean, indent = false) => cn(
+    "flex items-center gap-3 rounded-md text-sm transition-colors",
+    showLabels ? (indent ? "pl-9 pr-3 py-2" : "px-3 py-2") : "px-0 py-2 justify-center",
+    active
+      ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+  );
 
   return (
     <div className="min-h-screen flex bg-background text-foreground">
@@ -111,8 +154,8 @@ export function AdsLayout() {
           </div>
           {showLabels && (
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-bold tracking-tight truncate">ADS IAplicada</div>
-              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Read-only</div>
+              <div className="text-sm font-bold tracking-tight truncate">IAplicada Ads</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Gestão de mídia</div>
             </div>
           )}
           {isMobile && (
@@ -123,23 +166,53 @@ export function AdsLayout() {
         </div>
 
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {nav.map((n) => (
-            <Link
-              key={n.to}
-              to={n.to}
-              title={showLabels ? undefined : n.label}
-              className={cn(
-                "flex items-center gap-3 rounded-md text-sm transition-colors",
-                showLabels ? "px-3 py-2" : "px-0 py-2 justify-center",
-                isActive(n.to, n.exact)
-                  ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <n.icon className="h-4 w-4 shrink-0" />
-              {showLabels && <span className="truncate">{n.label}</span>}
-            </Link>
-          ))}
+          {/* Modo recolhido (só ícones): lista achatada, sem grupos. */}
+          {!showLabels ? (
+            ALL_ITEMS.map((n) => (
+              <Link key={n.to} to={n.to} title={n.label} className={itemClass(isActive(n.to, n.exact))}>
+                <n.icon className="h-4 w-4 shrink-0" />
+              </Link>
+            ))
+          ) : (
+            <>
+              <Link to={DASHBOARD.to} className={itemClass(isActive(DASHBOARD.to, DASHBOARD.exact))}>
+                <DASHBOARD.icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{DASHBOARD.label}</span>
+              </Link>
+
+              {GROUPS.map((g) => {
+                const open = !!openGroups[g.id];
+                const groupActive = g.items.some((it) => isActive(it.to));
+                return (
+                  <div key={g.id} className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setOpenGroups((o) => ({ ...o, [g.id]: !o[g.id] }))}
+                      className={cn(
+                        "w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                        groupActive ? "text-foreground font-semibold" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                      )}
+                      aria-expanded={open}
+                    >
+                      <g.icon className="h-4 w-4 shrink-0" />
+                      <span className="truncate flex-1 text-left">{g.label}</span>
+                      <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open ? "rotate-180" : "")} />
+                    </button>
+                    {open && (
+                      <div className="mt-1 space-y-1">
+                        {g.items.map((it) => (
+                          <Link key={it.to} to={it.to} className={itemClass(isActive(it.to), true)}>
+                            <it.icon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{it.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
         </nav>
 
         <div className="p-3 border-t border-border space-y-2">
@@ -184,7 +257,7 @@ export function AdsLayout() {
             <Outlet />
           </div>
           <footer className="border-t border-border mt-8 py-4 px-6 text-center text-xs text-muted-foreground">
-            Para criar, editar ou pausar campanhas, fale com a Claude no chat principal. Este dashboard é só para visualização.
+            Sincronização automática dos dados Meta a cada 5 min. Criação, edição e pausa de campanhas disponíveis no painel.
           </footer>
         </div>
       </main>
