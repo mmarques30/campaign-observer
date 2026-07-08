@@ -1,11 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format, subDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { brl, num } from "@/lib/ads-utils";
+import { PERIODOS, rangeFromPeriodo, rangeAnterior, periodoLabel, type Periodo } from "@/lib/periodo";
 import { DuplicarAdDialog, type DupTarget } from "@/components/ads/DuplicarAdDialog";
 import { AbrirNoMetaButton, urlMetaAd } from "@/components/ads/AbrirNoMeta";
 import { Trophy, Flame, Lightbulb, Copy, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
@@ -14,128 +17,95 @@ export const Route = createFileRoute("/_authenticated/ads/insights")({
   component: Insights,
 });
 
-// Janela fixa de 30 dias (análise estratégica), comparada com os 30 dias anteriores.
-function diaISO(offset: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - offset);
-  return d.toISOString().slice(0, 10);
-}
+// Mesma chave do dashboard: a escolha de período é compartilhada entre as duas telas.
+const LS_PERIODO = "mads_periodo_dashboard";
 
 function Insights() {
-  const hoje = diaISO(0);
-  const ini30 = diaISO(30);
-  const ini60 = diaISO(60);
+  const savedP = (() => { try { return JSON.parse(localStorage.getItem(LS_PERIODO) ?? "null"); } catch { return null; } })();
+  const [periodo, setPeriodo] = useState<Periodo>(typeof window !== "undefined" ? (savedP ?? "7d") : "7d");
+  useEffect(() => { try { localStorage.setItem(LS_PERIODO, JSON.stringify(periodo)); } catch { /* ignore */ } }, [periodo]);
 
+  const { since, until } = rangeFromPeriodo(periodo);
+  const prev = rangeAnterior(periodo);
+  // Piso do fetch diário: cobre o período anterior de até 90d (≈180d atrás).
+  const floor = format(subDays(new Date(), 190), "yyyy-MM-dd");
+
+  // Atribuição por-ad na janela selecionada (função SQL parametrizável).
   const adsCrm = useQuery({
-    queryKey: ["mads", "ads_crm_30d"],
+    queryKey: ["mads", "fn_ads_crm", since, until],
     queryFn: async () => {
-      const [crmRes, adsRes, adsetRes, campRes, topRes] = await Promise.all([
-        (supabase as any).from("mads_v_ads_crm_30d").select("*"),
-        supabase.from("mads_ads").select("id, nome, status, meta_ad_id, ad_set_id"),
-        supabase.from("mads_ad_sets").select("id, nome, campanha_id"),
-        supabase.from("mads_campaigns").select("id, nome, tipo_lead"),
-        supabase.from("mads_v_top_ads_30d").select("ad_uuid, leads, gasto_brl"),
-      ]);
-      const adById = new Map((adsRes.data ?? []).map((a: any) => [a.id, a]));
-      const adsetById = new Map((adsetRes.data ?? []).map((a: any) => [a.id, a]));
-      const campById = new Map((campRes.data ?? []).map((c: any) => [c.id, c]));
-      const leadsMetaByAd = new Map((topRes.data ?? []).map((t: any) => [t.ad_uuid, t.leads]));
-      return (crmRes.data ?? []).map((r: any) => {
-        const ad: any = adById.get(r.ad_uuid) ?? {};
-        const adset: any = adsetById.get(ad.ad_set_id) ?? {};
-        const camp: any = campById.get(adset.campanha_id) ?? {};
-        return {
-          ad_uuid: r.ad_uuid,
-          ad_nome: ad.nome ?? "—",
-          status: ad.status ?? null,
-          meta_ad_id: ad.meta_ad_id ?? null,
-          ad_set_id: ad.ad_set_id ?? null,
-          adset_nome: adset.nome ?? null,
-          campanha_nome: camp.nome ?? "—",
-          produto: camp.tipo_lead ?? "—",
-          gasto: Number(r.gasto_30d ?? 0),
-          leads_crm: Number(r.leads_crm ?? 0),
-          leads_meta: Number(leadsMetaByAd.get(r.ad_uuid) ?? 0),
-          mql: Number(r.mql ?? 0),
-          cpmql_brl: r.cpmql_brl != null ? Number(r.cpmql_brl) : null,
-        };
-      });
+      const { data, error } = await (supabase as any).rpc("mads_f_ads_crm", { p_since: since, p_until: until });
+      if (error) throw error;
+      return (data ?? []) as any[];
     },
   });
 
   const mqlDiario = useQuery({
-    queryKey: ["mads", "mql_diario", ini60],
+    queryKey: ["mads", "mql_diario", floor],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("mads_v_mql_diario").select("dia, mql").gte("dia", ini60);
+      const { data, error } = await (supabase as any).from("mads_v_mql_diario").select("dia, mql").gte("dia", floor);
       if (error) throw error;
       return (data ?? []) as any[];
     },
   });
 
   const funil = useQuery({
-    queryKey: ["mads", "funil_crm_60d", ini60],
+    queryKey: ["mads", "funil_crm_insights", floor],
     queryFn: async () => {
-      const { data, error } = await supabase.from("mads_v_funil_diario").select("dia, contacts_crm").gte("dia", ini60);
+      const { data, error } = await supabase.from("mads_v_funil_diario").select("dia, contacts_crm").gte("dia", floor);
       if (error) throw error;
       return data ?? [];
     },
   });
 
   const [dupAd, setDupAd] = useState<DupTarget | null>(null);
-
   const ads: any[] = adsCrm.data ?? [];
 
-  // ---- Seção 1: diagnóstico geral (30d atual vs 30d anterior) ----
-  const somaEntre = (rows: any[], campo: string, ini: string, fim: string) =>
-    rows.filter((r) => r.dia >= ini && r.dia < fim).reduce((a, r) => a + Number(r[campo] ?? 0), 0);
+  // ---- Seção 1: diagnóstico geral (período atual vs período anterior de mesma duração) ----
+  const somaEntre = (rows: any[], campo: string, a: string, b: string) =>
+    rows.filter((r) => r.dia >= a && r.dia <= b).reduce((s, r) => s + Number(r[campo] ?? 0), 0);
 
-  const leadsCrmAtual = somaEntre(funil.data ?? [], "contacts_crm", ini30, hoje);
-  const leadsCrmAnt = somaEntre(funil.data ?? [], "contacts_crm", ini60, ini30);
-  const mqlAtual = somaEntre(mqlDiario.data ?? [], "mql", ini30, hoje);
-  const mqlAnt = somaEntre(mqlDiario.data ?? [], "mql", ini60, ini30);
+  const leadsCrmAtual = somaEntre(funil.data ?? [], "contacts_crm", since, until);
+  const leadsCrmAnt = somaEntre(funil.data ?? [], "contacts_crm", prev.since, prev.until);
+  const mqlAtual = somaEntre(mqlDiario.data ?? [], "mql", since, until);
+  const mqlAnt = somaEntre(mqlDiario.data ?? [], "mql", prev.since, prev.until);
   const taxaAtual = leadsCrmAtual > 0 ? (mqlAtual / leadsCrmAtual) * 100 : null;
   const taxaAnt = leadsCrmAnt > 0 ? (mqlAnt / leadsCrmAnt) * 100 : null;
 
-  // CPMQL médio por produto (ads com MQL)
   const cpmqlPorProduto = useMemo(() => {
     const acc = new Map<string, { gasto: number; mql: number }>();
     for (const a of ads) {
       if (a.mql <= 0) continue;
       const cur = acc.get(a.produto) ?? { gasto: 0, mql: 0 };
-      cur.gasto += a.gasto; cur.mql += a.mql;
+      cur.gasto += Number(a.gasto ?? 0); cur.mql += Number(a.mql ?? 0);
       acc.set(a.produto, cur);
     }
     return [...acc.entries()].map(([produto, v]) => ({ produto, cpmql: v.mql > 0 ? v.gasto / v.mql : null })).sort((x, y) => (x.cpmql ?? 1e9) - (y.cpmql ?? 1e9));
   }, [ads]);
 
-  // ---- Seção 2: dinheiro voltando (top 3 menor CPMQL) ----
   const voltando = useMemo(() => ads.filter((a: any) => a.mql > 0 && a.cpmql_brl != null).sort((a: any, b: any) => (a.cpmql_brl ?? 1e9) - (b.cpmql_brl ?? 1e9)).slice(0, 3), [ads]);
+  const sumindo = useMemo(() => ads.filter((a: any) => a.mql === 0 && Number(a.gasto ?? 0) > 0).sort((a: any, b: any) => Number(b.gasto ?? 0) - Number(a.gasto ?? 0)).slice(0, 3), [ads]);
 
-  // ---- Seção 3: dinheiro sumindo (maior gasto sem MQL) ----
-  const sumindo = useMemo(() => ads.filter((a: any) => a.mql === 0 && a.gasto > 0).sort((a: any, b: any) => b.gasto - a.gasto).slice(0, 3), [ads]);
-
-  // ---- Seção 4: recomendações (heurísticas) ----
   const recomendacoes = useMemo(() => {
     const recs: { tone: string; texto: string }[] = [];
     const comMql = ads.filter((a: any) => a.mql > 0);
-    const gastoMql = comMql.reduce((s: number, a: any) => s + a.gasto, 0);
-    const totalMql = comMql.reduce((s: number, a: any) => s + a.mql, 0);
+    const gastoMql = comMql.reduce((s: number, a: any) => s + Number(a.gasto ?? 0), 0);
+    const totalMql = comMql.reduce((s: number, a: any) => s + Number(a.mql ?? 0), 0);
     const cpmqlMedio = totalMql > 0 ? gastoMql / totalMql : null;
 
     if (cpmqlMedio != null && cpmqlMedio < 100) recs.push({ tone: "verde", texto: `CPMQL médio em ${brl(cpmqlMedio)} (saudável). Escalar as campanhas Business vencedoras com boost de ~20% no orçamento.` });
     else if (cpmqlMedio != null && cpmqlMedio > 200) recs.push({ tone: "vermelho", texto: `CPMQL médio em ${brl(cpmqlMedio)} (alto). Reduzir gasto ~30% e refazer criativos antes de escalar.` });
     else if (cpmqlMedio != null) recs.push({ tone: "amarelo", texto: `CPMQL médio em ${brl(cpmqlMedio)}. Zona intermediária — otimizar criativos e segmentação antes de escalar.` });
 
-    for (const a of ads.filter((a: any) => a.leads_meta > 5 && a.mql === 0).sort((a: any, b: any) => b.gasto - a.gasto).slice(0, 3))
+    for (const a of ads.filter((a: any) => a.leads_meta > 5 && a.mql === 0).sort((a: any, b: any) => Number(b.gasto ?? 0) - Number(a.gasto ?? 0)).slice(0, 3))
       recs.push({ tone: "vermelho", texto: `"${a.ad_nome}" tem ${num(a.leads_meta)} leads Meta e 0 MQL — provável público errado. Pausar e revisar segmentação.` });
 
-    // Realocação entre adsets da mesma campanha
     const porCampAdset = new Map<string, Map<string, { gasto: number; mql: number; nome: string }>>();
     for (const a of comMql) {
       if (!a.ad_set_id) continue;
       const camp = porCampAdset.get(a.campanha_nome) ?? new Map();
       const cur = camp.get(a.ad_set_id) ?? { gasto: 0, mql: 0, nome: a.adset_nome ?? a.ad_set_id };
-      cur.gasto += a.gasto; cur.mql += a.mql;
+      cur.gasto += Number(a.gasto ?? 0); cur.mql += Number(a.mql ?? 0);
       camp.set(a.ad_set_id, cur); porCampAdset.set(a.campanha_nome, camp);
     }
     for (const [camp, adsets] of porCampAdset) {
@@ -152,14 +122,20 @@ function Insights() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Insights estratégicos</h1>
-        <p className="text-sm text-muted-foreground">Análise de qualificação (CRM) por ad · últimos 30 dias vs 30 dias anteriores</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Insights estratégicos</h1>
+          <p className="text-sm text-muted-foreground">Qualificação (CRM) por ad · {periodoLabel(periodo)} vs período anterior</p>
+        </div>
+        <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
+          <SelectTrigger className="w-[180px]"><span className="text-muted-foreground mr-1">Período:</span><SelectValue /></SelectTrigger>
+          <SelectContent>{PERIODOS.map((p) => <SelectItem key={p.v} value={p.v}>{p.l}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
 
       {/* Seção 1 — Diagnóstico geral */}
       <Card>
-        <CardHeader><CardTitle>Diagnóstico geral</CardTitle><CardDescription>Volume e qualificação no período, com variação vs período anterior</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Diagnóstico geral</CardTitle><CardDescription>Volume e qualificação em {periodoLabel(periodo)}, com variação vs período anterior</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Metric label="Leads CRM" value={num(leadsCrmAtual)} atual={leadsCrmAtual} anterior={leadsCrmAnt} />
           <Metric label="MQL confirmados" value={num(mqlAtual)} atual={mqlAtual} anterior={mqlAnt} />
@@ -181,10 +157,10 @@ function Insights() {
 
       {/* Seção 2 — Dinheiro voltando */}
       <Card className="border-emerald-500/30">
-        <CardHeader><CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-emerald-600" /> Onde o dinheiro está voltando</CardTitle><CardDescription>Top 3 ads com menor CPMQL</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-emerald-600" /> Onde o dinheiro está voltando</CardTitle><CardDescription>Top 3 ads com menor CPMQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {carregando && <div className="text-sm text-muted-foreground">Carregando...</div>}
-          {!carregando && voltando.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad com MQL atribuído ainda.</div>}
+          {!carregando && voltando.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad com MQL atribuído no período.</div>}
           {voltando.map((a) => (
             <div key={a.ad_uuid} className="p-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 space-y-2">
               <div className="font-medium text-sm truncate" title={a.ad_nome}>{a.ad_nome}</div>
@@ -203,10 +179,10 @@ function Insights() {
 
       {/* Seção 3 — Dinheiro sumindo */}
       <Card className="border-red-500/30">
-        <CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-red-600" /> Onde o dinheiro está sumindo</CardTitle><CardDescription>Top 3 ads com maior gasto e 0 MQL</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-red-600" /> Onde o dinheiro está sumindo</CardTitle><CardDescription>Top 3 ads com maior gasto e 0 MQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {carregando && <div className="text-sm text-muted-foreground">Carregando...</div>}
-          {!carregando && sumindo.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad gastando sem MQL. 🎉</div>}
+          {!carregando && sumindo.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad gastando sem MQL no período. 🎉</div>}
           {sumindo.map((a) => (
             <div key={a.ad_uuid} className="p-4 rounded-md border border-red-500/30 bg-red-500/5 space-y-2">
               <div className="font-medium text-sm truncate" title={a.ad_nome}>{a.ad_nome}</div>
@@ -224,7 +200,7 @@ function Insights() {
 
       {/* Seção 4 — Recomendação estratégica */}
       <Card className="border-primary/30">
-        <CardHeader><CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Recomendação estratégica da semana</CardTitle><CardDescription>Regras automáticas a partir dos dados (v1 heurística)</CardDescription></CardHeader>
+        <CardHeader><CardTitle className="flex items-center gap-2"><Lightbulb className="h-5 w-5 text-primary" /> Recomendação estratégica da semana</CardTitle><CardDescription>Regras automáticas a partir dos dados do período (v1 heurística)</CardDescription></CardHeader>
         <CardContent className="space-y-2">
           {recomendacoes.map((r, i) => (
             <div key={i} className={`flex items-start gap-2 p-3 rounded-md border text-sm ${
