@@ -138,9 +138,17 @@ function Insights() {
         recs.push({ tone: "amarelo", texto: `Na campanha "${camp}", o adset "${arr[0].nome}" tem CPMQL ${brl(arr[0].cpmql)} vs ${brl(arr[arr.length - 1].cpmql)} do pior. Realocar verba pro adset "${arr[0].nome}".` });
     }
 
+    // LPs queimando verba: forms com 0 MQL (público chega mas não qualifica).
+    for (const l of lps.filter((l: any) => l.submissions > 5 && l.mql === 0 && l.gasto > 100).sort((a: any, b: any) => b.gasto - a.gasto).slice(0, 2))
+      recs.push({ tone: "vermelho", texto: `A LP "${l.nome}" recebeu ${num(l.submissions)} forms, ${brl(l.gasto)} de gasto e 0 MQL — não qualifica. Revisar oferta/segmentação ou cortar tráfego.` });
+
+    // Melhor LP por CPMQL: priorizar tráfego pra ela.
+    const lpTop = lps.filter((l: any) => l.mql > 0 && l.cpmql != null).sort((a: any, b: any) => a.cpmql - b.cpmql)[0];
+    if (lpTop) recs.push({ tone: "verde", texto: `A LP "${lpTop.nome}" é a que mais qualifica (CPMQL ${brl(lpTop.cpmql)}, ${num(lpTop.mql)} MQL) — priorizar tráfego/verba pra ela.` });
+
     if (recs.length === 0) recs.push({ tone: "amarelo", texto: "Ainda sem MQL atribuído suficiente no período para gerar recomendações. Verifique a atribuição CRM→ad (utm_content)." });
     return recs;
-  }, [ads]);
+  }, [ads, lps]);
 
   const carregando = adsCrm.isLoading;
 
