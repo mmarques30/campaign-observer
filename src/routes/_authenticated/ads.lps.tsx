@@ -433,14 +433,14 @@ function LPs() {
                         {semReset ? dash : <Badge variant="outline" className={`tabular-nums ${convMetaClass(cvrMeta)}`}>{cvrMeta == null ? "—" : pct(cvrMeta)}</Badge>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {semReset ? dash : cpl == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge> : <span className={cplColor(cpl)}>{brl(cpl)}</span>}
+                        {semReset ? dash : cpl == null ? dash : <span className={cplColor(cpl)}>{brl(cpl)}</span>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{reset ? dash : (mqlLp ?? 0) > 0 ? num(mqlLp) : <span className="text-muted-foreground">—</span>}</TableCell>
                       <TableCell className="text-right">
                         {reset ? dash : <Badge variant="outline" className={`tabular-nums ${taxaMqlClass(cvrMql)}`}>{cvrMql == null ? "—" : pct(cvrMql)}</Badge>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {reset ? dash : cpmqlLp == null ? <Badge variant="outline" className="bg-zinc-500/10 text-zinc-500 border-zinc-500/20 text-[10px]">sem dado</Badge> : <span className={cpmqlColor(cpmqlLp)}>{brl(cpmqlLp)}</span>}
+                        {reset ? dash : cpmqlLp == null ? dash : <span className={cpmqlColor(cpmqlLp)}>{brl(cpmqlLp)}</span>}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">
                         {!is30 ? "—" : (() => { const c = r.cvr_clarity_pct_30d ?? r.taxa_conversao_clarity_pct; return c == null ? "—" : pct(c); })()}
