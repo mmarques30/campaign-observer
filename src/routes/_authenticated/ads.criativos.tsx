@@ -37,6 +37,13 @@ function MetricCell({ pct, semaforo }: { pct: number | null | undefined; semafor
   const kill = (semaforo ?? "") === "kill";
   return <Badge className={`${semaforoClass(semaforo)} border-transparent tabular-nums gap-1`}>{kill && <AlertTriangle className="h-3 w-3" />}{fmtPct1(pct)}</Badge>;
 }
+// Célula de custo (CPMQL / CP SAL) colorida pelo semáforo. sem_dado → "sem dado" cinza.
+function MoneyCell({ value, semaforo, primary }: { value: number | null | undefined; semaforo: string | null | undefined; primary?: boolean }) {
+  if ((semaforo ?? "") === "sem_dado" || value == null) {
+    return <Badge className="bg-gray-200 text-gray-500 border-transparent text-[11px]">sem dado</Badge>;
+  }
+  return <Badge className={`${semaforoClass(semaforo)} border-transparent tabular-nums ${primary ? "font-bold" : ""}`}>{brl(value)}</Badge>;
+}
 
 function ehBusinessOuContabil(nome: string | null | undefined) {
   const n = (nome ?? "").toLowerCase();
@@ -56,7 +63,7 @@ function Criativos() {
         .from("mads_v_criativos_metricas")
         .select("*")
         .gt("video_plays", 0)
-        .order("gasto", { ascending: false });
+        .order("cpmql_brl", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as any[];
     },
@@ -76,23 +83,38 @@ function Criativos() {
     return true;
   }), [base, status, campanha, busca]);
 
-  // Cards de decisão (calculados sobre todos os criativos Business/Contábil).
+  // Cards de decisão — agora orientados por CPMQL (KPI real), não CVR.
   const melhor = useMemo(() => base
-    .filter((r) => (r.cvr_semaforo ?? "") === "verde" && (r.leads ?? 0) > 0)
-    .sort((a, b) => (b.cvr_pct ?? 0) - (a.cvr_pct ?? 0) || (a.cpl_brl ?? Infinity) - (b.cpl_brl ?? Infinity))[0], [base]);
+    .filter((r) => (r.cpmql_semaforo ?? "") === "verde" && (r.mql_no_crm ?? 0) > 0)
+    .sort((a, b) => (a.cpmql_brl ?? Infinity) - (b.cpmql_brl ?? Infinity))[0], [base]);
+  // Mata os fake positivos: vermelho no CPMQL OU volume de leads sem nenhum MQL (ex.: Contábil V2).
   const matar = useMemo(() => base
-    .filter((r) => (r.ad_status ?? "").toLowerCase() === "ativa" && ((r.hook_semaforo ?? "") === "kill" || (r.retencao_semaforo ?? "") === "kill") && (r.gasto ?? 0) > 50)
+    .filter((r) => (r.ad_status ?? "").toLowerCase() === "ativa"
+      && ((r.cpmql_semaforo ?? "") === "vermelho" || ((r.leads ?? 0) > 5 && (r.mql_no_crm ?? 0) === 0))
+      && (r.gasto ?? 0) > 100)
     .sort((a, b) => (b.gasto ?? 0) - (a.gasto ?? 0))[0], [base]);
   const escalar = useMemo(() => base
-    .filter((r) => ["verde", "amarelo"].includes(r.cvr_semaforo ?? "") && ["verde", "amarelo"].includes(r.hook_semaforo ?? "") && ["verde", "amarelo"].includes(r.retencao_semaforo ?? "") && (r.gasto ?? 0) < 100 && (r.leads ?? 0) > 0)
-    .sort((a, b) => (b.cvr_pct ?? 0) - (a.cvr_pct ?? 0))[0], [base]);
+    .filter((r) => (r.cpmql_semaforo ?? "") === "verde" && (r.gasto ?? 0) < 200 && (r.mql_no_crm ?? 0) > 0)
+    .sort((a, b) => (a.cpmql_brl ?? Infinity) - (b.cpmql_brl ?? Infinity))[0], [base]);
+
+  // Enquanto o ad-sync do Meta não reconciliar com o CRM, nenhum ad tem MQL atribuído.
+  const semAtribuicaoCrm = useMemo(() => base.length > 0 && base.every((r) => (r.mql_no_crm ?? 0) === 0), [base]);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Film className="h-6 w-6 text-primary" /> Métricas de Criativos</h1>
-        <p className="text-sm text-muted-foreground">Funil interno do criativo (Hook → Body → Retenção → CTR → CVR) · Business & Contábil · 30 dias</p>
+        <p className="text-sm text-muted-foreground">KPI primário: <strong className="text-foreground">CPMQL</strong> (custo por MQL) · funil do criativo (Hook → Body → Retenção → CTR → CVR) · Business & Contábil · 30 dias</p>
       </div>
+
+      {semAtribuicaoCrm && (
+        <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+          <span>
+            <strong className="text-foreground">Atribuição CRM→ad pendente.</strong> As colunas MQL / CPMQL / CP SAL aparecem como “sem dado” porque os ad-IDs do CRM (<code>contacts.utm_term</code>) ainda não batem com os sincronizados em <code>mads_ads.meta_ad_id</code>. A estrutura já está pronta e acende sozinha quando o ad-sync do Meta reconciliar. Até lá, use CPL (secundário) e as métricas de vídeo.
+          </span>
+        </div>
+      )}
 
       {/* Bloco 1 — Legenda dos benchmarks */}
       <Card>
@@ -140,7 +162,7 @@ function Criativos() {
           icon={<Trophy className="h-5 w-5 text-emerald-600" />}
           title="Melhor criativo"
           ad={melhor}
-          extra={melhor && <>CVR {fmtPct1(melhor.cvr_pct)} · Hook {fmtPct1(melhor.hook_rate_pct)} · CPL {brl(melhor.cpl_brl)}</>}
+          extra={melhor && <>CPMQL {brl(melhor.cpmql_brl)} · {num(melhor.mql_no_crm)} MQL · Taxa qualif. {fmtPct1(melhor.taxa_qualificacao_pct)}</>}
         />
         <DecisionCard
           tone="border-red-500/50 bg-red-500/10"
@@ -148,14 +170,14 @@ function Criativos() {
           title="Precisa matar agora"
           cta="PAUSAR"
           ad={matar}
-          extra={matar && <>Hook {fmtPct1(matar.hook_rate_pct)} · Retenção {fmtPct1(matar.retencao_75_pct)} · Gasto {brl(matar.gasto)}</>}
+          extra={matar && <>{(matar.mql_no_crm ?? 0) === 0 ? <>{num(matar.leads)} leads, <strong className="text-red-600">0 MQL</strong></> : <>CPMQL {brl(matar.cpmql_brl)}</>} · Gasto {brl(matar.gasto)}</>}
         />
         <DecisionCard
           tone="border-indigo-500/40 bg-indigo-500/5"
           icon={<Rocket className="h-5 w-5 text-indigo-600" />}
           title="Escalar candidato"
           ad={escalar}
-          extra={escalar && <>CVR {fmtPct1(escalar.cvr_pct)} · Gasto {brl(escalar.gasto)} · {num(escalar.leads)} leads</>}
+          extra={escalar && <>CPMQL {brl(escalar.cpmql_brl)} · {num(escalar.mql_no_crm)} MQL · Gasto {brl(escalar.gasto)}</>}
         />
       </div>
 
@@ -184,29 +206,38 @@ function Criativos() {
           <Table>
             <TableHeader><TableRow>
               <TableHead>Ad</TableHead><TableHead>Campanha</TableHead><TableHead>Status</TableHead>
-              <TableHead className="text-right">Gasto</TableHead><TableHead className="text-right">Impr.</TableHead>
+              <TableHead className="text-right">Gasto</TableHead>
+              <TableHead className="text-right">Leads</TableHead>
+              <TableHead className="text-right">MQL</TableHead>
+              <TableHead className="text-center">Taxa qualif.</TableHead>
+              <TableHead className="text-center font-bold text-foreground">CPMQL ★</TableHead>
+              <TableHead className="text-center">CP SAL</TableHead>
+              <TableHead className="text-right text-muted-foreground font-normal">CPL</TableHead>
               <TableHead className="text-center">Hook</TableHead><TableHead className="text-center">Body</TableHead>
               <TableHead className="text-center">Retenção</TableHead><TableHead className="text-center">CTR real</TableHead>
-              <TableHead className="text-center">CVR</TableHead><TableHead className="text-right">Leads</TableHead>
-              <TableHead className="text-right">CPL</TableHead><TableHead>Diagnóstico</TableHead><TableHead></TableHead>
+              <TableHead className="text-center">CVR</TableHead>
+              <TableHead>Diagnóstico</TableHead><TableHead></TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {criativos.isLoading && <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
-              {!criativos.isLoading && rows.length === 0 && <TableRow><TableCell colSpan={14} className="text-center py-8 text-muted-foreground">Nenhum criativo com dados de vídeo.</TableCell></TableRow>}
+              {criativos.isLoading && <TableRow><TableCell colSpan={17} className="text-center py-8 text-muted-foreground">Carregando...</TableCell></TableRow>}
+              {!criativos.isLoading && rows.length === 0 && <TableRow><TableCell colSpan={17} className="text-center py-8 text-muted-foreground">Nenhum criativo com dados de vídeo.</TableCell></TableRow>}
               {rows.map((r) => (
                 <TableRow key={r.ad_uuid}>
                   <TableCell className="font-medium max-w-[220px] truncate" title={r.ad_nome}>{r.ad_nome}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{r.campanha_nome}</TableCell>
                   <TableCell><Badge variant="outline" className={(r.ad_status ?? "").toLowerCase() === "ativa" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" : "bg-zinc-500/15 text-zinc-500 border-zinc-500/30"}>{r.ad_status}</Badge></TableCell>
                   <TableCell className="text-right tabular-nums">{brl(r.gasto)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(r.impressoes)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{num(r.leads)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{(r.mql_no_crm ?? 0) > 0 ? num(r.mql_no_crm) : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-center">{r.taxa_qualificacao_pct != null ? <span className="tabular-nums text-xs">{fmtPct1(r.taxa_qualificacao_pct)}</span> : <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-center"><MoneyCell value={r.cpmql_brl} semaforo={r.cpmql_semaforo} primary /></TableCell>
+                  <TableCell className="text-center"><MoneyCell value={r.cpsal_brl} semaforo={r.cpsal_semaforo} /></TableCell>
+                  <TableCell className="text-right tabular-nums text-xs text-muted-foreground">{r.cpl_brl != null ? brl(r.cpl_brl) : "—"}</TableCell>
                   <TableCell className="text-center"><MetricCell pct={r.hook_rate_pct} semaforo={r.hook_semaforo} /></TableCell>
                   <TableCell className="text-center"><MetricCell pct={r.body_rate_pct} semaforo={r.body_semaforo} /></TableCell>
                   <TableCell className="text-center"><MetricCell pct={r.retencao_75_pct} semaforo={r.retencao_semaforo} /></TableCell>
                   <TableCell className="text-center"><MetricCell pct={r.ctr_real_pct} semaforo={r.ctr_semaforo} /></TableCell>
                   <TableCell className="text-center"><MetricCell pct={r.cvr_pct} semaforo={r.cvr_semaforo} /></TableCell>
-                  <TableCell className="text-right tabular-nums">{num(r.leads)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{r.cpl_brl != null ? brl(r.cpl_brl) : "—"}</TableCell>
                   <TableCell className="text-xs font-medium max-w-[240px]">{r.diagnostico ?? "—"}</TableCell>
                   <TableCell>{r.meta_ad_id && <AbrirNoMetaButton url={urlMetaAd(r.meta_ad_id)} label="Meta" />}</TableCell>
                 </TableRow>
