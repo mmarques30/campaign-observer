@@ -172,8 +172,8 @@ function LPs() {
     const m = new Map<string, any[]>();
     for (const a of (adsLp.data ?? []) as any[]) {
       if (!a.lpKey) continue;
-      // só ads com atividade no período (evita despejar dezenas de ads zerados)
-      if (Number(a.gasto ?? 0) <= 0 && Number(a.leads_meta ?? 0) <= 0 && Number(a.mql ?? 0) <= 0) continue;
+      // só ads ATIVOS (o contador "(N ads)" e o drill-down mostram só status='ativa')
+      if ((a.status ?? "").toLowerCase() !== "ativa") continue;
       const arr = m.get(a.lpKey) ?? []; arr.push(a); m.set(a.lpKey, arr);
     }
     for (const arr of m.values()) arr.sort((x, y) => Number(y.gasto ?? 0) - Number(x.gasto ?? 0));
