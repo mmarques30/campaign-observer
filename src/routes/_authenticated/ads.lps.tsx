@@ -15,7 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { num, pct, brl } from "@/lib/ads-utils";
 import { PERIODOS as STD_PERIODOS, rangeFromPeriodo, periodoLabel as stdLabel, type Periodo as StdPeriodo } from "@/lib/periodo";
 import { AbrirNoMetaButton, urlMetaAd } from "@/components/ads/AbrirNoMeta";
-import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, ChevronRight, X, RefreshCw } from "lucide-react";
+import { ExternalLink, CheckCircle2, XCircle, Info, Globe, ShieldCheck, AlertTriangle, Star, ChevronDown, ChevronRight, X } from "lucide-react";
 
 // Normaliza URL pra casar LP (mads_lps.url) com o destino da campanha (lp_destino).
 function urlKey(u: string | null | undefined): string {
@@ -438,18 +438,6 @@ function LPs() {
                             </Tooltip>
                           )}
                           {inativa && <Badge variant="outline" className="bg-zinc-500/15 text-zinc-500 border-zinc-500/30 text-[10px]">inativa</Badge>}
-                          {r.refeita_em && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Badge variant="outline" className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px]">
-                                  <RefreshCw className="h-2.5 w-2.5" /> refeita há {r.dias_desde_reset ?? "?"} dias
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs">
-                                LP refeita em {new Date(r.refeita_em).toLocaleDateString("pt-BR")}. O histórico anterior fica preservado, mas "Desde reset" te dá a visão limpa da versão atual — selecione no dropdown de período.
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
                         </div>
                         {r.url && (
                           <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1">
