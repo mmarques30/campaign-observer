@@ -6,8 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { healthColor, healthLabel, brl, num } from "@/lib/ads-utils";
-import { AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Activity, ArrowRight } from "lucide-react";
+import { AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Activity, ArrowRight, Info } from "lucide-react";
 
 function acaoBadge(acao: string | null | undefined) {
   const a = (acao ?? "").toLowerCase();
@@ -43,19 +45,18 @@ function Saude() {
     },
   });
 
-  // Apenas falhas das rotinas/ações (o que de fato deu problema).
+  // Falhas das rotinas/ações, já com o flag is_transient (classificação em SQL na view).
   const erros = useQuery({
     queryKey: ["mads", "erros7d"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("mads_execution_log")
-        .select("id, acao, entidade_tipo, origem, duracao_ms, created_at, erro_mensagem")
-        .eq("sucesso", false)
+      const { data, error } = await (supabase as any)
+        .from("mads_v_execution_falhas")
+        .select("id, acao, entidade_tipo, origem, duracao_ms, created_at, erro_mensagem, is_transient")
         .gte("created_at", SETE_DIAS)
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as any[];
     },
   });
 
@@ -105,6 +106,12 @@ function Saude() {
   });
 
   const [expandido, setExpandido] = useState<string | null>(null);
+  const [mostrarTransientes, setMostrarTransientes] = useState(false);
+
+  // Por padrão esconde erros transientes (instabilidade Meta que o retry já corrigiu).
+  const todasFalhas = (erros.data ?? []) as any[];
+  const transientesCount = todasFalhas.filter((l) => l.is_transient).length;
+  const falhasVisiveis = mostrarTransientes ? todasFalhas : todasFalhas.filter((l) => !l.is_transient);
 
   const problemas = (conv.data ?? []).filter((c) => c.precisa_atencao === true);
   const activeCampaigns = new Set((conv.data ?? []).filter((c) => c.status === "ativa").map((c) => c.utm_campaign).filter(Boolean));
@@ -157,29 +164,51 @@ function Saude() {
       </Card>
 
       {/* 2. Falhas técnicas (rotinas/ações com erro) */}
+      <TooltipProvider>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {(erros.data?.length ?? 0) > 0 ? <XCircle className="h-5 w-5 text-red-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
-            Falhas recentes
-          </CardTitle>
-          <CardDescription>Execuções com erro nos últimos 7 dias (sync, health check, mutações)</CardDescription>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {falhasVisiveis.length > 0 ? <XCircle className="h-5 w-5 text-red-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+                Falhas recentes
+              </CardTitle>
+              <CardDescription>
+                Execuções que precisam de ação nos últimos 7 dias (sync, health check, mutações).
+                {!mostrarTransientes && transientesCount > 0 && <span className="ml-1">{transientesCount} transiente(s) oculto(s) (retry já corrigiu).</span>}
+              </CardDescription>
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer select-none shrink-0">
+              <Switch checked={mostrarTransientes} onCheckedChange={setMostrarTransientes} />
+              Mostrar erros transientes
+            </label>
+          </div>
         </CardHeader>
-        <CardContent className={(erros.data?.length ?? 0) === 0 ? "" : "p-0"}>
+        <CardContent className={falhasVisiveis.length === 0 ? "" : "p-0"}>
           {erros.isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
-          {!erros.isLoading && (erros.data?.length ?? 0) === 0 && (
-            <div className="flex items-center gap-2 text-emerald-600 text-sm"><CheckCircle2 className="h-4 w-4" /> Nenhuma falha nos últimos 7 dias.</div>
+          {!erros.isLoading && falhasVisiveis.length === 0 && (
+            <div className="flex items-center gap-2 text-emerald-600 text-sm"><CheckCircle2 className="h-4 w-4" /> Nenhuma falha que precise de ação nos últimos 7 dias.{transientesCount > 0 && !mostrarTransientes && <span className="text-muted-foreground">({transientesCount} transiente(s) — ligue o toggle pra ver.)</span>}</div>
           )}
-          {(erros.data?.length ?? 0) > 0 && (
+          {falhasVisiveis.length > 0 && (
             <Table>
-              <TableHeader><TableRow><TableHead>Quando</TableHead><TableHead>Ação</TableHead><TableHead>Origem</TableHead><TableHead>Erro</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Quando</TableHead><TableHead>Tipo</TableHead><TableHead>Ação</TableHead><TableHead>Origem</TableHead><TableHead>Erro</TableHead></TableRow></TableHeader>
               <TableBody>
-                {(erros.data ?? []).map((l: any) => (
-                  <TableRow key={l.id} className="bg-red-500/5">
+                {falhasVisiveis.map((l: any) => (
+                  <TableRow key={l.id} className={l.is_transient ? "bg-zinc-500/5" : "bg-red-500/5"}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
+                    <TableCell>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className={l.is_transient ? "gap-1 bg-zinc-500/15 text-zinc-500 border-zinc-500/30" : "gap-1 bg-red-500/15 text-red-700 border-red-500/30"}>
+                            {l.is_transient ? "transiente" : "permanente"} <Info className="h-3 w-3" />
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">is_transient: {String(!!l.is_transient)}. {l.is_transient ? "Instabilidade momentânea do Meta (5xx / \"please retry\" / código transiente) — o retry automático normalmente já resolveu. Não precisa de ação." : "Erro permanente (ex.: parâmetro inválido, code 100) — precisa de ação humana."}</TooltipContent>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell><Badge variant="outline" className={acaoBadge(l.acao)}>{l.acao ?? "—"}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{l.origem ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-red-700 max-w-xl whitespace-pre-wrap">{l.erro_mensagem ?? "Sem detalhes."}</TableCell>
+                    <TableCell className={`text-xs max-w-xl whitespace-pre-wrap ${l.is_transient ? "text-muted-foreground" : "text-red-700"}`}>{l.erro_mensagem ?? "Sem detalhes."}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -187,6 +216,7 @@ function Saude() {
           )}
         </CardContent>
       </Card>
+      </TooltipProvider>
 
       {/* 3. Health check (resumo de conexão) */}
       <Card>
