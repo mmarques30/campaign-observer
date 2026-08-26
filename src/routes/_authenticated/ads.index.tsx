@@ -31,7 +31,9 @@ function Dashboard() {
       const { data, error } = await supabase
         .from("mads_v_funil_diario")
         .select("dia, campanha_uuid, campanha_nome, lp_views, leads_meta, gasto_brl, contacts_crm")
-        .gte("dia", desde);
+        .gte("dia", desde)
+        .order("dia", { ascending: false })
+        .limit(50000); // evita o corte silencioso de 1000 linhas do PostgREST (KPIs somam no front)
       if (error) throw error;
       return data ?? [];
     },
