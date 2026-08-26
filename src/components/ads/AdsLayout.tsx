@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
@@ -52,8 +52,25 @@ export function AdsLayout() {
   const qc = useQueryClient();
   const isMobile = useIsMobile();
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<Date>(new Date());
   const [tick, setTick] = useState(0);
+
+  // Última sincronização REAL: vem do banco (quando a meta-ads-sync gravou por
+  // último), não do relógio do navegador. Antes usava new Date() no mount, o que
+  // mostrava "há poucos segundos" mesmo quando a sync estava quebrada há dias.
+  const lastSyncQ = useQuery({
+    queryKey: ["mads", "last_sync"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("mads_campaigns")
+        .select("ultima_sincronizacao_em")
+        .order("ultima_sincronizacao_em", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data?.ultima_sincronizacao_em ? new Date(data.ultima_sincronizacao_em) : null;
+    },
+    refetchInterval: 60_000,
+  });
+  const lastSync = lastSyncQ.data ?? null;
 
   // Desktop: icon-only collapse. Mobile: off-canvas drawer.
   const [collapsed, setCollapsed] = useState(false);
@@ -81,10 +98,9 @@ export function AdsLayout() {
   useEffect(() => { setMobileOpen(false); }, [path]);
 
   useEffect(() => {
-    const i = setInterval(() => {
-      qc.invalidateQueries();
-      setLastSync(new Date());
-    }, 5 * 60 * 1000);
+    // Re-lê o banco periodicamente (não dispara sync na Meta — a sync roda no
+    // servidor via cron a cada 15 min). O tick só reanima o "há X min".
+    const i = setInterval(() => { qc.invalidateQueries(); }, 5 * 60 * 1000);
     const t = setInterval(() => setTick((x) => x + 1), 30_000);
     return () => { clearInterval(i); clearInterval(t); };
   }, [qc]);
@@ -101,13 +117,24 @@ export function AdsLayout() {
     setSyncing(true);
     toast.info("Sincronizando dados Meta...");
     try {
-      const r = await fetch("https://ciwdlceyjsnlnunktqzx.supabase.co/functions/v1/meta-sync-insights?secret=sync-iaplicada-2026&days=7");
-      if (!r.ok) throw new Error(`Sync falhou (${r.status})`);
+      // Chama a meta-ads-sync (token META_ADS_TOKEN, que está funcionando).
+      // Antes chamava a meta-sync-insights, que está retornando 403 (o token
+      // META_ACCESS_TOKEN perdeu a permissão ads_read) — por isso o botão
+      // "falhava silenciosamente" e os dados ficavam parados.
+      const r = await fetch("https://ciwdlceyjsnlnunktqzx.supabase.co/functions/v1/meta-ads-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || j?.error) throw new Error(j?.error || `Sync falhou (${r.status})`);
       await qc.invalidateQueries();
-      setLastSync(new Date());
-      toast.success("Sincronizado!");
+      await lastSyncQ.refetch();
+      const st = j?.statuses_updated ?? 0;
+      const dias = j?.days_synced ?? 0;
+      toast.success(`Sincronizado — ${st} status atualizados, ${dias} dia(s) de métricas.`);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(`Sync falhou: ${(e as Error).message}`);
     } finally {
       setSyncing(false);
     }
@@ -242,8 +269,17 @@ export function AdsLayout() {
           </Button>
 
           <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-            <span className="text-xs text-muted-foreground hidden sm:inline truncate" key={tick}>
-              Última sincronização: há {formatDistanceToNow(lastSync, { locale: ptBR })}
+            <span
+              className={cn(
+                "text-xs hidden sm:inline truncate",
+                lastSync && Date.now() - lastSync.getTime() > 2 * 3600 * 1000 ? "text-amber-600" : "text-muted-foreground",
+              )}
+              key={tick}
+              title={lastSync ? lastSync.toLocaleString("pt-BR") : undefined}
+            >
+              {lastSync
+                ? `Última sincronização: há ${formatDistanceToNow(lastSync, { locale: ptBR })}`
+                : "Sincronização: sem registro"}
             </span>
             <Button size="sm" variant="outline" onClick={refresh} disabled={syncing}>
               <RefreshCw className={cn("h-4 w-4 sm:mr-2", syncing && "animate-spin")} />
@@ -257,7 +293,7 @@ export function AdsLayout() {
             <Outlet />
           </div>
           <footer className="border-t border-border mt-8 py-4 px-6 text-center text-xs text-muted-foreground">
-            Sincronização automática dos dados Meta a cada 5 min. Criação, edição e pausa de campanhas disponíveis no painel.
+            Sincronização automática dos dados Meta a cada 15 min. Use "Atualizar dados" para forçar uma sincronização agora.
           </footer>
         </div>
       </main>
