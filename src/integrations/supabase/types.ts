@@ -10,10 +10,25 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.4"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
+      _tmp_b64_chunks: {
+        Row: {
+          chunk: string | null
+          ord: number
+        }
+        Insert: {
+          chunk?: string | null
+          ord: number
+        }
+        Update: {
+          chunk?: string | null
+          ord?: number
+        }
+        Relationships: []
+      }
       acessos: {
         Row: {
           created_at: string | null
@@ -2467,6 +2482,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "content_items_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       conversation_manual_links: {
@@ -3071,6 +3093,8 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           data_prevista: string
+          deadline_overdue_sent_at: string | null
+          deadline_warning_sent_at: string | null
           deal_id: string
           descricao: string | null
           id: string
@@ -3089,6 +3113,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_prevista: string
+          deadline_overdue_sent_at?: string | null
+          deadline_warning_sent_at?: string | null
           deal_id: string
           descricao?: string | null
           id?: string
@@ -3107,6 +3133,8 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           data_prevista?: string
+          deadline_overdue_sent_at?: string | null
+          deadline_warning_sent_at?: string | null
           deal_id?: string
           descricao?: string | null
           id?: string
@@ -4011,6 +4039,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "equipe_custo_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       erros: {
@@ -4501,6 +4536,44 @@ export type Database = {
           },
         ]
       }
+      funnel_notes: {
+        Row: {
+          ano: number
+          created_at: string
+          id: string
+          mes: number
+          nota: string
+          pipeline_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          ano: number
+          created_at?: string
+          id?: string
+          mes: number
+          nota?: string
+          pipeline_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ano?: number
+          created_at?: string
+          id?: string
+          mes?: number
+          nota?: string
+          pipeline_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_notes_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pipelines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_sync_state: {
         Row: {
           created_at: string
@@ -4769,6 +4842,7 @@ export type Database = {
       }
       kit_leads: {
         Row: {
+          cargo: string | null
           contact_id: string | null
           created_at: string
           deal_id: string | null
@@ -4783,6 +4857,7 @@ export type Database = {
           id: string
           ip_address: string | null
           nome: string
+          origem: string | null
           user_agent: string | null
           whatsapp: string
           whatsapp_error: string | null
@@ -4790,6 +4865,7 @@ export type Database = {
           whatsapp_status: string | null
         }
         Insert: {
+          cargo?: string | null
           contact_id?: string | null
           created_at?: string
           deal_id?: string | null
@@ -4804,6 +4880,7 @@ export type Database = {
           id?: string
           ip_address?: string | null
           nome: string
+          origem?: string | null
           user_agent?: string | null
           whatsapp: string
           whatsapp_error?: string | null
@@ -4811,6 +4888,7 @@ export type Database = {
           whatsapp_status?: string | null
         }
         Update: {
+          cargo?: string | null
           contact_id?: string | null
           created_at?: string
           deal_id?: string | null
@@ -4825,6 +4903,7 @@ export type Database = {
           id?: string
           ip_address?: string | null
           nome?: string
+          origem?: string | null
           user_agent?: string | null
           whatsapp?: string
           whatsapp_error?: string | null
@@ -7421,6 +7500,8 @@ export type Database = {
       }
       projetos: {
         Row: {
+          acesso_email: string | null
+          acesso_senha: string | null
           admin_only: boolean
           atualizado_em: string | null
           atualizado_por: string | null
@@ -7457,6 +7538,7 @@ export type Database = {
           segmento: string | null
           seguranca_atualizada_em: string | null
           stack_tipo: string | null
+          status_andamento: string | null
           status_geral: string | null
           supabase_project_ref: string | null
           supabase_status: string | null
@@ -7470,6 +7552,8 @@ export type Database = {
           visivel: boolean
         }
         Insert: {
+          acesso_email?: string | null
+          acesso_senha?: string | null
           admin_only?: boolean
           atualizado_em?: string | null
           atualizado_por?: string | null
@@ -7506,6 +7590,7 @@ export type Database = {
           segmento?: string | null
           seguranca_atualizada_em?: string | null
           stack_tipo?: string | null
+          status_andamento?: string | null
           status_geral?: string | null
           supabase_project_ref?: string | null
           supabase_status?: string | null
@@ -7519,6 +7604,8 @@ export type Database = {
           visivel?: boolean
         }
         Update: {
+          acesso_email?: string | null
+          acesso_senha?: string | null
           admin_only?: boolean
           atualizado_em?: string | null
           atualizado_por?: string | null
@@ -7555,6 +7642,7 @@ export type Database = {
           segmento?: string | null
           seguranca_atualizada_em?: string | null
           stack_tipo?: string | null
+          status_andamento?: string | null
           status_geral?: string | null
           supabase_project_ref?: string | null
           supabase_status?: string | null
@@ -7573,6 +7661,13 @@ export type Database = {
             columns: ["atualizado_por"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projetos_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
             referencedColumns: ["id"]
           },
           {
@@ -7598,8 +7693,12 @@ export type Database = {
           endpoint: string
           id: string
           last_used_at: string | null
+          notify_commercial_deadline: boolean
           notify_handoff_urgent: boolean
+          notify_new_client_message: boolean
           notify_new_inbound: boolean
+          notify_new_message: boolean
+          notify_project_deadline: boolean
           notify_sql_new: boolean
           p256dh: string
           user_agent: string | null
@@ -7611,8 +7710,12 @@ export type Database = {
           endpoint: string
           id?: string
           last_used_at?: string | null
+          notify_commercial_deadline?: boolean
           notify_handoff_urgent?: boolean
+          notify_new_client_message?: boolean
           notify_new_inbound?: boolean
+          notify_new_message?: boolean
+          notify_project_deadline?: boolean
           notify_sql_new?: boolean
           p256dh: string
           user_agent?: string | null
@@ -7624,8 +7727,12 @@ export type Database = {
           endpoint?: string
           id?: string
           last_used_at?: string | null
+          notify_commercial_deadline?: boolean
           notify_handoff_urgent?: boolean
+          notify_new_client_message?: boolean
           notify_new_inbound?: boolean
+          notify_new_message?: boolean
+          notify_project_deadline?: boolean
           notify_sql_new?: boolean
           p256dh?: string
           user_agent?: string | null
@@ -7796,9 +7903,71 @@ export type Database = {
           },
         ]
       }
+      security_audit_log: {
+        Row: {
+          acao: string
+          actor_email: string | null
+          actor_id: string | null
+          alvo_id: string | null
+          antes: Json | null
+          db_role: string | null
+          depois: Json | null
+          id: number
+          ocorrido_em: string
+          tabela: string
+        }
+        Insert: {
+          acao: string
+          actor_email?: string | null
+          actor_id?: string | null
+          alvo_id?: string | null
+          antes?: Json | null
+          db_role?: string | null
+          depois?: Json | null
+          id?: never
+          ocorrido_em?: string
+          tabela: string
+        }
+        Update: {
+          acao?: string
+          actor_email?: string | null
+          actor_id?: string | null
+          alvo_id?: string | null
+          antes?: Json | null
+          db_role?: string | null
+          depois?: Json | null
+          id?: never
+          ocorrido_em?: string
+          tabela?: string
+        }
+        Relationships: []
+      }
+      signup_allowlist: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          email: string
+          note: string | null
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          email: string
+          note?: string | null
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          email?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       sprint_tarefas: {
         Row: {
           created_at: string | null
+          deadline_overdue_sent_at: string | null
+          deadline_warning_sent_at: string | null
           descricao: string | null
           feita_em: string | null
           ia_alerta: string | null
@@ -7818,6 +7987,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          deadline_overdue_sent_at?: string | null
+          deadline_warning_sent_at?: string | null
           descricao?: string | null
           feita_em?: string | null
           ia_alerta?: string | null
@@ -7837,6 +8008,8 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          deadline_overdue_sent_at?: string | null
+          deadline_warning_sent_at?: string | null
           descricao?: string | null
           feita_em?: string | null
           ia_alerta?: string | null
@@ -8726,6 +8899,13 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "user_pipeline_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_roles: {
@@ -8790,6 +8970,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_sales_weights_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
             referencedColumns: ["id"]
           },
         ]
@@ -8985,6 +9172,42 @@ export type Database = {
         }
         Relationships: []
       }
+      wh_inbound_deadletter: {
+        Row: {
+          attempted_payload: Json
+          conversation_id: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          raw_webhook: Json | null
+          received_at: string
+          reprocessed_at: string | null
+          reprocessed_message_id: string | null
+        }
+        Insert: {
+          attempted_payload: Json
+          conversation_id?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          raw_webhook?: Json | null
+          received_at?: string
+          reprocessed_at?: string | null
+          reprocessed_message_id?: string | null
+        }
+        Update: {
+          attempted_payload?: Json
+          conversation_id?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          raw_webhook?: Json | null
+          received_at?: string
+          reprocessed_at?: string | null
+          reprocessed_message_id?: string | null
+        }
+        Relationships: []
+      }
       whatsapp_conversations: {
         Row: {
           assigned_to: string | null
@@ -9013,6 +9236,7 @@ export type Database = {
           purpose: string | null
           send_instance: string | null
           source: string
+          source_type: string | null
           state: string
           step_count: number
           updated_at: string
@@ -9044,6 +9268,7 @@ export type Database = {
           purpose?: string | null
           send_instance?: string | null
           source?: string
+          source_type?: string | null
           state?: string
           step_count?: number
           updated_at?: string
@@ -9075,6 +9300,7 @@ export type Database = {
           purpose?: string | null
           send_instance?: string | null
           source?: string
+          source_type?: string | null
           state?: string
           step_count?: number
           updated_at?: string
@@ -9342,33 +9568,72 @@ export type Database = {
           },
         ]
       }
+      whatsapp_phone_blocklist: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          phone: string
+          phone_normalized: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          phone: string
+          phone_normalized: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          phone?: string
+          phone_normalized?: string
+        }
+        Relationships: []
+      }
       workflow_enrollments: {
         Row: {
+          cancelled_at: string | null
+          cancelled_reason: string | null
           completed_at: string | null
           contact_id: string
           current_step: number | null
+          deal_id: string | null
           enrolled_at: string | null
           id: string
+          last_step_run_at: string | null
           next_step_at: string | null
           status: string
           workflow_id: string
         }
         Insert: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           completed_at?: string | null
           contact_id: string
           current_step?: number | null
+          deal_id?: string | null
           enrolled_at?: string | null
           id?: string
+          last_step_run_at?: string | null
           next_step_at?: string | null
           status?: string
           workflow_id: string
         }
         Update: {
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
           completed_at?: string | null
           contact_id?: string
           current_step?: number | null
+          deal_id?: string | null
           enrolled_at?: string | null
           id?: string
+          last_step_run_at?: string | null
           next_step_at?: string | null
           status?: string
           workflow_id?: string
@@ -9387,6 +9652,34 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts_full"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "v_deals_silent_leads"
+            referencedColumns: ["deal_id"]
+          },
+          {
+            foreignKeyName: "workflow_enrollments_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "vw_deal_inconsistencies_pending"
+            referencedColumns: ["deal_id"]
           },
           {
             foreignKeyName: "workflow_enrollments_workflow_id_fkey"
@@ -10130,6 +10423,30 @@ export type Database = {
         }
         Relationships: []
       }
+      team_directory: {
+        Row: {
+          avatar_url: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          role: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string | null
+          role?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string | null
+          role?: string | null
+        }
+        Relationships: []
+      }
       v_closer_forecast: {
         Row: {
           forecast_declarado: number | null
@@ -10772,36 +11089,73 @@ export type Database = {
         Row: {
           admin_only: boolean | null
           atualizado_em: string | null
-          atualizado_por_nome: string | null
+          atualizado_por: string | null
           cliente_id: string | null
           cliente_nome: string | null
-          commits_ultimo_dia: number | null
+          code_alerts_abertos: number | null
+          commits_hoje: number | null
+          complexidade: string | null
+          conteudo_esperado_health: string | null
+          created_at: string | null
           data_entrega_prevista: string | null
+          data_entrega_real: string | null
           data_inicio: string | null
-          data_ultima_metrica: string | null
-          erros_altos_abertos: number | null
-          erros_criticos_abertos: number | null
+          db_atualizado_em: string | null
+          db_edge_functions: Json | null
+          db_riscos: Json | null
+          db_secrets_count: number | null
+          db_size_bytes: number | null
+          db_tabelas: number | null
+          db_tabelas_detalhes: Json | null
+          db_tabelas_sem_rls: number | null
+          dependabot_abertos: number | null
+          erros_abertos: number | null
           etapa: string | null
+          github_branch: string | null
           github_repo: string | null
           id: string | null
           impedimento_desde: string | null
           impedimento_tipo: string | null
+          issues_abertas: number | null
+          links: Json | null
           motivo_semaforo: string | null
           nome: string | null
+          observacoes: string | null
           prioridade: string | null
-          segmento_empresa: string | null
-          segmento_projeto: string | null
+          prs_abertos: number | null
+          prs_merged_hoje: number | null
+          secret_alerts_abertos: number | null
+          segmento: string | null
+          seguranca_atualizada_em: string | null
           semaforo: string | null
           stack_tipo: string | null
+          status_andamento: string | null
           status_geral: string | null
-          ultimo_check_em: string | null
-          ultimo_commit_em: string | null
-          ultimo_response_ms: number | null
-          ultimo_status_code: number | null
+          supabase_project_ref: string | null
+          supabase_status: string | null
+          ultimo_deploy_em: string | null
+          ultimo_deploy_status: string | null
+          updated_at: string | null
           url_producao: string | null
+          vercel_project_id: string | null
           visivel: boolean | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projetos_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projetos_atualizado_por_fkey"
+            columns: ["atualizado_por"]
+            isOneToOne: false
+            referencedRelation: "team_directory"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vw_deal_inconsistencies_pending: {
         Row: {
@@ -11326,6 +11680,63 @@ export type Database = {
       }
       alert_silent_mqls: { Args: never; Returns: number }
       can_see_all_calendar: { Args: never; Returns: boolean }
+      claim_due_enrollments: {
+        Args: { p_limit?: number }
+        Returns: {
+          cancelled_at: string | null
+          cancelled_reason: string | null
+          completed_at: string | null
+          contact_id: string
+          current_step: number | null
+          deal_id: string | null
+          enrolled_at: string | null
+          id: string
+          last_step_run_at: string | null
+          next_step_at: string | null
+          status: string
+          workflow_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "workflow_enrollments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_queued_email_sends: {
+        Args: { p_limit?: number }
+        Returns: {
+          bounce_type: string | null
+          bounced_at: string | null
+          campaign_id: string | null
+          click_count: number | null
+          clicked_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          delivered_at: string | null
+          error_message: string | null
+          from_email: string | null
+          id: string
+          open_count: number | null
+          opened_at: string | null
+          replied_at: string | null
+          scheduled_at: string | null
+          sent_at: string | null
+          spam_reported_at: string | null
+          status: string
+          subject_rendered: string | null
+          template_id: string | null
+          to_email: string | null
+          unsubscribed_at: string | null
+          workflow_id: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "email_sends"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_whatsapp_outbound: {
         Args: { p_limit?: number }
         Returns: {
@@ -11442,6 +11853,23 @@ export type Database = {
         }[]
       }
       detect_cadence_no_response: { Args: never; Returns: undefined }
+      enroll_contact_in_workflow: {
+        Args: { p_contact_id: string; p_workflow_id: string }
+        Returns: string
+      }
+      enroll_form_submission_workflows: {
+        Args: { p_contact_id: string; p_form_slug: string }
+        Returns: number
+      }
+      enroll_list_in_workflow: {
+        Args: { p_list_id: string; p_workflow_id: string }
+        Returns: number
+      }
+      enroll_unqualified_leads_nurture: { Args: never; Returns: number }
+      finalize_campaign_if_done: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
+      }
       find_contact_by_normalized_phone: {
         Args: { p_digits: string }
         Returns: {
@@ -11472,6 +11900,23 @@ export type Database = {
           p_message_id?: string
         }
         Returns: string
+      }
+      fn_funil_por_origem: {
+        Args: { p_since: string; p_until: string }
+        Returns: {
+          custo_etapa: number
+          display_order: number
+          entradas: number
+          form_name: string
+          form_origin: string
+          gasto_origem: number
+          is_lost: boolean
+          is_won: boolean
+          saidas: number
+          stage_id: string
+          stage_name: string
+          tempo_medio_anterior_dias: number
+        }[]
       }
       generate_system_notifications: {
         Args: never
@@ -11597,6 +12042,14 @@ export type Database = {
             }
             Returns: boolean
           }
+      has_permission: {
+        Args: {
+          _min_permission?: string
+          _module: Database["public"]["Enums"]["app_module"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -11606,6 +12059,10 @@ export type Database = {
       }
       ig_poll_phase1: { Args: never; Returns: number }
       ig_poll_phase2: { Args: never; Returns: Json }
+      increment_campaign_delivered: {
+        Args: { p_campaign_id: string }
+        Returns: undefined
+      }
       increment_replies_count: {
         Args: { automation_uuid: string }
         Returns: undefined
@@ -11745,8 +12202,14 @@ export type Database = {
           visits_total: number
         }[]
       }
+      norm_email: { Args: { _e: string }; Returns: string }
       normalize_phone_br: { Args: { raw_phone: string }; Returns: string }
       poll_ig_comments: { Args: never; Returns: Json }
+      preview_audience_count: { Args: { p_filters: Json }; Returns: number }
+      preview_campaign_audience_count: {
+        Args: { p_exclude_list_ids: string[]; p_include_list_ids: string[] }
+        Returns: number
+      }
       process_campaign_queue: { Args: { p_batch_size?: number }; Returns: Json }
       process_ig_comment: {
         Args: {
@@ -11771,6 +12234,7 @@ export type Database = {
         }
         Returns: string
       }
+      queue_campaign_send: { Args: { p_campaign_id: string }; Returns: number }
       recalcular_metas_do_mes: {
         Args: {
           p_ano: number
@@ -11779,6 +12243,14 @@ export type Database = {
           p_ticket_medio?: number
         }
         Returns: Json
+      }
+      resolve_audience_contact_ids: {
+        Args: { p_filters: Json }
+        Returns: string[]
+      }
+      resolve_contact_list_ids: {
+        Args: { p_list_id: string }
+        Returns: string[]
       }
       run_daily_meeting_analysis: { Args: never; Returns: undefined }
       set_meeting_status: {
@@ -11797,6 +12269,16 @@ export type Database = {
       update_secret: {
         Args: { new_secret: string; secret_name: string }
         Returns: undefined
+      }
+      upsert_dynamic_contact_list: {
+        Args: {
+          p_created_by?: string
+          p_description: string
+          p_filters: Json
+          p_list_id?: string
+          p_name: string
+        }
+        Returns: string
       }
     }
     Enums: {
