@@ -1,0 +1,313 @@
+// vedit-agente — o "editor" de verdade. Recebe o pedido (texto livre ou /comando),
+// lê transcrição palavra a palavra, edição atual, marca e histórico, e devolve a
+// nova edição como JSON (nunca código). Storyboard primeiro quando a edição é
+// grande, para a pessoa aprovar antes de aplicar.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5-5";
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (d: unknown, s = 200) =>
+  new Response(JSON.stringify(d), {
+    status: s,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+
+const FERRAMENTA = {
+  name: "aplicar_edicao",
+  description:
+    "Devolve a resposta para a pessoa e, quando houver mudança, a edição completa (timeline) e/ou o storyboard.",
+  input_schema: {
+    type: "object",
+    properties: {
+      resposta: {
+        type: "string",
+        description:
+          "Mensagem curta em português para a pessoa: o que você fez ou propõe. Sem emojis. Máx. 4 frases.",
+      },
+      storyboard: {
+        type: "array",
+        description:
+          "Plano cena a cena (use em /storyboard ou quando a edição for grande e ainda não aprovada).",
+        items: {
+          type: "object",
+          properties: {
+            cena: { type: "integer" },
+            de: { type: "number" },
+            ate: { type: "number" },
+            fala: { type: "string" },
+            visual: { type: "string" },
+            efeito: { type: "string" },
+            som: { type: "string" },
+          },
+          required: ["cena", "de", "ate", "fala", "visual"],
+        },
+      },
+      aguardando_aprovacao: {
+        type: "boolean",
+        description: "true quando você mandou storyboard e NÃO aplicou a timeline ainda.",
+      },
+      timeline: {
+        type: "object",
+        description: "A edição COMPLETA (não um pedaço), no formato descrito. Omita se nada mudou.",
+      },
+      variacoes: {
+        type: "array",
+        description:
+          "Só para /variacoes: versões completas alternativas (mudando principalmente os 3 primeiros segundos).",
+        items: {
+          type: "object",
+          properties: { nome: { type: "string" }, timeline: { type: "object" } },
+          required: ["nome", "timeline"],
+        },
+      },
+      resumo_mudanca: { type: "string", description: "Uma linha para o histórico de versões." },
+    },
+    required: ["resposta"],
+  },
+};
+
+function sistema(
+  catalogo: string,
+  marca: any,
+  instrucoes: string,
+  objetivo: string,
+  formato: string,
+  duracao: number,
+) {
+  return `Você é o editor de vídeo da IAplicada, no nível dos melhores editores de Reels do Brasil. Você edita vídeos curtos (Reels e anúncios Meta) devolvendo um JSON de edição. Você NUNCA escreve código.
+
+COMO O SISTEMA FUNCIONA
+- A pessoa grava um vídeo cru. Você recebe a transcrição palavra a palavra, no formato "[índice] início-fim palavra" (segundos do ORIGINAL).
+- Todos os tempos que você escreve (cortes, efeitos, zooms, sons) são em segundos do ORIGINAL. O sistema converte para o vídeo final depois dos cortes.
+- Você devolve a timeline COMPLETA a cada mudança (copie o que não mudou; mantenha os mesmos "id" dos efeitos que continuam).
+
+FORMATO DA TIMELINE
+{
+  "versao": 1, "formato": "9:16"|"4:5"|"1:1", "fps": 30,
+  "cortes": [{"de": s, "ate": s}],            // trechos que FICAM, em ordem. [] = vídeo inteiro
+  "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
+  "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
+  "legenda": {"ativa": true, "estilo": "karaoke"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "palavrasPorBloco": 1–5, "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
+  "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
+  "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
+  "musica": {"midia": "<id de mídia de áudio enviada>"|null, "volume": 0.08–0.2, "abaixarNaVoz": true},
+  "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|flash|chicote|glitch|zoom"},
+  "marca": ${JSON.stringify(marca)}
+}
+
+${catalogo}
+
+REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
+1. Cortes: remova silêncios acima de ~0,35s, respiros, "é…", "ãh", "tipo", "né" usados como muleta, gaguejos e frases repetidas (quando a pessoa repete uma frase, fique com a ÚLTIMA versão). Deixe ~0,06s de respiro antes e ~0,10s depois de cada trecho para não comer sílaba. Nunca corte no meio de uma palavra.
+2. Gancho: os primeiros 3s decidem tudo. Abra com a frase mais forte (pode reordenar só cortando o começo fraco) e um efeito "titulo" ou "palavra-gigante".
+3. Ritmo: um estímulo visual novo a cada 3–6s (efeito, zoom de soco, b-roll). Nunca dois efeitos de tela cheia sobrepostos; no máximo 2 efeitos ao mesmo tempo.
+4. Zoom: "alternar": true por padrão; "soco" de 1.15–1.3 nas palavras de ênfase (números, promessas, viradas).
+5. Legenda: sempre ativa, salvo pedido contrário. Marque em "destaques" 1 palavra-chave a cada 1–2 frases. Corrija grafia de marcas em "correcoes" (IAplicada, Claude, CRM).
+6. Som: todo efeito ganha o som sugerido no instante em que entra; todo corte para efeito de tela cheia ganha whoosh/swipe. Volume de sfx 0,35–0,6.
+7. Efeitos usam o conteúdo real do que a pessoa fala (números, nomes, listas ditas). Textos curtos: título ≤ 7 palavras, itens ≤ 4 palavras.
+8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS ou "tempo" (trecho do próprio vídeo).
+9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
+${
+  objetivo === "anuncio"
+    ? `
+MODO ANÚNCIO (Meta Ads)
+- Duração final ideal 15–30s (no máx. 45s). Gancho em ≤3s com a dor ou o resultado.
+- Zonas seguras: nada importante nos 14% de cima nem nos 35% de baixo; legenda "centro" ou "inferior" (o sistema já posiciona acima da zona de baixo).
+- Legenda obrigatória (muita gente vê sem som). Mostre prova (número, antes/depois, print) até a metade.`
+    : `
+MODO ORGÂNICO (Reels)
+- Duração livre, mas corte tudo que não prende. Efeitos mais ousados (trava, letreiro, colagem, capa).
+- Termine com "cta-final".`
+}
+
+MARCA E TOM: ${instrucoes}
+
+COMO RESPONDER
+- "/storyboard" ou pedido de edição completa de um vídeo ainda sem edição: devolva o storyboard (cenas com tempo, fala, visual, efeito, som) e aguardando_aprovacao=true, SEM timeline. Quando a pessoa aprovar ("aprovado", "pode aplicar", "manda"), aplique tudo na timeline.
+- Pedidos pontuais ("/legenda neon", "tira o zoom do começo", "/vidro com os números que eu falei"): aplique direto e devolva a timeline completa.
+- "/gancho": proponha 3 ganchos na resposta (texto + qual efeito), sem aplicar, salvo se pedirem.
+- "/variacoes N": devolva N variações completas em "variacoes" (mude o gancho/abertura e o título), mantendo o resto.
+- Formato do vídeo: ${formato}. Duração do original: ${duracao.toFixed(1)}s.
+- Responda curto, em português do Brasil, sem emojis, sem jargão.`;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const sb = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const body = await req.json().catch(() => ({}));
+  const { projeto_id, mensagem, catalogo } = body as {
+    projeto_id?: string;
+    mensagem?: string;
+    catalogo?: string;
+  };
+  if (!projeto_id || !mensagem) return json({ error: "projeto_id e mensagem obrigatórios" }, 400);
+
+  const { data: proj, error } = await sb
+    .from("vedit_projetos")
+    .select("*")
+    .eq("id", projeto_id)
+    .single();
+  if (error || !proj) return json({ error: "projeto não encontrado" }, 404);
+  const { data: marcaRow } = proj.marca_id
+    ? await sb.from("vedit_marcas").select("*").eq("id", proj.marca_id).single()
+    : await sb.from("vedit_marcas").select("*").eq("padrao", true).limit(1).maybeSingle();
+  const { data: hist } = await sb
+    .from("vedit_mensagens")
+    .select("papel, conteudo")
+    .eq("projeto_id", projeto_id)
+    .order("created_at", { ascending: false })
+    .limit(12);
+  const { data: midias } = await sb
+    .from("vedit_midias")
+    .select("id, tipo, nome, duracao, descricao")
+    .eq("projeto_id", projeto_id);
+
+  const comando = mensagem.trim().startsWith("/") ? mensagem.trim().split(/\s+/)[0] : null;
+  await sb
+    .from("vedit_mensagens")
+    .insert({ projeto_id, papel: "usuario", conteudo: mensagem, comando });
+
+  const palavras = (proj.palavras ?? []) as { p: string; i: number; f: number }[];
+  const transcricao = palavras
+    .map((w, i) => `[${i}] ${w.i.toFixed(2)}-${w.f.toFixed(2)} ${w.p}`)
+    .join("\n");
+  const contexto = `TRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
+
+  const historico = (hist ?? [])
+    .reverse()
+    .slice(0, -1)
+    .map((h) => ({ role: h.papel === "claude" ? "assistant" : "user", content: h.conteudo }));
+  // A API exige alternância começando por user: junta mensagens seguidas do mesmo papel.
+  const msgs: { role: string; content: string }[] = [];
+  for (const m of [...historico, { role: "user", content: `${contexto}\n\nPEDIDO: ${mensagem}` }]) {
+    const u = msgs[msgs.length - 1];
+    if (u && u.role === m.role) u.content += `\n\n${m.content}`;
+    else msgs.push({ ...m });
+  }
+  while (msgs.length && msgs[0].role !== "user") msgs.shift();
+
+  const key = Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) return json({ error: "CLAUDE_API_KEY não configurada" }, 500);
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODELO,
+      max_tokens: 32000,
+      system: sistema(
+        catalogo ?? "",
+        marcaRow?.marca ?? {},
+        marcaRow?.instrucoes ?? "",
+        proj.objetivo,
+        proj.formato,
+        Number(proj.fonte_duracao ?? 0),
+      ),
+      tools: [FERRAMENTA],
+      tool_choice: { type: "tool", name: "aplicar_edicao" },
+      messages: msgs,
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) {
+    await sb
+      .from("vedit_mensagens")
+      .insert({ projeto_id, papel: "sistema", conteudo: `Erro do Claude (${r.status}).` });
+    return json({ error: `Claude ${r.status}: ${txt.slice(0, 400)}` }, 502);
+  }
+  const resp = JSON.parse(txt);
+  const uso = resp.content?.find((c: any) => c.type === "tool_use")?.input ?? {};
+  const resposta = String(uso.resposta ?? "Pronto.");
+
+  let versao = proj.versao as number;
+  const upd: Record<string, unknown> = { status: "editando" };
+  if (uso.storyboard?.length) upd.storyboard = uso.storyboard;
+  if (uso.timeline && typeof uso.timeline === "object") {
+    const tl = uso.timeline;
+    tl.formato = tl.formato ?? proj.formato;
+    (tl.efeitos ?? []).forEach((e: any, i: number) => {
+      if (!e.id) e.id = `e${Date.now().toString(36)}${i}`;
+    });
+    versao += 1;
+    upd.timeline = tl;
+    upd.versao = versao;
+    if (!uso.aguardando_aprovacao) upd.storyboard = null;
+    await sb
+      .from("vedit_versoes")
+      .insert({
+        projeto_id,
+        versao,
+        timeline: tl,
+        origem: "claude",
+        resumo: uso.resumo_mudanca ?? mensagem.slice(0, 120),
+      });
+  }
+  await sb.from("vedit_projetos").update(upd).eq("id", projeto_id);
+
+  // Variações viram projetos irmãos (mesmo vídeo, outra abertura).
+  const criadas: { id: string; nome: string }[] = [];
+  for (const v of uso.variacoes ?? []) {
+    const { data: novo } = await sb
+      .from("vedit_projetos")
+      .insert({
+        nome: `${proj.nome} — ${v.nome}`,
+        objetivo: proj.objetivo,
+        formato: proj.formato,
+        status: "editando",
+        fonte_path: proj.fonte_path,
+        fonte_duracao: proj.fonte_duracao,
+        fonte_largura: proj.fonte_largura,
+        fonte_altura: proj.fonte_altura,
+        audio_path: proj.audio_path,
+        palavras: proj.palavras,
+        transcricao_texto: proj.transcricao_texto,
+        marca_id: proj.marca_id,
+        timeline: v.timeline,
+        versao: 1,
+        created_by: proj.created_by,
+      })
+      .select("id, nome")
+      .single();
+    if (novo) {
+      criadas.push(novo);
+      await sb
+        .from("vedit_versoes")
+        .insert({
+          projeto_id: novo.id,
+          versao: 1,
+          timeline: v.timeline,
+          origem: "claude",
+          resumo: `Variação: ${v.nome}`,
+        });
+    }
+  }
+
+  await sb
+    .from("vedit_mensagens")
+    .insert({
+      projeto_id,
+      papel: "claude",
+      conteudo: resposta,
+      storyboard: uso.storyboard ?? null,
+      versao,
+    });
+  return json({
+    resposta,
+    storyboard: uso.storyboard ?? null,
+    aguardando_aprovacao: !!uso.aguardando_aprovacao,
+    timeline: upd.timeline ?? null,
+    versao,
+    variacoes: criadas,
+    uso_tokens: resp.usage,
+  });
+});

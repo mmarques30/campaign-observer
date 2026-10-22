@@ -22,7 +22,11 @@ import { Route as AuthenticatedAdsCriativosRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdsCapiEventsRouteImport } from './routes/_authenticated/ads.capi-events'
 import { Route as AuthenticatedAdsAudienciasRouteImport } from './routes/_authenticated/ads.audiencias'
 import { Route as AuthenticatedAdsAnunciosRouteImport } from './routes/_authenticated/ads.anuncios'
+import { Route as AuthenticatedAdsEdicaoIndexRouteImport } from './routes/_authenticated/ads.edicao.index'
 import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
+import { Route as AuthenticatedAdsEdicaoMarcaRouteImport } from './routes/_authenticated/ads.edicao.marca'
+import { Route as AuthenticatedAdsEdicaoEfeitosRouteImport } from './routes/_authenticated/ads.edicao.efeitos'
+import { Route as AuthenticatedAdsEdicaoIdRouteImport } from './routes/_authenticated/ads.edicao.$id'
 import { Route as AuthenticatedAdsCampanhasNovaRouteImport } from './routes/_authenticated/ads.campanhas.nova'
 import { Route as AuthenticatedAdsCampanhasIdRouteImport } from './routes/_authenticated/ads.campanhas.$id'
 import { Route as AuthenticatedAdsCampanhasIdAdicionarAdsetRouteImport } from './routes/_authenticated/ads.campanhas.$id.adicionar-adset'
@@ -97,10 +101,34 @@ const AuthenticatedAdsAnunciosRoute =
     path: '/anuncios',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
+const AuthenticatedAdsEdicaoIndexRoute =
+  AuthenticatedAdsEdicaoIndexRouteImport.update({
+    id: '/edicao/',
+    path: '/edicao/',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
 const AuthenticatedAdsCampanhasIndexRoute =
   AuthenticatedAdsCampanhasIndexRouteImport.update({
     id: '/campanhas/',
     path: '/campanhas/',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsEdicaoMarcaRoute =
+  AuthenticatedAdsEdicaoMarcaRouteImport.update({
+    id: '/edicao/marca',
+    path: '/edicao/marca',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsEdicaoEfeitosRoute =
+  AuthenticatedAdsEdicaoEfeitosRouteImport.update({
+    id: '/edicao/efeitos',
+    path: '/edicao/efeitos',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsEdicaoIdRoute =
+  AuthenticatedAdsEdicaoIdRouteImport.update({
+    id: '/edicao/$id',
+    path: '/edicao/$id',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
 const AuthenticatedAdsCampanhasNovaRoute =
@@ -143,7 +171,11 @@ export interface FileRoutesByFullPath {
   '/ads/': typeof AuthenticatedAdsIndexRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
+  '/ads/edicao/$id': typeof AuthenticatedAdsEdicaoIdRoute
+  '/ads/edicao/efeitos': typeof AuthenticatedAdsEdicaoEfeitosRoute
+  '/ads/edicao/marca': typeof AuthenticatedAdsEdicaoMarcaRoute
   '/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/ads/edicao/': typeof AuthenticatedAdsEdicaoIndexRoute
   '/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
   '/ads/campanhas/$id/adicionar-adset': typeof AuthenticatedAdsCampanhasIdAdicionarAdsetRoute
 }
@@ -161,7 +193,11 @@ export interface FileRoutesByTo {
   '/ads': typeof AuthenticatedAdsIndexRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
+  '/ads/edicao/$id': typeof AuthenticatedAdsEdicaoIdRoute
+  '/ads/edicao/efeitos': typeof AuthenticatedAdsEdicaoEfeitosRoute
+  '/ads/edicao/marca': typeof AuthenticatedAdsEdicaoMarcaRoute
   '/ads/campanhas': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/ads/edicao': typeof AuthenticatedAdsEdicaoIndexRoute
   '/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
   '/ads/campanhas/$id/adicionar-adset': typeof AuthenticatedAdsCampanhasIdAdicionarAdsetRoute
 }
@@ -182,7 +218,11 @@ export interface FileRoutesById {
   '/_authenticated/ads/': typeof AuthenticatedAdsIndexRoute
   '/_authenticated/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/_authenticated/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
+  '/_authenticated/ads/edicao/$id': typeof AuthenticatedAdsEdicaoIdRoute
+  '/_authenticated/ads/edicao/efeitos': typeof AuthenticatedAdsEdicaoEfeitosRoute
+  '/_authenticated/ads/edicao/marca': typeof AuthenticatedAdsEdicaoMarcaRoute
   '/_authenticated/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
+  '/_authenticated/ads/edicao/': typeof AuthenticatedAdsEdicaoIndexRoute
   '/_authenticated/ads/adsets/$id/adicionar-ad': typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
   '/_authenticated/ads/campanhas/$id/adicionar-adset': typeof AuthenticatedAdsCampanhasIdAdicionarAdsetRoute
 }
@@ -203,7 +243,11 @@ export interface FileRouteTypes {
     | '/ads/'
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
+    | '/ads/edicao/$id'
+    | '/ads/edicao/efeitos'
+    | '/ads/edicao/marca'
     | '/ads/campanhas/'
+    | '/ads/edicao/'
     | '/ads/adsets/$id/adicionar-ad'
     | '/ads/campanhas/$id/adicionar-adset'
   fileRoutesByTo: FileRoutesByTo
@@ -221,7 +265,11 @@ export interface FileRouteTypes {
     | '/ads'
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
+    | '/ads/edicao/$id'
+    | '/ads/edicao/efeitos'
+    | '/ads/edicao/marca'
     | '/ads/campanhas'
+    | '/ads/edicao'
     | '/ads/adsets/$id/adicionar-ad'
     | '/ads/campanhas/$id/adicionar-adset'
   id:
@@ -241,7 +289,11 @@ export interface FileRouteTypes {
     | '/_authenticated/ads/'
     | '/_authenticated/ads/campanhas/$id'
     | '/_authenticated/ads/campanhas/nova'
+    | '/_authenticated/ads/edicao/$id'
+    | '/_authenticated/ads/edicao/efeitos'
+    | '/_authenticated/ads/edicao/marca'
     | '/_authenticated/ads/campanhas/'
+    | '/_authenticated/ads/edicao/'
     | '/_authenticated/ads/adsets/$id/adicionar-ad'
     | '/_authenticated/ads/campanhas/$id/adicionar-adset'
   fileRoutesById: FileRoutesById
@@ -345,11 +397,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdsAnunciosRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
+    '/_authenticated/ads/edicao/': {
+      id: '/_authenticated/ads/edicao/'
+      path: '/edicao'
+      fullPath: '/ads/edicao/'
+      preLoaderRoute: typeof AuthenticatedAdsEdicaoIndexRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
     '/_authenticated/ads/campanhas/': {
       id: '/_authenticated/ads/campanhas/'
       path: '/campanhas'
       fullPath: '/ads/campanhas/'
       preLoaderRoute: typeof AuthenticatedAdsCampanhasIndexRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/edicao/marca': {
+      id: '/_authenticated/ads/edicao/marca'
+      path: '/edicao/marca'
+      fullPath: '/ads/edicao/marca'
+      preLoaderRoute: typeof AuthenticatedAdsEdicaoMarcaRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/edicao/efeitos': {
+      id: '/_authenticated/ads/edicao/efeitos'
+      path: '/edicao/efeitos'
+      fullPath: '/ads/edicao/efeitos'
+      preLoaderRoute: typeof AuthenticatedAdsEdicaoEfeitosRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/edicao/$id': {
+      id: '/_authenticated/ads/edicao/$id'
+      path: '/edicao/$id'
+      fullPath: '/ads/edicao/$id'
+      preLoaderRoute: typeof AuthenticatedAdsEdicaoIdRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
     '/_authenticated/ads/campanhas/nova': {
@@ -410,7 +490,11 @@ interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsIndexRoute: typeof AuthenticatedAdsIndexRoute
   AuthenticatedAdsCampanhasIdRoute: typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   AuthenticatedAdsCampanhasNovaRoute: typeof AuthenticatedAdsCampanhasNovaRoute
+  AuthenticatedAdsEdicaoIdRoute: typeof AuthenticatedAdsEdicaoIdRoute
+  AuthenticatedAdsEdicaoEfeitosRoute: typeof AuthenticatedAdsEdicaoEfeitosRoute
+  AuthenticatedAdsEdicaoMarcaRoute: typeof AuthenticatedAdsEdicaoMarcaRoute
   AuthenticatedAdsCampanhasIndexRoute: typeof AuthenticatedAdsCampanhasIndexRoute
+  AuthenticatedAdsEdicaoIndexRoute: typeof AuthenticatedAdsEdicaoIndexRoute
   AuthenticatedAdsAdsetsIdAdicionarAdRoute: typeof AuthenticatedAdsAdsetsIdAdicionarAdRoute
 }
 
@@ -427,7 +511,11 @@ const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsCampanhasIdRoute:
     AuthenticatedAdsCampanhasIdRouteWithChildren,
   AuthenticatedAdsCampanhasNovaRoute: AuthenticatedAdsCampanhasNovaRoute,
+  AuthenticatedAdsEdicaoIdRoute: AuthenticatedAdsEdicaoIdRoute,
+  AuthenticatedAdsEdicaoEfeitosRoute: AuthenticatedAdsEdicaoEfeitosRoute,
+  AuthenticatedAdsEdicaoMarcaRoute: AuthenticatedAdsEdicaoMarcaRoute,
   AuthenticatedAdsCampanhasIndexRoute: AuthenticatedAdsCampanhasIndexRoute,
+  AuthenticatedAdsEdicaoIndexRoute: AuthenticatedAdsEdicaoIndexRoute,
   AuthenticatedAdsAdsetsIdAdicionarAdRoute:
     AuthenticatedAdsAdsetsIdAdicionarAdRoute,
 }

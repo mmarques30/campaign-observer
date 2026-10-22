@@ -1,0 +1,104 @@
+[
+ {
+  "familia": "Anton",
+  "estilo": "normal",
+  "peso": "400",
+  "arquivo": "Anton-normal-400.woff2"
+ },
+ {
+  "familia": "Archivo Black",
+  "estilo": "normal",
+  "peso": "400",
+  "arquivo": "ArchivoBlack-normal-400.woff2"
+ },
+ {
+  "familia": "Bricolage Grotesque",
+  "estilo": "normal",
+  "peso": "600",
+  "arquivo": "BricolageGrotesque-normal-600.woff2"
+ },
+ {
+  "familia": "Bricolage Grotesque",
+  "estilo": "normal",
+  "peso": "800",
+  "arquivo": "BricolageGrotesque-normal-800.woff2"
+ },
+ {
+  "familia": "Caveat",
+  "estilo": "normal",
+  "peso": "700",
+  "arquivo": "Caveat-normal-700.woff2"
+ },
+ {
+  "familia": "DM Mono",
+  "estilo": "normal",
+  "peso": "400",
+  "arquivo": "DMMono-normal-400.woff2"
+ },
+ {
+  "familia": "DM Mono",
+  "estilo": "normal",
+  "peso": "500",
+  "arquivo": "DMMono-normal-500.woff2"
+ },
+ {
+  "familia": "Fraunces",
+  "estilo": "italic",
+  "peso": "600",
+  "arquivo": "Fraunces-italic-600.woff2"
+ },
+ {
+  "familia": "Instrument Serif",
+  "estilo": "italic",
+  "peso": "400",
+  "arquivo": "InstrumentSerif-italic-400.woff2"
+ },
+ {
+  "familia": "Instrument Serif",
+  "estilo": "normal",
+  "peso": "400",
+  "arquivo": "InstrumentSerif-normal-400.woff2"
+ },
+ {
+  "familia": "Inter",
+  "estilo": "normal",
+  "peso": "400",
+  "arquivo": "Inter-normal-400.woff2"
+ },
+ {
+  "familia": "Inter",
+  "estilo": "normal",
+  "peso": "600",
+  "arquivo": "Inter-normal-600.woff2"
+ },
+ {
+  "familia": "Inter",
+  "estilo": "normal",
+  "peso": "800",
+  "arquivo": "Inter-normal-800.woff2"
+ },
+ {
+  "familia": "Inter",
+  "estilo": "normal",
+  "peso": "900",
+  "arquivo": "Inter-normal-900.woff2"
+ },
+ {
+  "familia": "Montserrat",
+  "estilo": "normal",
+  "peso": "800",
+  "arquivo": "Montserrat-normal-800.woff2"
+ },
+ {
+  "familia": "Montserrat",
+  "estilo": "normal",
+  "peso": "900",
+  "arquivo": "Montserrat-normal-900.woff2"
+ },
+ {
+  "familia": "Playfair Display",
+  "estilo": "italic",
+  "peso": "700",
+  "arquivo": "PlayfairDisplay-italic-700.woff2"
+ }
+]

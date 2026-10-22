@@ -1,0 +1,20 @@
+{
+  "name": "vedit-render-worker",
+  "private": true,
+  "type": "module",
+  "description": "Worker de render do módulo Edição (IAplicada Ads). Lê a fila vedit_renders no Supabase e gera o MP4 com Remotion.",
+  "scripts": {
+    "start": "tsx worker.ts",
+    "teste-efeitos": "tsx teste-efeitos.ts"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.535",
+    "@remotion/renderer": "4.0.535",
+    "@supabase/supabase-js": "^2.107.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "4.0.535",
+    "tsx": "^4.19.2",
+    "zod": "^3.24.2"
+  }
+}
