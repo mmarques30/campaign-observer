@@ -40,6 +40,7 @@ publicar ◄──────────────────────�
      - `CLAUDE_API_KEY` (ou `ANTHROPIC_API_KEY`)
      - `META_ADS_TOKEN`, lido via `rpc get_secret`
    - Secrets opcionais:
+     - `PEXELS_API_KEY` e `UNSPLASH_ACCESS_KEY` (busca de imagens/vídeos da internet pelo chat)
      - `VEDIT_MODELO` (padrão `claude-opus-5-5`)
      - `IG_USER_ID` (conta do Instagram para publicar Reels)
 3. **Worker de render**: é um container Node 22 que fica lendo a fila `vedit_renders`.
@@ -71,6 +72,9 @@ publicar ◄──────────────────────�
 | `/formato` | Muda o formato |
 | `/look` | Muda o look |
 | `/desfazer` | Volta uma versão |
+
+| `/imagem` | Busca foto ou vídeo gratuito (Pexels/Unsplash) e encaixa na edição. Precisa de `PEXELS_API_KEY` (opcional `UNSPLASH_ACCESS_KEY`) nos secrets do Supabase |
+| `/estilo` | Troca o estilo visual: viral, editorial ou limpo |
 
 Os efeitos também são comandos: `/titulo /gigante /capa /trava /letreiro /recorte /postit /checklist /celular /vidro /grafico /contador /comentario /notificacao /orbita /broll /colagem /antesdepois /particulas /rabisco /cta`.
 
