@@ -1,0 +1,322 @@
+import {
+  AbsoluteFill,
+  Audio,
+  getRemotionEnvironment,
+  interpolate,
+  OffthreadVideo,
+  Sequence,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
+import { useMemo } from "react";
+import { garantirFontes } from "./fontes";
+import { Legenda } from "./legenda";
+import { EFEITO_POR_TIPO } from "./catalogo";
+import { urlSom } from "./sons";
+import { normalizarTimeline, type ReelProps } from "./schema";
+import { janelaFrames, paraSaida, trechosMantidos, type Trecho } from "./tempo";
+
+const FILTRO_LOOK: Record<string, string> = {
+  natural: "none",
+  quente: "sepia(.14) saturate(1.12) hue-rotate(-6deg) contrast(1.04)",
+  frio: "saturate(.92) hue-rotate(8deg) brightness(1.03) contrast(1.03)",
+  cinema: "contrast(1.12) saturate(.82) brightness(.97)",
+  pb: "grayscale(1) contrast(1.18)",
+  vivo: "saturate(1.32) contrast(1.06)",
+};
+
+/** Escala de zoom num frame de saída: alternância por trecho + eventos de ênfase. */
+function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trecho[]) {
+  const tl = props.timeline;
+  let escala = 1;
+  let ox = tl.enquadramento.x,
+    oy = tl.enquadramento.y;
+  if (tl.zoom.alternar && trechos.length > 1) {
+    const idx = trechos.findIndex((t, i) => {
+      const fim = (trechos[i + 1]?.saidaDe ?? Infinity) * fps;
+      return frame >= t.saidaDe * fps && frame < fim;
+    });
+    if (idx % 2 === 1) escala = 1.12;
+  }
+  for (const ev of tl.zoom.eventos) {
+    const [ini, dur] = janelaFrames(trechos, ev.de, ev.ate, fps);
+    if (frame < ini || frame > ini + dur) continue;
+    const entra =
+      ev.tipo === "soco"
+        ? spring({ frame: frame - ini, fps, config: { damping: 18, stiffness: 320 } })
+        : interpolate(frame - ini, [0, Math.min(dur, fps * 0.8)], [0, 1], {
+            extrapolateRight: "clamp",
+          });
+    const sai = interpolate(frame, [ini + dur - 4, ini + dur], [1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    escala *= 1 + (ev.escala - 1) * entra * sai;
+    ox = ev.x;
+    oy = ev.y;
+  }
+  return { escala, ox, oy };
+}
+
+function Grao({ forca }: { forca: number }) {
+  const frame = useCurrentFrame();
+  if (forca <= 0) return null;
+  return (
+    <AbsoluteFill style={{ opacity: forca * 0.22, mixBlendMode: "overlay", pointerEvents: "none" }}>
+      <svg width="100%" height="100%">
+        <filter id={`grao-${frame % 6}`}>
+          <feTurbulence
+            type="fractalNoise"
+            baseFrequency="0.85"
+            numOctaves="2"
+            seed={frame % 6}
+            stitchTiles="stitch"
+          />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter={`url(#grao-${frame % 6})`} />
+      </svg>
+    </AbsoluteFill>
+  );
+}
+
+function Transicao({ tipo }: { tipo: string }) {
+  const frame = useCurrentFrame();
+  if (tipo === "flash")
+    return (
+      <AbsoluteFill
+        style={{
+          background: "#fff",
+          opacity: interpolate(frame, [0, 4], [0.85, 0], { extrapolateRight: "clamp" }),
+        }}
+      />
+    );
+  if (tipo === "glitch") {
+    if (frame > 5) return null;
+    return (
+      <AbsoluteFill style={{ mixBlendMode: "screen" }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: `${(i * 37 + frame * 23) % 90}%`,
+              height: `${4 + ((i * 13) % 7)}%`,
+              background: i % 2 ? "rgba(255,0,80,.55)" : "rgba(0,255,220,.5)",
+              transform: `translateX(${(i % 2 ? 1 : -1) * 40}px)`,
+            }}
+          />
+        ))}
+      </AbsoluteFill>
+    );
+  }
+  return null;
+}
+
+export function Reel(bruto: ReelProps) {
+  garantirFontes();
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+  // O JSON vem do Claude: sempre normaliza (completa defaults) antes de usar.
+  const tl = useMemo(() => normalizarTimeline(bruto.timeline).timeline, [bruto.timeline]);
+  const props = { ...bruto, timeline: tl };
+  const trechos = useMemo(() => trechosMantidos(tl, props.duracaoFonte), [tl, props.duracaoFonte]);
+
+  // Quadros em que alguém está falando (para abaixar a música).
+  const falando = useMemo(() => {
+    const arr = new Uint8Array(durationInFrames + 1);
+    for (const w of props.palavras) {
+      const a = Math.max(0, Math.round((paraSaida(trechos, w.i) - 0.15) * fps));
+      const b = Math.min(durationInFrames, Math.round((paraSaida(trechos, w.f) + 0.25) * fps));
+      for (let i = a; i <= b; i++) arr[i] = 1;
+    }
+    return arr;
+  }, [props.palavras, trechos, fps, durationInFrames]);
+
+  const { escala, ox, oy } = zoomNoFrame(frame, fps, props, trechos);
+
+  // Efeito de transição no início de cada trecho (menos o primeiro).
+  const inicioTrechoAtual = [...trechos]
+    .reverse()
+    .find((t) => frame >= Math.round(t.saidaDe * fps));
+  const desdeCorte =
+    inicioTrechoAtual && inicioTrechoAtual.saidaDe > 0
+      ? frame - Math.round(inicioTrechoAtual.saidaDe * fps)
+      : 999;
+  const trans = tl.visual.transicao;
+  let extraEscala = 1,
+    extraX = 0,
+    blur = 0;
+  if (trans === "zoom" && desdeCorte < 7) extraEscala = interpolate(desdeCorte, [0, 7], [1.25, 1]);
+  if (trans === "chicote" && desdeCorte < 6) {
+    extraX = interpolate(desdeCorte, [0, 6], [120, 0]);
+    blur = interpolate(desdeCorte, [0, 6], [14, 0]);
+  }
+
+  const enq = tl.enquadramento;
+  const ctxBase = {
+    tl,
+    fonteUrl: props.fonteUrl,
+    duracaoFonte: props.duracaoFonte,
+    midias: props.midias,
+    trechos,
+    palavras: props.palavras,
+    modoGaleria: props.modoGaleria,
+  };
+  const efeitos = tl.efeitos.filter((e) => EFEITO_POR_TIPO[e.tipo]?.componente);
+  const camada = (cheia: boolean) =>
+    efeitos
+      .filter((e) => !!EFEITO_POR_TIPO[e.tipo].telaCheia === cheia)
+      .map((e) => {
+        const def = EFEITO_POR_TIPO[e.tipo];
+        const Comp = def.componente!;
+        const [ini, dur] = janelaFrames(
+          trechos,
+          e.de,
+          e.ate > e.de ? e.ate : e.de + def.duracaoPadrao,
+          fps,
+        );
+        return (
+          <Sequence key={e.id} from={ini} durationInFrames={dur} name={`${def.nome}`}>
+            <Comp p={e.props ?? {}} dur={dur} ctx={{ ...ctxBase, deFonte: e.de }} />
+          </Sequence>
+        );
+      });
+
+  return (
+    <AbsoluteFill style={{ background: tl.marca.fundo, overflow: "hidden" }}>
+      {/* Vídeo base, já cortado */}
+      <AbsoluteFill
+        style={{
+          transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
+          transformOrigin: `${ox * 100}% ${oy * 100}%`,
+          filter: `${FILTRO_LOOK[tl.visual.look] ?? "none"}${blur ? ` blur(${blur}px)` : ""}`,
+        }}
+      >
+        {props.modoGaleria || !props.fonteUrl ? (
+          <AbsoluteFill
+            style={{ background: "radial-gradient(ellipse at 50% 35%, #3a3a48 0%, #15151c 70%)" }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: "30%",
+                right: "30%",
+                top: "24%",
+                height: "22%",
+                borderRadius: "50%",
+                background: "#4a4a5a",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: "16%",
+                right: "16%",
+                top: "47%",
+                bottom: "-10%",
+                borderRadius: "45% 45% 0 0",
+                background: "#40404e",
+              }}
+            />
+          </AbsoluteFill>
+        ) : (
+          trechos.map((t, i) => (
+            <Sequence
+              key={i}
+              from={Math.round(t.saidaDe * fps)}
+              durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
+              name={`Trecho ${i + 1}`}
+            >
+              <OffthreadVideo
+                src={props.fonteUrl}
+                trimBefore={Math.round(t.de * fps)}
+                onError={
+                  getRemotionEnvironment().isRendering
+                    ? undefined
+                    : (e) => console.warn("[vedit] vídeo", e)
+                }
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+                }}
+              />
+            </Sequence>
+          ))
+        )}
+      </AbsoluteFill>
+
+      {tl.visual.vinheta > 0 && (
+        <AbsoluteFill
+          style={{
+            background: `radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,${tl.visual.vinheta}) 100%)`,
+          }}
+        />
+      )}
+      <Grao forca={tl.visual.grao} />
+
+      {camada(false)}
+      {!efeitos.some((e) => {
+        if (!EFEITO_POR_TIPO[e.tipo].escondeLegenda) return false;
+        const [ini, dur] = janelaFrames(
+          trechos,
+          e.de,
+          e.ate > e.de ? e.ate : e.de + EFEITO_POR_TIPO[e.tipo].duracaoPadrao,
+          fps,
+        );
+        return frame >= ini && frame < ini + dur;
+      }) && <Legenda tl={tl} palavras={props.palavras} trechos={trechos} />}
+      {camada(true)}
+
+      {trans !== "nenhuma" &&
+        trechos.slice(1).map((t, i) => (
+          <Sequence key={`tr${i}`} from={Math.round(t.saidaDe * fps)} durationInFrames={8}>
+            <Transicao tipo={trans} />
+          </Sequence>
+        ))}
+
+      {tl.visual.barraProgresso && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            height: 10,
+            width: `${(frame / durationInFrames) * 100}%`,
+            background: tl.marca.destaque,
+          }}
+        />
+      )}
+
+      {/* Áudio: música com ducking + efeitos sonoros */}
+      {tl.musica.midia && props.midias[tl.musica.midia] && (
+        <Audio
+          src={props.midias[tl.musica.midia]}
+          loop
+          volume={(f) => tl.musica.volume * (tl.musica.abaixarNaVoz && falando[f] ? 0.35 : 1)}
+        />
+      )}
+      {tl.sfx.map((s, i) => (
+        <Sequence
+          key={`sfx${i}`}
+          from={Math.round(paraSaida(trechos, s.em) * fps)}
+          durationInFrames={fps * 3}
+        >
+          <Audio src={urlSom(s.som)} volume={s.volume} />
+        </Sequence>
+      ))}
+    </AbsoluteFill>
+  );
+}
+
+export function calcularDuracao(props: Pick<ReelProps, "timeline" | "duracaoFonte">, fps = 30) {
+  const tr = trechosMantidos(normalizarTimeline(props.timeline).timeline, props.duracaoFonte);
+  const u = tr[tr.length - 1];
+  const s = u ? u.saidaDe + (u.ate - u.de) : props.duracaoFonte;
+  return Math.max(fps, Math.round(s * fps));
+}

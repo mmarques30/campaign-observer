@@ -1,5 +1,5 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film, Sparkles, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Leaf, Globe, Menu, PanelLeftClose, PanelLeftOpen, X, Users, Webhook, Film, Sparkles, ChevronDown, Clapperboard, Wand2, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -36,6 +36,14 @@ const GROUPS: NavGroup[] = [
     id: "analise", label: "Análise & Saúde", icon: Sparkles, items: [
       { to: "/ads/insights", label: "Insights", icon: Sparkles },
       { to: "/ads/saude", label: "Saúde", icon: Activity },
+    ],
+  },
+  {
+    // Editor de vídeo com IA: edita, renderiza e publica sem sair do Ads.
+    id: "edicao", label: "Edição", icon: Clapperboard, items: [
+      { to: "/ads/edicao", label: "Estúdio", icon: Clapperboard, exact: true },
+      { to: "/ads/edicao/efeitos", label: "Efeitos", icon: Wand2 },
+      { to: "/ads/edicao/marca", label: "Marca", icon: Palette },
     ],
   },
 ];
@@ -228,7 +236,7 @@ export function AdsLayout() {
                     {open && (
                       <div className="mt-1 space-y-1">
                         {g.items.map((it) => (
-                          <Link key={it.to} to={it.to} className={itemClass(isActive(it.to), true)}>
+                          <Link key={it.to} to={it.to} className={itemClass(isActive(it.to, it.exact), true)}>
                             <it.icon className="h-4 w-4 shrink-0" />
                             <span className="truncate">{it.label}</span>
                           </Link>
