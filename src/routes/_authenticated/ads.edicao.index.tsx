@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -18,8 +18,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Clapperboard, Loader2, Megaphone, Plus, Sparkles, Upload, Wand2 } from "lucide-react";
-import { criarProjeto, db, fmtTempo, STATUS_LABEL, type Marca, type Projeto } from "@/lib/vedit";
+import { Clapperboard, Loader2, Megaphone, Plus, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
+import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
+import {
+  criarProjeto,
+  db,
+  excluirProjeto,
+  fmtTempo,
+  STATUS_LABEL,
+  type Marca,
+  type Projeto,
+} from "@/lib/vedit";
 import type { Formato } from "@/video/schema";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +47,18 @@ function corStatus(s: string) {
 
 function Estudio() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [aberto, setAberto] = useState(false);
+  const [excluindo, setExcluindo] = useState<Projeto | null>(null);
+  const excluir = useMutation({
+    mutationFn: (p: Projeto) => excluirProjeto(p.id),
+    onSuccess: () => {
+      toast.success("Vídeo excluído.");
+      setExcluindo(null);
+      qc.invalidateQueries({ queryKey: ["vedit", "projetos"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const [nome, setNome] = useState("");
   const [objetivo, setObjetivo] = useState<"anuncio" | "organico">("organico");
   const [formato, setFormato] = useState<Formato>("9:16");
@@ -144,7 +164,20 @@ function Estudio() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {lista.map((p) => (
             <Link key={p.id} to="/ads/edicao/$id" params={{ id: p.id }}>
-              <Card className="hover:border-primary/50 hover:shadow-md transition">
+              <Card className="group relative hover:border-primary/50 hover:shadow-md transition">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="Excluir vídeo"
+                  className="absolute top-2 right-2 h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-red-600"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setExcluindo(p);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
                 <CardContent className="p-4 flex gap-4">
                   <div
                     className={cn(
@@ -191,6 +224,13 @@ function Estudio() {
           ))}
         </div>
       )}
+
+      <ConfirmarExclusao
+        projeto={excluindo}
+        ocupado={excluir.isPending}
+        onCancelar={() => setExcluindo(null)}
+        onConfirmar={() => excluindo && excluir.mutate(excluindo)}
+      />
 
       <Dialog open={aberto} onOpenChange={(o) => !etapa && setAberto(o)}>
         <DialogContent className="sm:max-w-lg">

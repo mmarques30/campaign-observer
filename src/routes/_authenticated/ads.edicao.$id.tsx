@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
@@ -14,8 +14,11 @@ import {
   RotateCcw,
   Send,
   ShieldAlert,
+  Trash2,
   Undo2,
+  Upload,
 } from "lucide-react";
+import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
 import { SugestaoCard } from "@/components/edicao/SugestaoCard";
@@ -32,8 +35,10 @@ import {
   desfazer,
   enviarAoClaude,
   enviarMidia,
+  excluirProjeto,
   fmtTempo,
   pedirRender,
+  retomarEnvio,
   salvarManual,
   STATUS_LABEL,
   type Mensagem,
@@ -43,6 +48,8 @@ import {
 import { normalizarTimeline, type ReelProps, type Timeline } from "@/video/schema";
 import { duracaoSaida, paraSaida, trechosMantidos } from "@/video/tempo";
 import { cortarSilencios } from "@/video/automatico";
+import { detectarRepeticoes } from "@/video/repeticoes";
+import { Repeticoes } from "@/components/edicao/Repeticoes";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/$id")({
   component: Editor,
@@ -57,6 +64,22 @@ function Editor() {
   const [rascunho, setRascunho] = useState("");
   const [zonas, setZonas] = useState(false);
   const [publicar, setPublicar] = useState(false);
+  const navigate = useNavigate();
+  const [excluir, setExcluir] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  async function confirmarExclusao() {
+    setExcluindo(true);
+    try {
+      await excluirProjeto(id);
+      qc.removeQueries({ queryKey: ["vedit", "projeto", id] });
+      qc.invalidateQueries({ queryKey: ["vedit", "projetos"] });
+      toast.success("Vídeo excluído.");
+      navigate({ to: "/ads/edicao" });
+    } catch (e) {
+      toast.error((e as Error).message);
+      setExcluindo(false);
+    }
+  }
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
   const envio = useSyncExternalStore(
@@ -172,6 +195,7 @@ function Editor() {
   }, [urlsQ.data, proj?.status]);
 
   const palavras = useMemo(() => proj?.palavras ?? [], [proj?.palavras]);
+  const repeticoes = useMemo(() => detectarRepeticoes(palavras), [palavras]);
   const duracaoFonte = Number(proj?.fonte_duracao ?? 0);
   const trechos = useMemo(() => (tl ? trechosMantidos(tl, duracaoFonte) : []), [tl, duracaoFonte]);
   const props: ReelProps | null = useMemo(
@@ -325,6 +349,19 @@ function Editor() {
               <Send className="h-4 w-4 mr-2" />
               Publicar
             </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground hover:text-red-600"
+                  onClick={() => setExcluir(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Excluir este vídeo</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -388,10 +425,14 @@ function Editor() {
               onComando={(t) => setRascunho(t)}
               selecionado={selecionado}
               onCorteRapido={() => {
-                const cortes = cortarSilencios(palavras, duracaoFonte, { tirarMuletas: true });
+                const cortes = cortarSilencios(palavras, duracaoFonte, {
+                  tirarMuletas: true,
+                  tirarRepeticoes: true,
+                  repeticoes,
+                });
                 setTl({ ...tl, cortes }, `Corte rápido: ${cortes.length} trechos`);
                 toast.success(
-                  `Silêncios cortados: ${fmtTempo(duracaoFonte)} → ${fmtTempo(cortes.reduce((s, c) => s + c.ate - c.de, 0))}`,
+                  `Silêncios${repeticoes.length ? ` e ${repeticoes.length} fala(s) repetida(s)` : ""} cortados: ${fmtTempo(duracaoFonte)} → ${fmtTempo(cortes.reduce((s, c) => s + c.ate - c.de, 0))}`,
                 );
               }}
             />
@@ -411,9 +452,31 @@ function Editor() {
                       ? "Áudio já transcrito: a sugestão aparece ao lado enquanto o vídeo termina."
                       : "Separando o áudio e transcrevendo…"}
                     {envio == null && (proj.upload_progresso ?? 0) < 100 && (
-                      <div className="mt-1 text-amber-700">
-                        O envio roda na aba que começou. Se você fechou ou recarregou, suba o vídeo
-                        de novo.
+                      <div className="mt-3 space-y-2">
+                        <div className="text-amber-700">
+                          O envio parou (a aba foi fechada ou recarregada). Escolha o mesmo arquivo
+                          e ele continua de onde parou — sem transcrever de novo.
+                        </div>
+                        <Button size="sm" variant="outline" asChild>
+                          <label className="cursor-pointer">
+                            <Upload className="h-4 w-4 mr-2" /> Continuar envio
+                            <input
+                              type="file"
+                              accept="video/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                if (!f) return;
+                                try {
+                                  await retomarEnvio(proj, f);
+                                  toast.success("Retomando o envio de onde parou.");
+                                } catch (err) {
+                                  toast.error((err as Error).message);
+                                }
+                              }}
+                            />
+                          </label>
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -465,6 +528,22 @@ function Editor() {
                   />
                 </div>
               )}
+            {repeticoes.length > 0 && (
+              <Repeticoes
+                repeticoes={repeticoes}
+                cortes={tl.cortes}
+                onIr={irPara}
+                onCortar={() => {
+                  const cortes = cortarSilencios(palavras, duracaoFonte, {
+                    tirarMuletas: true,
+                    tirarRepeticoes: true,
+                    repeticoes,
+                  });
+                  setTl({ ...tl, cortes }, `Repetições removidas: ${repeticoes.length}`);
+                  toast.success(`${repeticoes.length} fala(s) repetida(s) fora. Ficou a última tomada de cada.`);
+                }}
+              />
+            )}
             <Chat
               mensagens={msgsQ.data ?? []}
               enviando={enviando}
@@ -479,6 +558,12 @@ function Editor() {
       {publicar && (
         <Publicar projeto={proj} aberto={publicar} onFechar={() => setPublicar(false)} />
       )}
+      <ConfirmarExclusao
+        projeto={excluir ? proj : null}
+        ocupado={excluindo}
+        onCancelar={() => setExcluir(false)}
+        onConfirmar={confirmarExclusao}
+      />
     </TooltipProvider>
   );
 }
