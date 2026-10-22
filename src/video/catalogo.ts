@@ -24,6 +24,7 @@ import {
   Vidro,
 } from "./efeitos/ui";
 import { AntesDepois, Broll, Colagem, Particulas, Rabisco } from "./efeitos/midia";
+import { Azulejos, Cracha, FraseCaixa, ListaEditorial, NumeroCapitulo } from "./efeitos/editorial";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -350,6 +351,78 @@ export const EFEITOS: EfeitoDef[] = [
     inspiracao: "castilho / tenfoldmarc",
     componente: CtaFinal,
   },
+  // ── Estilo editorial (referência: justyn.ai) ──
+  {
+    tipo: "numero-capitulo",
+    comando: "/numero",
+    nome: "Número de capítulo",
+    categoria: "texto",
+    descricao: "Número gigante em serifa no canto ('1', '2'), com legenda opcional.",
+    quandoUsar: "Marcar o início de cada ponto de uma lista falada ('primeiro…', 'segundo…').",
+    params: "numero, texto?, lado: 'esquerda'|'direita', cor?",
+    duracaoPadrao: 2.5,
+    somPadrao: "ding",
+    disponivel: true,
+    inspiracao: "justyn.ai",
+    componente: NumeroCapitulo,
+  },
+  {
+    tipo: "cracha",
+    comando: "/cracha",
+    nome: "Crachá",
+    categoria: "interface",
+    descricao: "Etiqueta 'HELLO my name is' com o nome sendo escrito à mão.",
+    quandoUsar: "Apresentação de quem fala, nos primeiros 5s.",
+    params: "nome, titulo?, subtitulo?, posicao: 'topo'|'centro', cor?",
+    duracaoPadrao: 3,
+    somPadrao: "papel",
+    disponivel: true,
+    inspiracao: "justyn.ai",
+    componente: Cracha,
+  },
+  {
+    tipo: "azulejos",
+    comando: "/azulejos",
+    nome: "Letras de azulejo",
+    categoria: "texto",
+    descricao: "Palavra curta em ladrilhos de serifa caindo um a um.",
+    quandoUsar: "Palavra-chave do CTA ('EDIT', 'QUERO') ou nome do método. Até 6 letras.",
+    params: "texto (≤ 6 letras), posicao: 'topo'|'centro', cor?",
+    duracaoPadrao: 2.5,
+    somPadrao: "click",
+    disponivel: true,
+    inspiracao: "justyn.ai",
+    componente: Azulejos,
+  },
+  {
+    tipo: "frase-caixa",
+    comando: "/caixa",
+    nome: "Frase em caixa",
+    categoria: "texto",
+    descricao: "Frase em caixa verde-musgo, com a palavra entre *asteriscos* em serifa itálica.",
+    quandoUsar: "Promessa ou frase de efeito no meio do vídeo.",
+    params:
+      "texto (use *x* p/ a palavra em itálico), posicao: 'superior'|'centro'|'inferior', cor?",
+    duracaoPadrao: 3,
+    somPadrao: "pop",
+    disponivel: true,
+    inspiracao: "justyn.ai",
+    componente: FraseCaixa,
+  },
+  {
+    tipo: "lista-editorial",
+    comando: "/lista",
+    nome: "Lista editorial",
+    categoria: "texto",
+    descricao: "Itens numerados em serifa, entrando um a um pela esquerda.",
+    quandoUsar: "'3 motivos', '5 passos', sem cara de checklist de app.",
+    params: "titulo?, itens: string[] (até 5)",
+    duracaoPadrao: 4,
+    somPadrao: "swipe",
+    disponivel: true,
+    inspiracao: "justyn.ai",
+    componente: ListaEditorial,
+  },
   // ── Fase 2: dependem de recortar a pessoa do fundo (worker + modelo de matting) ──
   {
     tipo: "texto-atras",
@@ -499,11 +572,42 @@ export const COMANDOS: ComandoDef[] = [
     descricao: "Cor e textura: natural, quente, frio, cinema, pb, vivo; grão; vinheta.",
   },
   {
+    comando: "/estilo",
+    titulo: "Estilo",
+    descricao:
+      "Troca o estilo visual inteiro: viral (castilho/tenfoldmarc), editorial (justyn.ai) ou limpo.",
+    exemplo: "/estilo editorial",
+  },
+  {
     comando: "/desfazer",
     titulo: "Desfazer",
     descricao: "Volta para a versão anterior da edição.",
   },
 ];
+
+// Estilos visuais: definem legenda, fontes, look e quais efeitos combinam.
+export const ESTILOS: Record<string, { nome: string; descricao: string; regras: string }> = {
+  viral: {
+    nome: "Viral",
+    descricao:
+      "Caixa alta pesada, cores fortes, zoom de soco, efeitos chamativos (castilho.ia / tenfoldmarc).",
+    regras:
+      'legenda "karaoke" ou "neon"; título "bloco"; look "vivo" ou "cinema"; transição "zoom"; efeitos preferidos: titulo, palavra-gigante, trava, letreiro, vidro, celular, colagem, checklist, cta-final.',
+  },
+  editorial: {
+    nome: "Editorial",
+    descricao:
+      "Serifa, paleta verde-musgo e creme, números de capítulo, crachá, letras de azulejo, frase em caixa (justyn.ai).",
+    regras:
+      'legenda "editorial" (ou "caixa" com poucas palavras); título estilo "serif"; look "cinema" com grao 0.25 e vinheta 0.35; transição "flash"; zoom suave (escala ≤ 1.15, tipo "suave"); efeitos preferidos: numero-capitulo (um por item da lista falada), cracha na apresentação, frase-caixa na promessa, lista-editorial, capa, azulejos na palavra do CTA, contador; evite letreiro, particulas e papel. Sons discretos (volume ≤ 0.4).',
+  },
+  limpo: {
+    nome: "Limpo",
+    descricao: "Só corte, legenda discreta e um título. Para depoimento e vídeo institucional.",
+    regras:
+      'legenda "caixa"; look "natural"; sem transição; no máximo 3 efeitos no vídeo todo (titulo, contador ou antes-depois, cta-final); sem sfx além do título.',
+  },
+};
 
 export function catalogoParaClaude(): string {
   const disp = EFEITOS.filter((e) => e.disponivel)
@@ -516,5 +620,8 @@ export function catalogoParaClaude(): string {
     .map((e) => `${e.comando} (${e.nome})`)
     .join(", ");
   const cmds = COMANDOS.map((c) => `- ${c.comando}: ${c.descricao}`).join("\n");
-  return `EFEITOS DISPONÍVEIS:\n${disp}\n\nAINDA NÃO DISPONÍVEIS (não use; se pedirem, diga que está na fase 2): ${fase2}\n\nCOMANDOS DE BARRA:\n${cmds}`;
+  const estilos = Object.entries(ESTILOS)
+    .map(([id, e]) => `- "${id}" (${e.nome}): ${e.descricao} Regras: ${e.regras}`)
+    .join("\n");
+  return `EFEITOS DISPONÍVEIS:\n${disp}\n\nAINDA NÃO DISPONÍVEIS (não use; se pedirem, diga que está na fase 2): ${fase2}\n\nESTILOS VISUAIS:\n${estilos}\n\nCOMANDOS DE BARRA:\n${cmds}`;
 }

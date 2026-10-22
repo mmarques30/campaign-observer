@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
+import { SugestaoCard } from "@/components/edicao/SugestaoCard";
 import { Trilhas } from "@/components/edicao/Trilhas";
 import { Painel } from "@/components/edicao/Painel";
 import { Publicar } from "@/components/edicao/Publicar";
@@ -262,8 +263,9 @@ function Editor() {
           <div className="min-w-0">
             <div className="font-semibold truncate max-w-[40vw]">{proj.nome}</div>
             <div className="text-[11px] text-muted-foreground">
-              {proj.objetivo === "anuncio" ? "Anúncio" : "Orgânico"} · {tl.formato} · v{proj.versao}{" "}
-              · {fmtTempo(duracaoFonte)} bruto → {fmtTempo(durFinal)} final
+              {proj.objetivo === "anuncio" ? "Anúncio" : "Orgânico"} · {tl.formato} · {proj.estilo}
+              {proj.duracao_alvo ? ` · alvo ${proj.duracao_alvo}s` : ""} · v{proj.versao} ·{" "}
+              {fmtTempo(duracaoFonte)} bruto → {fmtTempo(durFinal)} final
             </div>
           </div>
           <Badge variant="outline" className="ml-1">
@@ -413,6 +415,21 @@ function Editor() {
                 Claude · comandos com /
               </span>
             </div>
+            {/* Logo depois da transcrição, antes de qualquer edição: o editor propõe como tratar o vídeo. */}
+            {proj.status === "pronto_para_editar" &&
+              !(proj.sugestao as any)?.aceita &&
+              palavras.length > 0 && (
+                <div className="p-3 border-b">
+                  <SugestaoCard
+                    projeto={proj}
+                    onAplicado={async () => {
+                      versaoCarregada.current = -1;
+                      await Promise.all([projQ.refetch(), msgsQ.refetch()]);
+                      toast.success("Pronto. Agora peça a edição: /storyboard ou /editar.");
+                    }}
+                  />
+                </div>
+              )}
             <Chat
               mensagens={msgsQ.data ?? []}
               enviando={enviando}

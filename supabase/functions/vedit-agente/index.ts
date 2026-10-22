@@ -77,6 +77,9 @@ function sistema(
   objetivo: string,
   formato: string,
   duracao: number,
+  estilo: string,
+  duracaoAlvo: number | null,
+  marketing: string,
 ) {
   return `Você é o editor de vídeo da IAplicada, no nível dos melhores editores de Reels do Brasil. Você edita vídeos curtos (Reels e anúncios Meta) devolvendo um JSON de edição. Você NUNCA escreve código.
 
@@ -115,16 +118,22 @@ ${
   objetivo === "anuncio"
     ? `
 MODO ANÚNCIO (Meta Ads)
-- Duração final ideal 15–30s (no máx. 45s). Gancho em ≤3s com a dor ou o resultado.
+- Duração: NÃO é regra. Quem manda é o conteúdo: corte o que não prende e pare aí. Como referência de mercado, anúncios de Reels costumam render melhor entre 15 e 45s, e o Meta aceita até 90s; se a fala boa tem 50s, entregue 50s. ${duracaoAlvo ? `A pessoa aprovou duração alvo de ~${duracaoAlvo}s; chegue perto sem cortar ideia inteira.` : "Se o vídeo cru passa de 60s, diga na resposta qual trecho você deixaria de fora e por quê."}
+- Gancho em ≤3s com a dor ou o resultado.
 - Zonas seguras: nada importante nos 14% de cima nem nos 35% de baixo; legenda "centro" ou "inferior" (o sistema já posiciona acima da zona de baixo).
 - Legenda obrigatória (muita gente vê sem som). Mostre prova (número, antes/depois, print) até a metade.`
     : `
 MODO ORGÂNICO (Reels)
-- Duração livre, mas corte tudo que não prende. Efeitos mais ousados (trava, letreiro, colagem, capa).
+- Duração livre, mas corte tudo que não prende.${duracaoAlvo ? ` Duração alvo aprovada: ~${duracaoAlvo}s.` : ""}
 - Termine com "cta-final".`
 }
 
+ESTILO VISUAL DESTE VÍDEO: "${estilo}". Siga as regras desse estilo (lista em ESTILOS VISUAIS). "/estilo X" troca o estilo e você refaz legenda, look, transição e troca os efeitos pelos preferidos do novo estilo, mantendo cortes e conteúdo.
+
 MARCA E TOM: ${instrucoes}
+
+CONTEXTO DO MARKETING (roteiro planejado, nomes e desempenho dos anúncios atuais):
+${marketing}
 
 COMO RESPONDER
 - "/storyboard" ou pedido de edição completa de um vídeo ainda sem edição: devolva o storyboard (cenas com tempo, fala, visual, efeito, som) e aguardando_aprovacao=true, SEM timeline. Quando a pessoa aprovar ("aprovado", "pode aplicar", "manda"), aplique tudo na timeline.
@@ -135,6 +144,154 @@ COMO RESPONDER
 - Responda curto, em português do Brasil, sem emojis, sem jargão.`;
 }
 
+const FERRAMENTA_SUGESTAO = {
+  name: "sugerir_projeto",
+  description:
+    "Sugere como este vídeo deve ser tratado, a partir da transcrição e do contexto de marketing.",
+  input_schema: {
+    type: "object",
+    properties: {
+      nome: {
+        type: "string",
+        description:
+          "Nome no padrão dos anúncios existentes: 'R<n> - <gancho em até 6 palavras, sem acento>'. Se for orgânico: '<gancho em até 6 palavras>'. Nunca genérico.",
+      },
+      objetivo: { type: "string", enum: ["anuncio", "organico"] },
+      formato: { type: "string", enum: ["9:16", "4:5", "1:1"] },
+      estilo: { type: "string", enum: ["viral", "editorial", "limpo"] },
+      duracao_alvo: {
+        type: "integer",
+        description: "Duração final sugerida em segundos, decidida pelo conteúdo (não por regra).",
+      },
+      content_item_id: {
+        type: ["string", "null"],
+        description:
+          "id do roteiro do Marketing que corresponde a este vídeo, ou null se nenhum bate.",
+      },
+      palavra_cta: {
+        type: ["string", "null"],
+        description: "Palavra-chave para 'Comenta X' (orgânico) ou null.",
+      },
+      resumo: { type: "string", description: "Uma frase: do que o vídeo fala." },
+      motivo: {
+        type: "string",
+        description:
+          "2 frases: por que esse objetivo, formato, estilo e duração. Cite o roteiro ou anúncio que embasou.",
+      },
+      gancho_atual: {
+        type: "string",
+        description: "A frase de abertura que você usaria como gancho (copiada da transcrição).",
+      },
+    },
+    required: [
+      "nome",
+      "objetivo",
+      "formato",
+      "estilo",
+      "duracao_alvo",
+      "resumo",
+      "motivo",
+      "gancho_atual",
+    ],
+  },
+};
+
+/** Roteiros planejados, padrão de nome dos anúncios e o que está performando. */
+async function contextoMarketing(sb: any, contentItemId: string | null) {
+  const [{ data: roteiros }, { data: ads }, { data: top }] = await Promise.all([
+    sb
+      .from("content_items")
+      .select(
+        "id, titulo, finalidade, tipo_video, status, anuncio_nome_meta, auto_resposta_palavra_chave, roteiro, recomendacoes_edicao, legenda, produto, updated_at",
+      )
+      .neq("status", "cancelado")
+      .order("updated_at", { ascending: false })
+      .limit(contentItemId ? 1 : 25)
+      .then((r: any) =>
+        contentItemId
+          ? sb
+              .from("content_items")
+              .select(
+                "id, titulo, finalidade, tipo_video, status, anuncio_nome_meta, auto_resposta_palavra_chave, roteiro, recomendacoes_edicao, legenda, produto, updated_at",
+              )
+              .eq("id", contentItemId)
+          : Promise.resolve(r),
+      ),
+    sb
+      .from("mads_ads")
+      .select("nome, status, created_at")
+      .order("created_at", { ascending: false })
+      .limit(12),
+    sb
+      .from("mads_v_criativos_metricas")
+      .select("ad_nome, hook_rate_pct, retencao_75_pct, cpmql_brl, mql_no_crm, gasto, diagnostico")
+      .gt("gasto", 300)
+      .order("mql_no_crm", { ascending: false })
+      .limit(8),
+  ]);
+  const rot = (roteiros ?? [])
+    .map(
+      (c: any) =>
+        `- id "${c.id}" | "${c.titulo}" | ${c.finalidade ?? "?"} / ${c.tipo_video ?? "?"} / ${c.status}${c.anuncio_nome_meta ? ` | nome Meta: ${c.anuncio_nome_meta}` : ""}${c.auto_resposta_palavra_chave ? ` | palavra CTA: ${c.auto_resposta_palavra_chave}` : ""}${c.produto ? ` | produto: ${c.produto}` : ""}\n  roteiro: ${String(
+          c.roteiro ?? "",
+        )
+          .replace(/\s+/g, " ")
+          .slice(
+            0,
+            contentItemId ? 2500 : 420,
+          )}${c.recomendacoes_edicao ? `\n  recomendações de edição: ${String(c.recomendacoes_edicao).slice(0, 400)}` : ""}`,
+    )
+    .join("\n");
+  const nomes = (ads ?? []).map((a: any) => `- ${a.nome} (${a.status})`).join("\n");
+  const perf = (top ?? [])
+    .map(
+      (t: any) =>
+        `- ${t.ad_nome}: gancho ${Number(t.hook_rate_pct ?? 0).toFixed(0)}%, retenção 75% ${Number(t.retencao_75_pct ?? 0).toFixed(0)}%, ${t.mql_no_crm ?? 0} MQL, CPMQL R$${Number(t.cpmql_brl ?? 0).toFixed(0)}${t.diagnostico ? ` — ${t.diagnostico}` : ""}`,
+    )
+    .join("\n");
+  return `ROTEIROS NA PÁGINA DE MARKETING${contentItemId ? " (este vídeo está ligado a este roteiro)" : " (os mais recentes)"}:\n${rot || "(nenhum)"}\n\nPADRÃO DE NOME DOS ANÚNCIOS NO META (siga o mesmo: código + gancho curto sem acento):\n${nomes || "(nenhum)"}\n\nANÚNCIOS QUE MAIS GERAM MQL (o que funciona neste público):\n${perf || "(sem dados)"}`;
+}
+
+async function sugerir(sb: any, proj: any, key: string, catalogo: string, marcaRow: any) {
+  const palavras = (proj.palavras ?? []) as { p: string; i: number; f: number }[];
+  const texto = palavras.map((w) => w.p).join(" ");
+  const marketing = await contextoMarketing(sb, null);
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODELO,
+      max_tokens: 2000,
+      system: `Você é o editor de vídeo da IAplicada. Antes de editar, você decide como tratar um vídeo cru a partir da transcrição e do que o time de marketing já planejou. Regras:
+- Se a transcrição bate com um roteiro da página de Marketing (mesmas frases, mesmo tema), ligue a ele (content_item_id) e herde finalidade, nome Meta e palavra CTA quando existirem.
+- Objetivo: "anuncio" quando o texto vende, tem CTA de clique/agendamento, fala direto com dono de empresa sobre dor+solução, ou o roteiro é de anúncio. "organico" quando ensina, conta história, pede comentário ou segue a linha de conteúdo.
+- Formato: 9:16 por padrão; 4:5 só se o vídeo cru for deitado e a pessoa ficar pequena em 9:16; 1:1 quase nunca.
+- Estilo: "viral" para dor/resultado direto e listas rápidas; "editorial" para bastidor, método, autoridade e tom mais calmo; "limpo" para depoimento e institucional.
+- Duração alvo é decidida pelo conteúdo: estime o que sobra depois de cortar silêncios e repetições (≈ 80–88% do bruto) e ajuste ao objetivo. Nunca force 15–30s.
+- Nome: no padrão dos anúncios existentes ("R<n> - gancho"), com n = próximo número livre da série R. Sem acento, sem aspas.
+${marcaRow?.instrucoes ? `MARCA: ${marcaRow.instrucoes}` : ""}
+Estilos disponíveis:\n${catalogo.split("ESTILOS VISUAIS:")[1]?.split("COMANDOS DE BARRA:")[0] ?? ""}`,
+      tools: [FERRAMENTA_SUGESTAO],
+      tool_choice: { type: "tool", name: "sugerir_projeto" },
+      messages: [
+        {
+          role: "user",
+          content: `VÍDEO CRU: ${Number(proj.fonte_duracao ?? 0).toFixed(0)}s, ${proj.fonte_largura}x${proj.fonte_altura}${Number(proj.fonte_largura) > Number(proj.fonte_altura) ? " (deitado)" : ""}.\n\nTRANSCRIÇÃO:\n${texto || "(vazia)"}\n\n${marketing}`,
+        },
+      ],
+    }),
+  });
+  const txt = await r.text();
+  if (!r.ok) return json({ error: `Claude ${r.status}: ${txt.slice(0, 300)}` }, 502);
+  const uso = JSON.parse(txt).content?.find((c: any) => c.type === "tool_use")?.input ?? {};
+  await sb.from("vedit_projetos").update({ sugestao: uso }).eq("id", proj.id);
+  return json({ sugestao: uso });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const sb = createClient(
@@ -142,12 +299,14 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   const body = await req.json().catch(() => ({}));
-  const { projeto_id, mensagem, catalogo } = body as {
+  const { projeto_id, mensagem, catalogo, acao } = body as {
     projeto_id?: string;
     mensagem?: string;
     catalogo?: string;
+    acao?: string;
   };
-  if (!projeto_id || !mensagem) return json({ error: "projeto_id e mensagem obrigatórios" }, 400);
+  if (!projeto_id) return json({ error: "projeto_id obrigatório" }, 400);
+  if (acao !== "sugerir" && !mensagem) return json({ error: "mensagem obrigatória" }, 400);
 
   const { data: proj, error } = await sb
     .from("vedit_projetos")
@@ -158,6 +317,10 @@ Deno.serve(async (req) => {
   const { data: marcaRow } = proj.marca_id
     ? await sb.from("vedit_marcas").select("*").eq("id", proj.marca_id).single()
     : await sb.from("vedit_marcas").select("*").eq("padrao", true).limit(1).maybeSingle();
+  const key = Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY");
+  if (!key) return json({ error: "CLAUDE_API_KEY não configurada" }, 500);
+  if (acao === "sugerir") return sugerir(sb, proj, key, catalogo ?? "", marcaRow);
+  const marketing = await contextoMarketing(sb, proj.content_item_id ?? null);
   const { data: hist } = await sb
     .from("vedit_mensagens")
     .select("papel, conteudo")
@@ -169,7 +332,7 @@ Deno.serve(async (req) => {
     .select("id, tipo, nome, duracao, descricao")
     .eq("projeto_id", projeto_id);
 
-  const comando = mensagem.trim().startsWith("/") ? mensagem.trim().split(/\s+/)[0] : null;
+  const comando = mensagem!.trim().startsWith("/") ? mensagem!.trim().split(/\s+/)[0] : null;
   await sb
     .from("vedit_mensagens")
     .insert({ projeto_id, papel: "usuario", conteudo: mensagem, comando });
@@ -193,8 +356,6 @@ Deno.serve(async (req) => {
   }
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
 
-  const key = Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key) return json({ error: "CLAUDE_API_KEY não configurada" }, 500);
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -212,6 +373,9 @@ Deno.serve(async (req) => {
         proj.objetivo,
         proj.formato,
         Number(proj.fonte_duracao ?? 0),
+        proj.estilo ?? "viral",
+        proj.duracao_alvo ?? null,
+        marketing,
       ),
       tools: [FERRAMENTA],
       tool_choice: { type: "tool", name: "aplicar_edicao" },
@@ -231,6 +395,8 @@ Deno.serve(async (req) => {
 
   let versao = proj.versao as number;
   const upd: Record<string, unknown> = { status: "editando" };
+  const mEstilo = mensagem!.match(/^\/estilo\s+(viral|editorial|limpo)/i);
+  if (mEstilo) upd.estilo = mEstilo[1].toLowerCase();
   if (uso.storyboard?.length) upd.storyboard = uso.storyboard;
   if (uso.timeline && typeof uso.timeline === "object") {
     const tl = uso.timeline;
@@ -242,15 +408,13 @@ Deno.serve(async (req) => {
     upd.timeline = tl;
     upd.versao = versao;
     if (!uso.aguardando_aprovacao) upd.storyboard = null;
-    await sb
-      .from("vedit_versoes")
-      .insert({
-        projeto_id,
-        versao,
-        timeline: tl,
-        origem: "claude",
-        resumo: uso.resumo_mudanca ?? mensagem.slice(0, 120),
-      });
+    await sb.from("vedit_versoes").insert({
+      projeto_id,
+      versao,
+      timeline: tl,
+      origem: "claude",
+      resumo: uso.resumo_mudanca ?? mensagem!.slice(0, 120),
+    });
   }
   await sb.from("vedit_projetos").update(upd).eq("id", projeto_id);
 
@@ -280,27 +444,23 @@ Deno.serve(async (req) => {
       .single();
     if (novo) {
       criadas.push(novo);
-      await sb
-        .from("vedit_versoes")
-        .insert({
-          projeto_id: novo.id,
-          versao: 1,
-          timeline: v.timeline,
-          origem: "claude",
-          resumo: `Variação: ${v.nome}`,
-        });
+      await sb.from("vedit_versoes").insert({
+        projeto_id: novo.id,
+        versao: 1,
+        timeline: v.timeline,
+        origem: "claude",
+        resumo: `Variação: ${v.nome}`,
+      });
     }
   }
 
-  await sb
-    .from("vedit_mensagens")
-    .insert({
-      projeto_id,
-      papel: "claude",
-      conteudo: resposta,
-      storyboard: uso.storyboard ?? null,
-      versao,
-    });
+  await sb.from("vedit_mensagens").insert({
+    projeto_id,
+    papel: "claude",
+    conteudo: resposta,
+    storyboard: uso.storyboard ?? null,
+    versao,
+  });
   return json({
     resposta,
     storyboard: uso.storyboard ?? null,
