@@ -25,6 +25,7 @@ import {
 } from "./efeitos/ui";
 import { AntesDepois, Broll, Colagem, Particulas, Rabisco } from "./efeitos/midia";
 import { Azulejos, Cracha, FraseCaixa, ListaEditorial, NumeroCapitulo } from "./efeitos/editorial";
+import { Dividir, FundoImagem, Reagir } from "./efeitos/formatos";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -423,6 +424,55 @@ export const EFEITOS: EfeitoDef[] = [
     inspiracao: "justyn.ai",
     componente: ListaEditorial,
   },
+  // ── Formatos de tela ──
+  {
+    tipo: "dividir",
+    comando: "/dividir",
+    nome: "Tela dividida",
+    categoria: "midia",
+    descricao:
+      "Uma mídia ocupa metade da tela (cima, baixo, esquerda ou direita); você fica na outra metade.",
+    quandoUsar: "Comparar, mostrar o que está sendo comentado, demonstração ao lado da fala.",
+    params:
+      "midia (id) | tempo?, lado: 'cima'|'baixo'|'esquerda'|'direita', proporcao?: 0.3–0.7, legenda?, som?: boolean",
+    duracaoPadrao: 4,
+    somPadrao: "swipe",
+    escondeLegenda: false,
+    disponivel: true,
+    componente: Dividir,
+  },
+  {
+    tipo: "reagir",
+    comando: "/reagir",
+    nome: "React",
+    categoria: "midia",
+    descricao: "Vídeo ou print em tela cheia e você numa janelinha no canto, reagindo.",
+    quandoUsar:
+      "Comentar notícia, print, vídeo de outra pessoa ou resultado de cliente. Evite cortes dentro do trecho.",
+    params:
+      "midia (id) | tempo?, canto: 'inferior-direito'|'inferior-esquerdo'|'superior-direito'|'superior-esquerdo', tamanho?: 0.25–0.45, janela?: 'quadrada'|'redonda', titulo?, som?: boolean",
+    duracaoPadrao: 5,
+    somPadrao: "pop",
+    telaCheia: true,
+    disponivel: true,
+    componente: Reagir,
+  },
+  {
+    tipo: "fundo-imagem",
+    comando: "/fundo",
+    nome: "Imagem de fundo",
+    categoria: "midia",
+    descricao:
+      "Foto da internet (ou enviada) toma a tela como fundo, e você aparece numa janela na frente.",
+    quandoUsar:
+      "Ilustrar o contexto da fala (escritório, cidade, produto) sem precisar recortar a pessoa.",
+    params: "midia (id), titulo?, tamanho?: 0.6–0.85, desfocar?: boolean",
+    duracaoPadrao: 4,
+    somPadrao: "whoosh",
+    telaCheia: true,
+    disponivel: true,
+    componente: FundoImagem,
+  },
   // ── Fase 2: dependem de recortar a pessoa do fundo (worker + modelo de matting) ──
   {
     tipo: "texto-atras",
@@ -452,7 +502,7 @@ export const EFEITOS: EfeitoDef[] = [
   },
   {
     tipo: "tela-verde",
-    comando: "/fundo",
+    comando: "/trocarfundo",
     nome: "Troca de fundo",
     categoria: "midia",
     descricao: "Você na frente de um print, site ou vídeo.",
@@ -570,6 +620,13 @@ export const COMANDOS: ComandoDef[] = [
     comando: "/look",
     titulo: "Look",
     descricao: "Cor e textura: natural, quente, frio, cinema, pb, vivo; grão; vinheta.",
+  },
+  {
+    comando: "/imagem",
+    titulo: "Buscar imagem ou vídeo na internet",
+    descricao:
+      "Busca em bancos gratuitos (Pexels/Unsplash) e encaixa como b-roll, fundo, tela dividida ou react.",
+    exemplo: "/imagem escritório lotado de gente estressada, no fundo",
   },
   {
     comando: "/estilo",

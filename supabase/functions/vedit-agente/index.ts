@@ -112,7 +112,8 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 5. Legenda: sempre ativa, salvo pedido contrário. Marque em "destaques" 1 palavra-chave a cada 1–2 frases. Corrija grafia de marcas em "correcoes" (IAplicada, Claude, CRM).
 6. Som: todo efeito ganha o som sugerido no instante em que entra; todo corte para efeito de tela cheia ganha whoosh/swipe. Volume de sfx 0,35–0,6.
 7. Efeitos usam o conteúdo real do que a pessoa fala (números, nomes, listas ditas). Textos curtos: título ≤ 7 palavras, itens ≤ 4 palavras.
-8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS ou "tempo" (trecho do próprio vídeo).
+8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
+8b. Imagens e vídeos da internet: quando a pessoa pedir ("/imagem", "coloca uma foto de…", "busca um vídeo de…") ou quando um b-roll real deixaria a edição melhor e não há mídia enviada, chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Nunca invente ids. Até 3 buscas por pedido.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 ${
   objetivo === "anuncio"
@@ -142,6 +143,142 @@ COMO RESPONDER
 - "/variacoes N": devolva N variações completas em "variacoes" (mude o gancho/abertura e o título), mantendo o resto.
 - Formato do vídeo: ${formato}. Duração do original: ${duracao.toFixed(1)}s.
 - Responda curto, em português do Brasil, sem emojis, sem jargão.`;
+}
+
+const FERRAMENTA_BUSCA = {
+  name: "buscar_midia",
+  description:
+    "Busca fotos ou vídeos gratuitos e liberados para uso comercial (Pexels/Unsplash), salva os melhores no projeto e devolve os ids para usar em broll, fundo-imagem, dividir, reagir ou celular. Use antes de aplicar_edicao quando a pessoa pedir imagem/vídeo 'da internet' ou quando um b-roll real deixaria a edição melhor e não há mídia enviada que sirva.",
+  input_schema: {
+    type: "object",
+    properties: {
+      consulta: {
+        type: "string",
+        description:
+          "Termos de busca EM INGLÊS, concretos e visuais (ex.: 'crowded office people stressed', 'dentist clinic reception').",
+      },
+      tipo: {
+        type: "string",
+        enum: ["imagem", "video"],
+        description: "imagem para fundo/dividir/celular; video para broll e reagir.",
+      },
+      quantidade: { type: "integer", minimum: 1, maximum: 3 },
+      orientacao: { type: "string", enum: ["vertical", "horizontal", "qualquer"] },
+    },
+    required: ["consulta", "tipo"],
+  },
+};
+
+/** Busca no Pexels (e Unsplash para fotos, se houver chave) e salva no bucket do projeto. */
+async function buscarMidia(sb: any, projetoId: string, args: any) {
+  const pexels = Deno.env.get("PEXELS_API_KEY");
+  const unsplash = Deno.env.get("UNSPLASH_ACCESS_KEY");
+  if (!pexels && !unsplash)
+    return { erro: "Nenhuma chave de banco de imagens configurada (PEXELS_API_KEY)." };
+  const n = Math.min(3, Math.max(1, Number(args.quantidade ?? 2)));
+  const orient =
+    args.orientacao === "vertical"
+      ? "portrait"
+      : args.orientacao === "horizontal"
+        ? "landscape"
+        : "";
+  const achados: {
+    url: string;
+    nome: string;
+    credito: string;
+    tipo: "imagem" | "video";
+    duracao?: number;
+  }[] = [];
+  try {
+    if (args.tipo === "video" && pexels) {
+      const r = await fetch(
+        `https://api.pexels.com/videos/search?query=${encodeURIComponent(args.consulta)}&per_page=${n}${orient ? `&orientation=${orient}` : ""}&size=medium`,
+        { headers: { Authorization: pexels } },
+      );
+      const j = await r.json();
+      for (const v of j.videos ?? []) {
+        const arq = (v.video_files ?? [])
+          .filter((f: any) => f.file_type === "video/mp4" && f.height <= 1920 && f.width <= 1920)
+          .sort((a: any, b: any) => b.height - a.height)[0];
+        if (arq)
+          achados.push({
+            url: arq.link,
+            nome: `pexels-video-${v.id}.mp4`,
+            credito: `Vídeo de ${v.user?.name ?? "Pexels"} no Pexels`,
+            tipo: "video",
+            duracao: v.duration,
+          });
+      }
+    } else if (pexels) {
+      const r = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(args.consulta)}&per_page=${n}${orient ? `&orientation=${orient}` : ""}`,
+        { headers: { Authorization: pexels } },
+      );
+      const j = await r.json();
+      for (const ph of j.photos ?? [])
+        achados.push({
+          url: ph.src?.large2x ?? ph.src?.large,
+          nome: `pexels-${ph.id}.jpg`,
+          credito: `Foto de ${ph.photographer} no Pexels`,
+          tipo: "imagem",
+        });
+    }
+    if (achados.length < n && unsplash && args.tipo !== "video") {
+      const r = await fetch(
+        `https://api.unsplash.com/search/photos?query=${encodeURIComponent(args.consulta)}&per_page=${n - achados.length}${orient ? `&orientation=${orient === "portrait" ? "portrait" : "landscape"}` : ""}`,
+        { headers: { Authorization: `Client-ID ${unsplash}` } },
+      );
+      const j = await r.json();
+      for (const ph of j.results ?? [])
+        achados.push({
+          url: `${ph.urls?.raw}&w=1600&q=85&fm=jpg`,
+          nome: `unsplash-${ph.id}.jpg`,
+          credito: `Foto de ${ph.user?.name} no Unsplash`,
+          tipo: "imagem",
+        });
+    }
+  } catch (e) {
+    return { erro: `Busca falhou: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  if (!achados.length) return { erro: "Nada encontrado. Tente termos mais simples em inglês." };
+  const salvas: { id: string; nome: string; tipo: string; duracao?: number; credito: string }[] =
+    [];
+  for (const a of achados) {
+    try {
+      const blob = await (await fetch(a.url)).blob();
+      const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
+      const up = await sb.storage
+        .from("video-edicao")
+        .upload(path, blob, {
+          contentType: a.tipo === "video" ? "video/mp4" : "image/jpeg",
+          upsert: true,
+        });
+      if (up.error) continue;
+      const { data } = await sb
+        .from("vedit_midias")
+        .insert({
+          projeto_id: projetoId,
+          tipo: a.tipo,
+          nome: a.nome,
+          path,
+          duracao: a.duracao ?? null,
+          descricao: `${args.consulta} — ${a.credito}`,
+        })
+        .select("id")
+        .single();
+      if (data)
+        salvas.push({
+          id: data.id,
+          nome: a.nome,
+          tipo: a.tipo,
+          duracao: a.duracao,
+          credito: a.credito,
+        });
+    } catch (_) {
+      /* pula */
+    }
+  }
+  return { midias: salvas };
 }
 
 const FERRAMENTA_SUGESTAO = {
@@ -356,41 +493,64 @@ Deno.serve(async (req) => {
   }
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
 
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODELO,
-      max_tokens: 32000,
-      system: sistema(
-        catalogo ?? "",
-        marcaRow?.marca ?? {},
-        marcaRow?.instrucoes ?? "",
-        proj.objetivo,
-        proj.formato,
-        Number(proj.fonte_duracao ?? 0),
-        proj.estilo ?? "viral",
-        proj.duracao_alvo ?? null,
-        marketing,
-      ),
-      tools: [FERRAMENTA],
-      tool_choice: { type: "tool", name: "aplicar_edicao" },
-      messages: msgs,
-    }),
-  });
-  const txt = await r.text();
-  if (!r.ok) {
-    await sb
-      .from("vedit_mensagens")
-      .insert({ projeto_id, papel: "sistema", conteudo: `Erro do Claude (${r.status}).` });
-    return json({ error: `Claude ${r.status}: ${txt.slice(0, 400)}` }, 502);
+  const sistemaTxt = sistema(
+    catalogo ?? "",
+    marcaRow?.marca ?? {},
+    marcaRow?.instrucoes ?? "",
+    proj.objetivo,
+    proj.formato,
+    Number(proj.fonte_duracao ?? 0),
+    proj.estilo ?? "viral",
+    proj.duracao_alvo ?? null,
+    marketing,
+  );
+  // Laço: o Claude pode buscar mídias na internet (até 3 vezes) antes de aplicar a edição.
+  const conversa: any[] = msgs;
+  let resp: any = null;
+  let uso: any = {};
+  let buscas = 0;
+  for (let volta = 0; volta < 5; volta++) {
+    const ultima = volta >= 4 || buscas >= 3;
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODELO,
+        max_tokens: 32000,
+        system: sistemaTxt,
+        tools: ultima ? [FERRAMENTA] : [FERRAMENTA, FERRAMENTA_BUSCA],
+        tool_choice: ultima ? { type: "tool", name: "aplicar_edicao" } : { type: "any" },
+        messages: conversa,
+      }),
+    });
+    const txt = await r.text();
+    if (!r.ok) {
+      await sb
+        .from("vedit_mensagens")
+        .insert({ projeto_id, papel: "sistema", conteudo: `Erro do Claude (${r.status}).` });
+      return json({ error: `Claude ${r.status}: ${txt.slice(0, 400)}` }, 502);
+    }
+    resp = JSON.parse(txt);
+    const chamadas = (resp.content ?? []).filter((c: any) => c.type === "tool_use");
+    const aplicar = chamadas.find((c: any) => c.name === "aplicar_edicao");
+    if (aplicar) {
+      uso = aplicar.input ?? {};
+      break;
+    }
+    const busca = chamadas.find((c: any) => c.name === "buscar_midia");
+    if (!busca) break;
+    buscas++;
+    const resultado = await buscarMidia(sb, projeto_id, busca.input ?? {});
+    conversa.push({ role: "assistant", content: resp.content });
+    conversa.push({
+      role: "user",
+      content: [{ type: "tool_result", tool_use_id: busca.id, content: JSON.stringify(resultado) }],
+    });
   }
-  const resp = JSON.parse(txt);
-  const uso = resp.content?.find((c: any) => c.type === "tool_use")?.input ?? {};
   const resposta = String(uso.resposta ?? "Pronto.");
 
   let versao = proj.versao as number;
@@ -468,6 +628,6 @@ Deno.serve(async (req) => {
     timeline: upd.timeline ?? null,
     versao,
     variacoes: criadas,
-    uso_tokens: resp.usage,
+    uso_tokens: resp?.usage,
   });
 });
