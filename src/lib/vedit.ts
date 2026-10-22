@@ -42,6 +42,7 @@ export type Projeto = {
   status: string;
   fonte_path: string | null;
   fonte_proxy_path: string | null;
+  audio_path?: string | null;
   upload_progresso: number;
   fonte_duracao: number | null;
   fonte_largura: number | null;
@@ -252,14 +253,50 @@ export async function criarProjeto(dados: {
   return id;
 }
 
+// Enquanto houver envio nesta aba, avisa antes de fechar/recarregar.
+let avisoSair = false;
+function vigiarSaida() {
+  if (avisoSair || typeof window === "undefined") return;
+  avisoSair = true;
+  window.addEventListener("beforeunload", (e) => {
+    const ativo = [...envios.values()].some(
+      (v) => v.etapa !== "Concluído" && v.etapa !== "Erro" && v.video < 100,
+    );
+    if (!ativo) return;
+    e.preventDefault();
+    e.returnValue = "O vídeo ainda está subindo.";
+  });
+}
+
+/**
+ * Retoma o envio depois de fechar/recarregar a aba: a pessoa escolhe o MESMO arquivo e o
+ * upload continua de onde parou (TUS guarda o progresso no navegador). Áudio/transcrição
+ * não são refeitos se já subiram.
+ */
+export async function retomarEnvio(p: Projeto, arquivo: File) {
+  const meta = await metadadosVideo(arquivo);
+  if (p.fonte_duracao && Math.abs(Number(p.fonte_duracao) - meta.duracao) > 1)
+    throw new Error(
+      `Esse não parece o mesmo vídeo (dura ${fmtTempo(meta.duracao)}, o projeto espera ${fmtTempo(Number(p.fonte_duracao))}).`,
+    );
+  await db().from("vedit_projetos").update({ status: "enviando", erro: null }).eq("id", p.id);
+  void enviarEmSegundoPlano(p.id, arquivo, meta, { pularAudio: !!p.audio_path });
+}
+
 async function enviarEmSegundoPlano(
   id: string,
   arquivo: File,
   meta: { largura: number; altura: number },
+  opts?: { pularAudio?: boolean },
 ) {
+  vigiarSaida();
   const ext = (arquivo.name.split(".").pop() || "mp4").toLowerCase();
   const fontePath = `${id}/fonte.${ext}`;
-  setEnvio(id, { etapa: "Enviando o vídeo", video: 0, audio: "pendente" });
+  setEnvio(id, {
+    etapa: "Enviando o vídeo",
+    video: 0,
+    audio: opts?.pularAudio ? "ok" : "pendente",
+  });
   const marcarErro = async (msg: string) => {
     setEnvio(id, { etapa: "Erro", erro: msg });
     await db().from("vedit_projetos").update({ status: "erro", erro: msg }).eq("id", id);
@@ -267,6 +304,7 @@ async function enviarEmSegundoPlano(
 
   // 1) Áudio primeiro: é pequeno, e destrava transcrição + sugestão enquanto o vídeo sobe.
   const audio = (async () => {
+    if (opts?.pularAudio) return;
     try {
       const wav = await extrairAudioWav(arquivo);
       await uploadGrande(`${id}/audio.wav`, wav, "audio/wav", () => {});
@@ -469,3 +507,29 @@ export const fmtTempo = (s: number) => {
   const r = s - m * 60;
   return `${m}:${r.toFixed(1).padStart(4, "0")}`;
 };
+
+// Apaga o projeto e tudo que ele tem no armazenamento (vídeo, proxy, áudio, mídias, renders).
+export async function excluirProjeto(projetoId: string) {
+  const st = supabase.storage.from(BUCKET);
+  const listar = async (pasta: string): Promise<string[]> => {
+    const { data } = await st.list(pasta, { limit: 1000 });
+    const out: string[] = [];
+    for (const it of data ?? []) {
+      const caminho = pasta ? `${pasta}/${it.name}` : it.name;
+      // Pastas vêm sem id/metadata.
+      if (!it.id && !it.metadata) out.push(...(await listar(caminho)));
+      else out.push(caminho);
+    }
+    return out;
+  };
+  const arquivos = await listar(projetoId);
+  if (arquivos.length) {
+    for (let i = 0; i < arquivos.length; i += 100) {
+      const { error } = await st.remove(arquivos.slice(i, i + 100));
+      if (error) throw new Error(error.message);
+    }
+  }
+  // As tabelas filhas (versões, mensagens, mídias, renders, jobs) caem em cascata.
+  const { error } = await db().from("vedit_projetos").delete().eq("id", projetoId);
+  if (error) throw new Error(error.message);
+}

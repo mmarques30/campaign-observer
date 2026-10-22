@@ -55,13 +55,23 @@ publicar ◄──────────────────────�
    - Acima disso: Company License, US$ 25 por dev/mês + US$ 0,01 por render, mínimo de US$ 100/mês.
    - Alternativa sem licença: HyperFrames (HeyGen, Apache 2.0). Exigiria reescrever `src/video`.
 
+## Envio do vídeo
+
+- O envio é resumível (TUS, pedaços de 6 MB) e roda na aba que o começou. Se a aba fechar, o editor mostra **Continuar envio**: escolhendo o mesmo arquivo, ele retoma de onde parou, sem transcrever de novo.
+- O limite global de upload do projeto Supabase (Project Settings → Storage) precisa ser maior que o maior vídeo (padrão 50 MB; o bucket aceita até 1 GB).
+- Recomende 1080p: um 4K de 100 s tem ~700 MB; em 1080p, ~120 MB.
+
+## Repetições (tomadas)
+
+`src/video/repeticoes.ts` (cópia em `supabase/functions/vedit-agente/`) detecta falas repetidas sem IA: quebra a transcrição em frases por pausa, compara cada frase com as 3 seguintes (Jaccard sem stopwords + prefixo para tomadas abortadas) e marca a anterior para sair, mantendo a última. O editor mostra o painel "falas repetidas", o corte rápido já as remove e o agente recebe a lista pronta.
+
 ## Comandos do chat
 
 | Comando | O que faz |
 |---|---|
 | `/storyboard` | Plano cena a cena para aprovar antes de aplicar |
 | `/editar` | Edição completa: cortes, legenda, efeitos, sons e CTA |
-| `/cortar` | Remove silêncios, "é…", "tipo", "né" e frases repetidas |
+| `/cortar` | Remove silêncios, "é…", "tipo", "né" e tomadas repetidas (fica a última) |
 | `/legenda` | Estilos karaoke, caixa, editorial, neon, maquina, impacto |
 | `/gancho` | 3 opções de gancho para os 3 primeiros segundos |
 | `/zoom` | Socos de zoom nas palavras de ênfase |

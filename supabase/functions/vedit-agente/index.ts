@@ -3,6 +3,7 @@
 // nova edição como JSON (nunca código). Storyboard primeiro quando a edição é
 // grande, para a pessoa aprovar antes de aplicar.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
 
 const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5-5";
 const CORS = {
@@ -105,7 +106,7 @@ FORMATO DA TIMELINE
 ${catalogo}
 
 REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
-1. Cortes: remova silêncios acima de ~0,35s, respiros, "é…", "ãh", "tipo", "né" usados como muleta, gaguejos e frases repetidas (quando a pessoa repete uma frase, fique com a ÚLTIMA versão). Deixe ~0,06s de respiro antes e ~0,10s depois de cada trecho para não comer sílaba. Nunca corte no meio de uma palavra.
+1. Cortes: remova silêncios acima de ~0,35s, respiros, "é…", "ãh", "tipo", "né" usados como muleta, gaguejos e frases repetidas. Quem grava sozinho repete a mesma fala várias vezes (tomadas): o roteiro final tem que ficar UNIFICADO, cada fala UMA vez só — fique com a ÚLTIMA tomada de cada frase e tire tudo que ficou entre as tomadas ("não, pera", "de novo", risos). O contexto traz FALAS REPETIDAS DETECTADAS já calculadas: use essa lista como base obrigatória e confira na transcrição se há outras que o detector não pegou (reformulações com palavras diferentes mas mesmo sentido). Deixe ~0,06s de respiro antes e ~0,10s depois de cada trecho para não comer sílaba. Nunca corte no meio de uma palavra.
 2. Gancho: os primeiros 3s decidem tudo. Abra com a frase mais forte (pode reordenar só cortando o começo fraco) e um efeito "titulo" ou "palavra-gigante".
 3. Ritmo: um estímulo visual novo a cada 3–6s (efeito, zoom de soco, b-roll). Nunca dois efeitos de tela cheia sobrepostos; no máximo 2 efeitos ao mesmo tempo.
 4. Zoom: "alternar": true por padrão; "soco" de 1.15–1.3 nas palavras de ênfase (números, promessas, viradas).
@@ -390,6 +391,7 @@ async function contextoMarketing(sb: any, contentItemId: string | null) {
 async function sugerir(sb: any, proj: any, key: string, catalogo: string, marcaRow: any) {
   const palavras = (proj.palavras ?? []) as { p: string; i: number; f: number }[];
   const texto = palavras.map((w) => w.p).join(" ");
+  const reps = detectarRepeticoes(palavras);
   const marketing = await contextoMarketing(sb, null);
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -415,7 +417,7 @@ Estilos disponíveis:\n${catalogo.split("ESTILOS VISUAIS:")[1]?.split("COMANDOS 
       messages: [
         {
           role: "user",
-          content: `VÍDEO CRU: ${Number(proj.fonte_duracao ?? 0).toFixed(0)}s, ${proj.fonte_largura}x${proj.fonte_altura}${Number(proj.fonte_largura) > Number(proj.fonte_altura) ? " (deitado)" : ""}.\n\nTRANSCRIÇÃO:\n${texto || "(vazia)"}\n\n${marketing}`,
+          content: `VÍDEO CRU: ${Number(proj.fonte_duracao ?? 0).toFixed(0)}s, ${proj.fonte_largura}x${proj.fonte_altura}${Number(proj.fonte_largura) > Number(proj.fonte_altura) ? " (deitado)" : ""}.\n\nTRANSCRIÇÃO:\n${texto || "(vazia)"}\n\nFALAS REPETIDAS (tomadas) DETECTADAS: ${reps.length}${reps.length ? ` — ~${reps.reduce((t, r) => t + (r.mantida.de - r.descartada.de), 0).toFixed(0)}s saem; o roteiro final usa só a última tomada de cada:\n${descreverRepeticoes(reps)}` : ""}\n\n${marketing}`,
         },
       ],
     }),
@@ -476,7 +478,8 @@ Deno.serve(async (req) => {
   const transcricao = palavras
     .map((w, i) => `[${i}] ${w.i.toFixed(2)}-${w.f.toFixed(2)} ${w.p}`)
     .join("\n");
-  const contexto = `TRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
+  const reps = detectarRepeticoes(palavras);
+  const contexto = `TRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
 
   const historico = (hist ?? [])
     .reverse()

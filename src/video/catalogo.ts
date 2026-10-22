@@ -574,8 +574,9 @@ export const COMANDOS: ComandoDef[] = [
   },
   {
     comando: "/cortar",
-    titulo: "Cortar silêncios",
-    descricao: "Remove pausas, respiros, 'é…', 'tipo', 'né' e repetições.",
+    titulo: "Cortar silêncios e repetições",
+    descricao:
+      "Remove pausas, respiros, 'é…', 'tipo', 'né' e as falas repetidas (fica a última tomada de cada) — roteiro unificado.",
   },
   {
     comando: "/legenda",
