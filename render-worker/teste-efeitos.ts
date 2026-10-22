@@ -37,6 +37,11 @@ const props: Record<string, any> = {
   particulas: { tempo: 6 },
   rabisco: { forma: "circulo", x: 0.5, y: 0.3, texto: "olha isso" },
   broll: { modo: "janela", tempo: 15, legenda: "o sistema rodando" },
+  "numero-capitulo": { numero: "2", texto: "dar o guia de marca" },
+  cracha: { nome: "Mari", posicao: "topo" },
+  azulejos: { texto: "EDIT", posicao: "topo" },
+  "frase-caixa": { texto: "tão simples que até sua *avó* consegue" },
+  "lista-editorial": { titulo: "Três motivos", itens: ["Escolher o modelo certo", "Dar o guia de marca", "Aprovar o storyboard"] },
   capa: {
     titulo: "IAPLICADA",
     chamadas: ["A empresa que não dorme", "IA no atendimento"],

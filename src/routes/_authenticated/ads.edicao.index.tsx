@@ -44,6 +44,7 @@ function Estudio() {
   const [formato, setFormato] = useState<Formato>("9:16");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [etapa, setEtapa] = useState<string | null>(null);
+  const [decidir, setDecidir] = useState(true);
 
   const projetos = useQuery({
     queryKey: ["vedit", "projetos"],
@@ -67,13 +68,12 @@ function Estudio() {
 
   async function criar() {
     if (!arquivo) return toast.error("Escolha o vídeo cru.");
-    if (!nome.trim()) return toast.error("Dê um nome para o vídeo.");
     try {
       const id = await criarProjeto(
         {
-          nome: nome.trim(),
-          objetivo,
-          formato,
+          nome: nome.trim() || undefined,
+          objetivo: decidir ? undefined : objetivo,
+          formato: decidir ? undefined : formato,
           arquivo,
           marcaId: marcas.data?.find((m) => m.padrao)?.id,
         },
@@ -205,61 +205,6 @@ function Estudio() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Nome</Label>
-              <Input
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Ex.: Anúncio clínicas — dor do WhatsApp"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Para quê</Label>
-              <RadioGroup
-                value={objetivo}
-                onValueChange={(v) => setObjetivo(v as any)}
-                className="grid grid-cols-2 gap-2"
-              >
-                {[
-                  [
-                    "organico",
-                    "Reel orgânico",
-                    "Ritmo de Reels, efeitos ousados, CTA para comentar",
-                  ],
-                  ["anuncio", "Anúncio Meta", "Gancho em 3s, zonas seguras, 15–30s"],
-                ].map(([v, t, d]) => (
-                  <Label
-                    key={v}
-                    className={cn(
-                      "border rounded-lg p-3 cursor-pointer space-y-1",
-                      objetivo === v && "border-primary bg-primary/5",
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      <RadioGroupItem value={v} />
-                      {t}
-                    </div>
-                    <div className="text-xs text-muted-foreground font-normal">{d}</div>
-                  </Label>
-                ))}
-              </RadioGroup>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Formato</Label>
-              <div className="flex gap-2">
-                {(["9:16", "4:5", "1:1"] as Formato[]).map((f) => (
-                  <Button
-                    key={f}
-                    type="button"
-                    size="sm"
-                    variant={formato === f ? "default" : "outline"}
-                    onClick={() => setFormato(f)}
-                  >
-                    {f}
-                  </Button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1.5">
               <Label>Vídeo cru</Label>
               <Input
                 type="file"
@@ -272,6 +217,96 @@ function Estudio() {
                 </div>
               )}
             </div>
+            <Label
+              className={cn(
+                "border rounded-lg p-3 cursor-pointer flex items-start gap-3",
+                decidir && "border-primary bg-primary/5",
+              )}
+            >
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={decidir}
+                onChange={(e) => setDecidir(e.target.checked)}
+              />
+              <div className="space-y-0.5">
+                <div>Deixar o editor decidir</div>
+                <div className="text-xs text-muted-foreground font-normal">
+                  Depois da transcrição ele cruza com os roteiros do Marketing e com os anúncios no
+                  Meta, e sugere nome, objetivo, formato, estilo e duração. Você só aprova.
+                </div>
+              </div>
+            </Label>
+            <div className="space-y-1.5">
+              <Label>
+                Nome{" "}
+                {decidir && <span className="text-muted-foreground font-normal">(opcional)</span>}
+              </Label>
+              <Input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder={
+                  decidir
+                    ? "Deixe em branco para ele sugerir"
+                    : "Ex.: R5 - Tres meses pra alguem produzir"
+                }
+              />
+            </div>
+            {!decidir && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Para quê</Label>
+                  <RadioGroup
+                    value={objetivo}
+                    onValueChange={(v) => setObjetivo(v as any)}
+                    className="grid grid-cols-2 gap-2"
+                  >
+                    {[
+                      [
+                        "organico",
+                        "Reel orgânico",
+                        "Ritmo de Reels, efeitos ousados, CTA para comentar",
+                      ],
+                      [
+                        "anuncio",
+                        "Anúncio Meta",
+                        "Gancho em 3s, zonas seguras, duração pelo conteúdo",
+                      ],
+                    ].map(([v, t, d]) => (
+                      <Label
+                        key={v}
+                        className={cn(
+                          "border rounded-lg p-3 cursor-pointer space-y-1",
+                          objetivo === v && "border-primary bg-primary/5",
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value={v} />
+                          {t}
+                        </div>
+                        <div className="text-xs text-muted-foreground font-normal">{d}</div>
+                      </Label>
+                    ))}
+                  </RadioGroup>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Formato</Label>
+                  <div className="flex gap-2">
+                    {(["9:16", "4:5", "1:1"] as Formato[]).map((f) => (
+                      <Button
+                        key={f}
+                        type="button"
+                        size="sm"
+                        variant={formato === f ? "default" : "outline"}
+                        onClick={() => setFormato(f)}
+                      >
+                        {f}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={criar} disabled={!!etapa} className="w-full sm:w-auto">

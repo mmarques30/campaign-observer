@@ -14,11 +14,29 @@ export const BUCKET = "video-edicao";
 // As tabelas vedit_* ainda não estão nos tipos gerados do Supabase.
 export const db = () => supabase as any;
 
+export type Sugestao = {
+  nome: string;
+  objetivo: "anuncio" | "organico";
+  formato: Formato;
+  estilo: "viral" | "editorial" | "limpo";
+  duracao_alvo: number;
+  content_item_id: string | null;
+  palavra_cta: string | null;
+  resumo: string;
+  motivo: string;
+  gancho_atual: string;
+};
+
 export type Projeto = {
   id: string;
   created_at: string;
   updated_at: string;
   nome: string;
+  nome_automatico: boolean;
+  estilo: "viral" | "editorial" | "limpo";
+  duracao_alvo: number | null;
+  content_item_id: string | null;
+  sugestao: Sugestao | null;
   objetivo: "anuncio" | "organico";
   formato: Formato;
   status: string;
@@ -145,9 +163,9 @@ export async function extrairAudioWav(file: File): Promise<Blob> {
 /** Cria o projeto, sobe vídeo + áudio e dispara a transcrição. */
 export async function criarProjeto(
   dados: {
-    nome: string;
-    objetivo: "anuncio" | "organico";
-    formato: Formato;
+    nome?: string;
+    objetivo?: "anuncio" | "organico";
+    formato?: Formato;
     arquivo: File;
     marcaId?: string | null;
   },
@@ -155,13 +173,17 @@ export async function criarProjeto(
 ): Promise<string> {
   etapa("Lendo o vídeo");
   const meta = await metadadosVideo(dados.arquivo);
-  const tl = timelineVazia(dados.formato);
+  // Sem formato escolhido: 9:16 (vídeo deitado é reenquadrado; a sugestão pode trocar p/ 4:5).
+  const formato: Formato = dados.formato ?? "9:16";
+  const tl = timelineVazia(formato);
+  const nomeAuto = !dados.nome?.trim();
   const { data: proj, error } = await db()
     .from("vedit_projetos")
     .insert({
-      nome: dados.nome,
-      objetivo: dados.objetivo,
-      formato: dados.formato,
+      nome: nomeAuto ? dados.arquivo.name.replace(/\.[^.]+$/, "") : dados.nome!.trim(),
+      nome_automatico: nomeAuto,
+      objetivo: dados.objetivo ?? "organico",
+      formato,
       status: "enviando",
       fonte_duracao: meta.duracao,
       fonte_largura: meta.largura,
@@ -175,12 +197,10 @@ export async function criarProjeto(
   const id = proj.id as string;
   const ext = (dados.arquivo.name.split(".").pop() || "mp4").toLowerCase();
   etapa("Enviando o vídeo");
-  const up = await supabase.storage
-    .from(BUCKET)
-    .upload(`${id}/fonte.${ext}`, dados.arquivo, {
-      contentType: dados.arquivo.type || "video/mp4",
-      upsert: true,
-    });
+  const up = await supabase.storage.from(BUCKET).upload(`${id}/fonte.${ext}`, dados.arquivo, {
+    contentType: dados.arquivo.type || "video/mp4",
+    upsert: true,
+  });
   if (up.error) throw new Error(`Upload: ${up.error.message}`);
   etapa("Separando o áudio");
   const wav = await extrairAudioWav(dados.arquivo);
@@ -219,6 +239,44 @@ export async function enviarAoClaude(projetoId: string, mensagem: string) {
   }>("vedit-agente", { projeto_id: projetoId, mensagem, catalogo: catalogoParaClaude() });
   if (r?.error) throw new Error(r.error);
   return r;
+}
+
+/** Pede ao Claude a sugestão de nome, objetivo, formato, estilo e duração (lê roteiros do Marketing). */
+export async function pedirSugestao(projetoId: string) {
+  const r = await callEdgeFunction<{ sugestao: Sugestao; error?: string }>("vedit-agente", {
+    projeto_id: projetoId,
+    acao: "sugerir",
+    catalogo: catalogoParaClaude(),
+  });
+  if (r?.error) throw new Error(r.error);
+  return r.sugestao;
+}
+
+/** Aplica a sugestão (toda ou com ajustes da pessoa) no projeto. */
+export async function aplicarSugestao(p: Projeto, s: Sugestao) {
+  const tl = normalizarTimeline({ ...(p.timeline ?? {}), formato: s.formato }).timeline;
+  const { error } = await db()
+    .from("vedit_projetos")
+    .update({
+      nome: s.nome,
+      nome_automatico: false,
+      objetivo: s.objetivo,
+      formato: s.formato,
+      estilo: s.estilo,
+      duracao_alvo: s.duracao_alvo,
+      content_item_id: s.content_item_id ?? null,
+      timeline: tl,
+      sugestao: { ...s, aceita: true },
+    })
+    .eq("id", p.id);
+  if (error) throw new Error(error.message);
+  await db()
+    .from("vedit_mensagens")
+    .insert({
+      projeto_id: p.id,
+      papel: "sistema",
+      conteudo: `Projeto definido: "${s.nome}" · ${s.objetivo === "anuncio" ? "anúncio" : "orgânico"} · ${s.formato} · estilo ${s.estilo} · alvo ~${s.duracao_alvo}s.${s.palavra_cta ? ` Palavra do CTA: ${s.palavra_cta}.` : ""}`,
+    });
 }
 
 /** Salva uma edição feita à mão (controles rápidos, corte rápido, apagar efeito). */
