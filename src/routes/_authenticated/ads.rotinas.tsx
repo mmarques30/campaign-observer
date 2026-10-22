@@ -30,7 +30,7 @@ function Rotinas() {
         <Link to="/ads/saude" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar para Saúde
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-2">Rotinas automáticas</h1>
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight mt-2">Rotinas automáticas</h1>
         <p className="text-sm text-muted-foreground">Log completo de execução (sync, health check, clarity e mutações)</p>
       </div>
 
@@ -45,14 +45,14 @@ function Rotinas() {
             <TableBody>
               {logs.isLoading && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Carregando...</TableCell></TableRow>}
               {(logs.data ?? []).map((l: any) => (
-                <TableRow key={l.id} className={l.sucesso === false ? "bg-red-500/5" : ""}>
+                <TableRow key={l.id} className={l.sucesso === false ? "bg-danger/5" : ""}>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
                   <TableCell className="text-xs">{l.acao ?? "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{l.entidade_tipo ?? "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{l.origem ?? "—"}</TableCell>
                   <TableCell>
-                    {l.sucesso ? <Badge variant="outline" className="bg-emerald-500/15 text-emerald-600 border-emerald-500/30">OK</Badge>
-                      : <Badge variant="outline" className="bg-red-500/15 text-red-600 border-red-500/30">FAIL</Badge>}
+                    {l.sucesso ? <Badge variant="outline" className="bg-success-soft text-success border-success/30">OK</Badge>
+                      : <Badge variant="outline" className="bg-danger-soft text-danger border-danger/30">FAIL</Badge>}
                   </TableCell>
                   <TableCell className="text-right text-xs tabular-nums">{l.duracao_ms != null ? `${l.duracao_ms} ms` : "—"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-md truncate">{l.erro_mensagem ?? "—"}</TableCell>

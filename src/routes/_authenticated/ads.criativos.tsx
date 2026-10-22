@@ -19,9 +19,9 @@ export const Route = createFileRoute("/_authenticated/ads/criativos")({
 
 function semaforoClass(s: string | null | undefined) {
   switch ((s ?? "").toLowerCase()) {
-    case "verde": return "bg-emerald-500 text-white";
-    case "amarelo": return "bg-yellow-500 text-white";
-    case "vermelho": return "bg-red-500 text-white";
+    case "verde": return "bg-success text-white";
+    case "amarelo": return "bg-warning text-black/80";
+    case "vermelho": return "bg-danger text-white";
     case "vermelho_desqualificado": return "bg-orange-500 text-white";
     case "kill": return "bg-black text-white";
     default: return "bg-gray-200 text-gray-500";
@@ -110,13 +110,13 @@ function Criativos() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Film className="h-6 w-6 text-primary" /> Métricas de Criativos</h1>
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight flex items-center gap-2"><Film className="h-6 w-6 text-primary" /> Métricas de Criativos</h1>
         <p className="text-sm text-muted-foreground">KPI primário: <strong className="text-foreground">CPMQL</strong> (custo por MQL) · funil do criativo (Hook → Body → Retenção → CTR → CVR) · Business & Contábil · {periodoLabel(periodo)}</p>
       </div>
 
       {semAtribuicaoCrm && (
-        <div className="flex items-start gap-2 rounded-md border border-yellow-500/40 bg-yellow-500/5 p-3 text-xs text-muted-foreground">
-          <AlertTriangle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
           <span>
             <strong className="text-foreground">Atribuição CRM→ad pendente.</strong> As colunas MQL / CPMQL / CP SAL aparecem como “sem dado” porque os ad-IDs do CRM (<code>contacts.utm_term</code>) ainda não batem com os sincronizados em <code>mads_ads.meta_ad_id</code>. A estrutura já está pronta e acende sozinha quando o ad-sync do Meta reconciliar. Até lá, use CPL (secundário) e as métricas de vídeo.
           </span>
@@ -165,19 +165,19 @@ function Criativos() {
       {/* Bloco 3 — Cards de decisão */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <DecisionCard
-          tone="border-emerald-500/40 bg-emerald-500/5"
-          icon={<Trophy className="h-5 w-5 text-emerald-600" />}
+          tone="border-success/30 bg-success/5"
+          icon={<Trophy className="h-5 w-5 text-success" />}
           title="Melhor criativo"
           ad={melhor}
           extra={melhor && <>CPMQL {brl(melhor.cpmql_brl)} · {num(melhor.mql_no_crm)} MQL · Taxa qualif. {fmtPct1(melhor.taxa_qualificacao_pct)}</>}
         />
         <DecisionCard
-          tone="border-red-500/50 bg-red-500/10"
-          icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
+          tone="border-danger/30 bg-danger/10"
+          icon={<AlertTriangle className="h-5 w-5 text-danger" />}
           title="Precisa matar agora"
           cta="PAUSAR"
           ad={matar}
-          extra={matar && <>{(matar.mql_no_crm ?? 0) === 0 ? <>{num(matar.leads)} leads, <strong className="text-red-600">0 MQL</strong></> : <>CPMQL {brl(matar.cpmql_brl)}</>} · Gasto {brl(matar.gasto)}</>}
+          extra={matar && <>{(matar.mql_no_crm ?? 0) === 0 ? <>{num(matar.leads)} leads, <strong className="text-danger">0 MQL</strong></> : <>CPMQL {brl(matar.cpmql_brl)}</>} · Gasto {brl(matar.gasto)}</>}
         />
         <DecisionCard
           tone="border-indigo-500/40 bg-indigo-500/5"
@@ -236,7 +236,7 @@ function Criativos() {
                 <TableRow key={r.ad_uuid}>
                   <TableCell className="font-medium max-w-[220px] truncate" title={r.ad_nome}>{r.ad_nome}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[160px] truncate">{r.campanha_nome}</TableCell>
-                  <TableCell><Badge variant="outline" className={(r.ad_status ?? "").toLowerCase() === "ativa" ? "bg-emerald-500/15 text-emerald-600 border-emerald-500/30" : "bg-zinc-500/15 text-zinc-500 border-zinc-500/30"}>{r.ad_status}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className={(r.ad_status ?? "").toLowerCase() === "ativa" ? "bg-success-soft text-success border-success/30" : "bg-muted text-muted-foreground border-border"}>{r.ad_status}</Badge></TableCell>
                   <TableCell className="text-right tabular-nums">{brl(r.gasto)}</TableCell>
                   <TableCell className="text-right tabular-nums">{num(r.leads)}</TableCell>
                   <TableCell className="text-right tabular-nums">{(r.mql_no_crm ?? 0) > 0 ? num(r.mql_no_crm) : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -266,9 +266,9 @@ function LegRow({ etapa, mede, bom, ok, ruim, kill }: { etapa: string; mede: str
     <tr>
       <td className="py-1 pr-3 font-semibold whitespace-nowrap">{etapa}</td>
       <td className="py-1 pr-3 text-muted-foreground">{mede}</td>
-      <td className="py-1 pr-3"><span className="text-emerald-600 font-medium">{bom}</span></td>
-      <td className="py-1 pr-3"><span className="text-yellow-600">{ok}</span></td>
-      <td className="py-1 pr-3"><span className="text-red-600">{ruim}</span></td>
+      <td className="py-1 pr-3"><span className="text-success font-medium">{bom}</span></td>
+      <td className="py-1 pr-3"><span className="text-warning">{ok}</span></td>
+      <td className="py-1 pr-3"><span className="text-danger">{ruim}</span></td>
       <td className="py-1"><span className="text-foreground">{kill}</span></td>
     </tr>
   );
@@ -281,7 +281,7 @@ function DecisionCard({ tone, icon, title, ad, extra, cta }: { tone: string; ico
         <div className="flex items-center gap-2 text-sm font-semibold">{icon}{title}</div>
         {ad ? (
           <>
-            <div className="font-medium text-sm truncate" title={ad.ad_nome}>{cta && <span className="text-red-600 font-bold mr-1">{cta} →</span>}{ad.ad_nome}</div>
+            <div className="font-medium text-sm truncate" title={ad.ad_nome}>{cta && <span className="text-danger font-bold mr-1">{cta} →</span>}{ad.ad_nome}</div>
             <div className="text-xs text-muted-foreground">{extra}</div>
             {ad.meta_ad_id && <AbrirNoMetaButton url={urlMetaAd(ad.meta_ad_id)} label="Abrir no Meta" />}
           </>

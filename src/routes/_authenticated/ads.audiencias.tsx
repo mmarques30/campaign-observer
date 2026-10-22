@@ -49,10 +49,10 @@ const RATIOS = [
 
 function statusBadge(s: string | null) {
   const v = (s ?? "").toLowerCase();
-  if (v === "pronta" || v === "ready") return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
-  if (v.includes("process") || v === "gerando") return "bg-blue-500/15 text-blue-600 border-blue-500/30";
-  if (v.includes("erro") || v === "error") return "bg-red-500/15 text-red-600 border-red-500/30";
-  return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (v === "pronta" || v === "ready") return "bg-success-soft text-success border-success/30";
+  if (v.includes("process") || v === "gerando") return "bg-info-soft text-info border-info/30";
+  if (v.includes("erro") || v === "error") return "bg-danger-soft text-danger border-danger/30";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function Audiencias() {
@@ -87,7 +87,7 @@ function Audiencias() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Users className="h-6 w-6 text-primary" /> Audiências</h1>
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight flex items-center gap-2"><Users className="h-6 w-6 text-primary" /> Audiências</h1>
           <p className="text-sm text-muted-foreground">Públicos personalizados criados do CRM e Lookalikes derivadas</p>
         </div>
         <div className="flex gap-2">
@@ -147,7 +147,7 @@ function Audiencias() {
                     <TableRow key={a.id}>
                       <TableCell className="font-medium">{a.nome}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{a.source_audience_id ? (nomePorId.get(a.source_audience_id) ?? "—") : "—"}</TableCell>
-                      <TableCell><Badge variant="outline" className="bg-blue-500/15 text-blue-600 border-blue-500/30">{a.ratio != null ? `${(a.ratio * 100).toFixed(0)}%` : "—"}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="bg-info-soft text-info border-info/30">{a.ratio != null ? `${(a.ratio * 100).toFixed(0)}%` : "—"}</Badge></TableCell>
                       <TableCell className="text-xs">{a.pais ?? "—"}</TableCell>
                       <TableCell><Badge variant="outline" className={statusBadge(a.status)}>{a.status ?? "—"}</Badge></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR") : "—"}</TableCell>
@@ -283,7 +283,7 @@ function CriarCustomDialog({ open, onClose, onCreated }: { open: boolean; onClos
               {estimando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <BarChart3 className="h-4 w-4 mr-2" />} Estimar contatos
             </Button>
             {contagem != null && (
-              <span className={`text-sm ${contagem < 100 ? "text-red-600" : "text-emerald-600"}`}>
+              <span className={`text-sm ${contagem < 100 ? "text-danger" : "text-success"}`}>
                 {num(contagem)} contatos {contagem < 100 && "(mínimo 100)"}
               </span>
             )}

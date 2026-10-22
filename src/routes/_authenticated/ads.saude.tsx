@@ -13,11 +13,11 @@ import { AlertTriangle, CheckCircle2, XCircle, ChevronDown, ChevronRight, Activi
 
 function acaoBadge(acao: string | null | undefined) {
   const a = (acao ?? "").toLowerCase();
-  if (a.includes("create") || a.includes("activate") || a.includes("criar") || a.includes("ativar")) return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
-  if (a.includes("pause") || a.includes("pausar")) return "bg-yellow-500/15 text-yellow-600 border-yellow-500/30";
-  if (a.includes("archive") || a.includes("arquivar") || a.includes("delete")) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
-  if (a.includes("budget") || a.includes("orcamento") || a.includes("update")) return "bg-blue-500/15 text-blue-600 border-blue-500/30";
-  return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (a.includes("create") || a.includes("activate") || a.includes("criar") || a.includes("ativar")) return "bg-success-soft text-success border-success/30";
+  if (a.includes("pause") || a.includes("pausar")) return "bg-warning-soft text-warning border-warning/30";
+  if (a.includes("archive") || a.includes("arquivar") || a.includes("delete")) return "bg-muted text-muted-foreground border-border";
+  if (a.includes("budget") || a.includes("orcamento") || a.includes("update")) return "bg-info-soft text-info border-info/30";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 export const Route = createFileRoute("/_authenticated/ads/saude")({
@@ -122,7 +122,7 @@ function Saude() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Saúde & diagnóstico</h1>
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight">Saúde & diagnóstico</h1>
         <p className="text-sm text-muted-foreground">O que precisa de atenção agora — campanhas, falhas e ações.</p>
       </div>
 
@@ -130,19 +130,19 @@ function Saude() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            {problemas.length > 0 ? <AlertTriangle className="h-5 w-5 text-yellow-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+            {problemas.length > 0 ? <AlertTriangle className="h-5 w-5 text-warning" /> : <CheckCircle2 className="h-5 w-5 text-success" />}
             Campanhas que precisam de atenção
           </CardTitle>
           <CardDescription>{problemas.length} campanha(s) precisam de atenção</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {problemas.length === 0 && <div className="flex items-center gap-2 text-emerald-600 text-sm"><CheckCircle2 className="h-4 w-4" /> Tudo certo! Nenhuma campanha com problema.</div>}
+          {problemas.length === 0 && <div className="flex items-center gap-2 text-success text-sm"><CheckCircle2 className="h-4 w-4" /> Tudo certo! Nenhuma campanha com problema.</div>}
           {problemas.map((p) => {
             const critical = p.status_conexao === "crm_nao_recebe" || p.status_conexao === "meta_nao_atribui";
             return (
-              <div key={p.campanha_uuid} className={`p-4 rounded-md border ${critical ? "border-red-500/40 bg-red-500/5" : "border-yellow-500/40 bg-yellow-500/5"}`}>
+              <div key={p.campanha_uuid} className={`p-4 rounded-md border ${critical ? "border-danger/30 bg-danger/5" : "border-warning/30 bg-warning/5"}`}>
                 <div className="flex items-start gap-3">
-                  {critical ? <XCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" /> : <AlertTriangle className="h-5 w-5 text-yellow-400 shrink-0 mt-0.5" />}
+                  {critical ? <XCircle className="h-5 w-5 text-danger shrink-0 mt-0.5" /> : <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link to="/ads/campanhas/$id" params={{ id: p.campanha_uuid ?? "" }} className="font-medium hover:underline">{p.campanha_nome}</Link>
@@ -170,7 +170,7 @@ function Saude() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <CardTitle className="flex items-center gap-2">
-                {falhasVisiveis.length > 0 ? <XCircle className="h-5 w-5 text-red-500" /> : <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+                {falhasVisiveis.length > 0 ? <XCircle className="h-5 w-5 text-danger" /> : <CheckCircle2 className="h-5 w-5 text-success" />}
                 Falhas recentes
               </CardTitle>
               <CardDescription>
@@ -187,19 +187,19 @@ function Saude() {
         <CardContent className={falhasVisiveis.length === 0 ? "" : "p-0"}>
           {erros.isLoading && <div className="text-sm text-muted-foreground">Carregando...</div>}
           {!erros.isLoading && falhasVisiveis.length === 0 && (
-            <div className="flex items-center gap-2 text-emerald-600 text-sm"><CheckCircle2 className="h-4 w-4" /> Nenhuma falha que precise de ação nos últimos 7 dias.{transientesCount > 0 && !mostrarTransientes && <span className="text-muted-foreground">({transientesCount} transiente(s) — ligue o toggle pra ver.)</span>}</div>
+            <div className="flex items-center gap-2 text-success text-sm"><CheckCircle2 className="h-4 w-4" /> Nenhuma falha que precise de ação nos últimos 7 dias.{transientesCount > 0 && !mostrarTransientes && <span className="text-muted-foreground">({transientesCount} transiente(s) — ligue o toggle pra ver.)</span>}</div>
           )}
           {falhasVisiveis.length > 0 && (
             <Table>
               <TableHeader><TableRow><TableHead>Quando</TableHead><TableHead>Tipo</TableHead><TableHead>Ação</TableHead><TableHead>Origem</TableHead><TableHead>Erro</TableHead></TableRow></TableHeader>
               <TableBody>
                 {falhasVisiveis.map((l: any) => (
-                  <TableRow key={l.id} className={l.is_transient ? "bg-zinc-500/5" : "bg-red-500/5"}>
+                  <TableRow key={l.id} className={l.is_transient ? "bg-muted" : "bg-danger/5"}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
                     <TableCell>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant="outline" className={l.is_transient ? "gap-1 bg-zinc-500/15 text-zinc-500 border-zinc-500/30" : "gap-1 bg-red-500/15 text-red-700 border-red-500/30"}>
+                          <Badge variant="outline" className={l.is_transient ? "gap-1 bg-muted text-muted-foreground border-border" : "gap-1 bg-danger-soft text-danger border-danger/30"}>
                             {l.is_transient ? "transiente" : "permanente"} <Info className="h-3 w-3" />
                           </Badge>
                         </TooltipTrigger>
@@ -208,7 +208,7 @@ function Saude() {
                     </TableCell>
                     <TableCell><Badge variant="outline" className={acaoBadge(l.acao)}>{l.acao ?? "—"}</Badge></TableCell>
                     <TableCell className="text-xs text-muted-foreground">{l.origem ?? "—"}</TableCell>
-                    <TableCell className={`text-xs max-w-xl whitespace-pre-wrap ${l.is_transient ? "text-muted-foreground" : "text-red-700"}`}>{l.erro_mensagem ?? "Sem detalhes."}</TableCell>
+                    <TableCell className={`text-xs max-w-xl whitespace-pre-wrap ${l.is_transient ? "text-muted-foreground" : "text-danger"}`}>{l.erro_mensagem ?? "Sem detalhes."}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -263,15 +263,15 @@ function Saude() {
                   const aberto = expandido === l.id;
                   return (
                     <Fragment key={l.id}>
-                      <TableRow className={!ok ? "bg-red-500/5" : ""}>
+                      <TableRow className={!ok ? "bg-danger/5" : ""}>
                         <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{l.created_at ? new Date(l.created_at).toLocaleString("pt-BR") : "—"}</TableCell>
                         <TableCell><Badge variant="outline" className={acaoBadge(l.acao)}>{l.acao ?? "—"}</Badge></TableCell>
                         <TableCell className="text-xs">{l.entidade_tipo ?? "—"}</TableCell>
                         <TableCell>
                           {ok ? (
-                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> sucesso</span>
+                            <span className="inline-flex items-center gap-1 text-xs text-success"><CheckCircle2 className="h-3.5 w-3.5" /> sucesso</span>
                           ) : (
-                            <button type="button" onClick={() => setExpandido(aberto ? null : l.id)} className="inline-flex items-center gap-1 text-xs text-red-600 hover:underline">
+                            <button type="button" onClick={() => setExpandido(aberto ? null : l.id)} className="inline-flex items-center gap-1 text-xs text-danger hover:underline">
                               {aberto ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                               <XCircle className="h-3.5 w-3.5" /> erro
                             </button>
@@ -282,8 +282,8 @@ function Saude() {
                         <TableCell><span className="text-xs text-muted-foreground">{l.origem ?? "—"}</span></TableCell>
                       </TableRow>
                       {!ok && aberto && (
-                        <TableRow className="bg-red-500/5">
-                          <TableCell colSpan={7} className="text-xs text-red-700 whitespace-pre-wrap py-2">{l.erro_mensagem ?? "Sem detalhes de erro."}</TableCell>
+                        <TableRow className="bg-danger/5">
+                          <TableCell colSpan={7} className="text-xs text-danger whitespace-pre-wrap py-2">{l.erro_mensagem ?? "Sem detalhes de erro."}</TableCell>
                         </TableRow>
                       )}
                     </Fragment>
@@ -305,7 +305,7 @@ function Saude() {
               <div className="text-xs text-muted-foreground">
                 Sync, health check e clarity rodando em background.
                 {ultimaRotina && <> Última: {new Date(ultimaRotina.created_at as string).toLocaleString("pt-BR")} ({ultimaRotina.acao}).</>}
-                {falhasRotina > 0 ? <span className="text-red-600"> {falhasRotina} falha(s) recente(s).</span> : <span className="text-emerald-600"> Sem falhas recentes.</span>}
+                {falhasRotina > 0 ? <span className="text-danger"> {falhasRotina} falha(s) recente(s).</span> : <span className="text-success"> Sem falhas recentes.</span>}
               </div>
             </div>
           </div>
@@ -328,10 +328,10 @@ function Saude() {
               {(forms.data ?? []).map((f) => {
                 const suspeito = (f.utm_source ?? "").toLowerCase() === "direct" && activeCampaigns.size > 0;
                 return (
-                  <TableRow key={f.id} className={suspeito ? "bg-red-500/5" : ""}>
+                  <TableRow key={f.id} className={suspeito ? "bg-danger/5" : ""}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{f.submitted_at ? new Date(f.submitted_at).toLocaleString("pt-BR") : "—"}</TableCell>
                     <TableCell className="text-xs">{f.form_id ?? "—"}</TableCell>
-                    <TableCell className="text-xs">{suspeito ? <span className="text-red-400 font-medium">{f.utm_source}</span> : (f.utm_source ?? "—")}</TableCell>
+                    <TableCell className="text-xs">{suspeito ? <span className="text-danger font-medium">{f.utm_source}</span> : (f.utm_source ?? "—")}</TableCell>
                     <TableCell className="text-xs">{f.utm_campaign ?? "—"}</TableCell>
                     <TableCell className="text-xs">{(f.contacts as any)?.email ?? "—"}</TableCell>
                   </TableRow>

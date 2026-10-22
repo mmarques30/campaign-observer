@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useChartTheme } from "@/components/ads/kit";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,11 +30,11 @@ const META_GOAL = 500;
 
 function statusBadgeClass(s: string | null | undefined) {
   const v = (s ?? "").toLowerCase();
-  if (v === "sent") return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
-  if (v === "pending") return "bg-yellow-500/15 text-yellow-600 border-yellow-500/30";
-  if (v === "failed") return "bg-red-500/15 text-red-600 border-red-500/30";
-  if (v === "skipped_too_old" || v === "skipped") return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
-  return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
+  if (v === "sent") return "bg-success-soft text-success border-success/30";
+  if (v === "pending") return "bg-warning-soft text-warning border-warning/30";
+  if (v === "failed") return "bg-danger-soft text-danger border-danger/30";
+  if (v === "skipped_too_old" || v === "skipped") return "bg-muted text-muted-foreground border-border";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function fmtData(d: string | null | undefined) {
@@ -43,6 +44,7 @@ function fmtData(d: string | null | undefined) {
 }
 
 function CapiEvents() {
+  const ct = useChartTheme();
   const qc = useQueryClient();
   const [testCode, setTestCode] = useState("");
   const [sending, setSending] = useState(false);
@@ -142,7 +144,7 @@ function CapiEvents() {
       <div className="space-y-6">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Webhook className="h-6 w-6 text-primary" /> Eventos CAPI</h1>
+            <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight flex items-center gap-2"><Webhook className="h-6 w-6 text-primary" /> Eventos CAPI</h1>
             <p className="text-sm text-muted-foreground">Conversions API · evento SAL_accepted enviado ao Meta Pixel automaticamente</p>
           </div>
           <Button variant="outline" onClick={processarFila} disabled={processing}>
@@ -153,8 +155,8 @@ function CapiEvents() {
         {/* Bloco 1 — Cards de status */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
           <Kpi label="Enviados (total)" value={num(sentTotal)} accent="text-primary" />
-          <Kpi label="Pendentes" value={num(pending)} accent={pending > 0 ? "text-yellow-600" : "text-emerald-600"} />
-          <Kpi label="Falhas" value={num(failed)} accent={failed > 0 ? "text-red-600" : "text-emerald-600"} />
+          <Kpi label="Pendentes" value={num(pending)} accent={pending > 0 ? "text-warning" : "text-success"} />
+          <Kpi label="Falhas" value={num(failed)} accent={failed > 0 ? "text-danger" : "text-success"} />
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -203,7 +205,7 @@ function CapiEvents() {
               {sending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />} Enviar evento de teste
             </Button>
             {testResult && (
-              <div className={`text-sm flex items-start gap-2 ${testResult.ok ? "text-emerald-600" : "text-red-600"}`}>
+              <div className={`text-sm flex items-start gap-2 ${testResult.ok ? "text-success" : "text-danger"}`}>
                 {testResult.ok ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" /> : <XCircle className="h-4 w-4 mt-0.5 shrink-0" />}
                 {testResult.msg}
               </div>
@@ -222,22 +224,23 @@ function CapiEvents() {
               <div className="h-full w-full animate-pulse bg-muted/30 rounded-md" />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chart}>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                <BarChart data={chart} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} opacity={0.6} />
+                  <XAxis dataKey="label" tick={ct.tick} axisLine={false} tickLine={false} />
+                  <YAxis tick={ct.tick} axisLine={false} tickLine={false} allowDecimals={false} width={36} />
                   <RTooltip
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                    {...ct.tooltip}
+                    cursor={{ fill: ct.grid, opacity: 0.35 }}
                     formatter={(v: any, n: any) => [num(Number(v)), n]}
                     labelFormatter={(l: any) => {
                       const row = chart.find((c) => c.label === l);
                       return `${l}${row ? ` · ${num(row.enviados)} SAL · ${brl(row.valor)}` : ""}`;
                     }}
                   />
-                  <Legend />
-                  <ReferenceLine y={10} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 2" label={{ value: "meta/dia", fontSize: 10, fill: "hsl(var(--muted-foreground))", position: "right" }} />
-                  <Bar dataKey="enviados" name="Enviados" stackId="a" fill="#10b981" radius={[2, 2, 0, 0]} />
-                  <Bar dataKey="falhas" name="Falhas" stackId="a" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
+                  <ReferenceLine y={10} stroke={ct.axis} strokeDasharray="4 2" label={{ value: "meta/dia", fontSize: 10, fill: ct.axis, position: "right" }} />
+                  <Bar dataKey="enviados" name="Enviados" stackId="a" fill={ct.success} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="falhas" name="Falhas" stackId="a" fill={ct.danger} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -264,7 +267,7 @@ function CapiEvents() {
                 {(recent.data ?? []).map((e) => (
                   <TableRow key={e.id} className="cursor-pointer" onClick={() => setSelected(e)}>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{fmtData(e.event_at)}</TableCell>
-                    <TableCell><Badge variant="outline" className="bg-blue-500/15 text-blue-600 border-blue-500/30">{e.event_name ?? "—"}</Badge></TableCell>
+                    <TableCell><Badge variant="outline" className="bg-info-soft text-info border-info/30">{e.event_name ?? "—"}</Badge></TableCell>
                     <TableCell><Badge variant="outline" className={statusBadgeClass(e.status)}>{e.status ?? "—"}</Badge></TableCell>
                     <TableCell className="text-xs">{[e.first_name, e.last_name].filter(Boolean).join(" ") || "—"}</TableCell>
                     <TableCell className="text-xs">{e.email ?? "—"}</TableCell>
@@ -273,7 +276,7 @@ function CapiEvents() {
                     <TableCell className="text-xs">{e.utm_source ?? "—"}</TableCell>
                     <TableCell className="text-xs max-w-[160px] truncate">{e.utm_campaign ?? "—"}</TableCell>
                     <TableCell className="text-center">
-                      {String(e.meta_events_received) === "1" ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> : <span className="text-xs text-muted-foreground">{e.meta_events_received ?? "—"}</span>}
+                      {String(e.meta_events_received) === "1" ? <CheckCircle2 className="h-4 w-4 text-success inline" /> : <span className="text-xs text-muted-foreground">{e.meta_events_received ?? "—"}</span>}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -305,7 +308,7 @@ function CapiEvents() {
                 {selected.last_error && (
                   <div>
                     <div className="text-xs text-muted-foreground">Erro</div>
-                    <div className="text-xs text-red-700 whitespace-pre-wrap bg-red-500/5 rounded p-2 mt-1">{selected.last_error}</div>
+                    <div className="text-xs text-danger whitespace-pre-wrap bg-danger/5 rounded p-2 mt-1">{selected.last_error}</div>
                   </div>
                 )}
               </div>
@@ -320,9 +323,9 @@ function CapiEvents() {
 function Kpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className={`mt-2 text-2xl font-bold tabular-nums ${accent ?? ""}`}>{value}</div>
+      <CardContent className="p-4 sm:p-5">
+        <div className="text-xs font-medium text-muted-foreground">{label}</div>
+        <div className={`mt-1.5 font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none ${accent ?? ""}`}>{value}</div>
       </CardContent>
     </Card>
   );
