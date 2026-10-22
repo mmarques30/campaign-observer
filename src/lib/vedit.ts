@@ -170,6 +170,7 @@ export type Envio = {
   etapa: string;
   video: number;
   audio: "pendente" | "ok" | "erro";
+  reducao?: number | null; // % da redução para 1080p no navegador
   erro?: string;
 };
 const envios = new Map<string, Envio>();
@@ -183,6 +184,49 @@ export function assinarEnvios(f: () => void) {
   return () => ouvintes.delete(f);
 }
 export const lerEnvio = (id: string) => envios.get(id) ?? null;
+
+/**
+ * Reduz o vídeo para 1080p no próprio navegador (WebCodecs via mediabunny) antes de enviar.
+ * Um 4K de 100s (~700 MB) vira ~120 MB: sobe 6x mais rápido e dispensa o proxy no servidor.
+ * Devolve null quando o navegador não consegue (sem WebCodecs, codec não decodificável) —
+ * aí o original sobe como antes.
+ */
+export async function reduzirPara1080p(
+  file: File,
+  meta: { largura: number; altura: number },
+  onProgresso: (p: number) => void,
+): Promise<{ blob: Blob; largura: number; altura: number } | null> {
+  if (typeof window === "undefined" || !("VideoEncoder" in window)) return null;
+  if (Math.min(meta.largura, meta.altura) <= 1080) return null;
+  try {
+    const mb = await import("mediabunny");
+    const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const output = new mb.Output({
+      format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
+      target: new mb.BufferTarget(),
+    });
+    const vertical = meta.altura >= meta.largura;
+    const fator = 1080 / Math.min(meta.largura, meta.altura);
+    const largura = vertical ? 1080 : Math.round((meta.largura * fator) / 2) * 2;
+    const altura = vertical ? Math.round((meta.altura * fator) / 2) * 2 : 1080;
+    const conv = await mb.Conversion.init({
+      input,
+      output,
+      video: { width: largura, height: altura, fit: "contain", codec: "avc", bitrate: 10_000_000 },
+      audio: { codec: "aac", bitrate: 160_000 },
+      showWarnings: false,
+    });
+    if (!conv.isValid) return null;
+    conv.onProgress = (p) => onProgresso(p);
+    await conv.execute();
+    const buf = output.target.buffer;
+    if (!buf) return null;
+    return { blob: new Blob([buf], { type: "video/mp4" }), largura, altura };
+  } catch (e) {
+    console.warn("Redução para 1080p falhou; enviando o original.", e);
+    return null;
+  }
+}
 
 /** Upload resumível em pedaços de 6 MB (TUS), com progresso. */
 async function uploadGrande(
@@ -321,10 +365,36 @@ async function enviarEmSegundoPlano(
     }
   })();
 
-  // 2) Vídeo em pedaços, com progresso.
+  // 2) Vídeo: acima de 1080p, reduz no navegador antes (muito menos bytes); depois sobe em pedaços.
   const video = (async () => {
     let ultimo = -1;
-    await uploadGrande(fontePath, arquivo, arquivo.type || "video/mp4", (p) => {
+    let envio: Blob = arquivo;
+    let tipo = arquivo.type || "video/mp4";
+    let caminho = fontePath;
+    let dims = meta;
+    if (Math.min(meta.largura, meta.altura) > 1080) {
+      setEnvio(id, { etapa: "Reduzindo para 1080p", reducao: 0 });
+      const r = await reduzirPara1080p(arquivo, meta, (p) => {
+        const pct = Math.round(p * 100);
+        if (pct !== ultimo) {
+          ultimo = pct;
+          setEnvio(id, { reducao: pct });
+        }
+      });
+      ultimo = -1;
+      if (r) {
+        envio = r.blob;
+        tipo = "video/mp4";
+        caminho = `${id}/fonte.mp4`;
+        dims = { largura: r.largura, altura: r.altura };
+        await db()
+          .from("vedit_projetos")
+          .update({ fonte_largura: r.largura, fonte_altura: r.altura })
+          .eq("id", id);
+      }
+      setEnvio(id, { etapa: "Enviando o vídeo", reducao: r ? 100 : null });
+    }
+    await uploadGrande(caminho, envio, tipo, (p) => {
       const pct = Math.round(p * 100);
       if (pct !== ultimo) {
         ultimo = pct;
@@ -335,10 +405,10 @@ async function enviarEmSegundoPlano(
     });
     await db()
       .from("vedit_projetos")
-      .update({ fonte_path: fontePath, upload_progresso: 100 })
+      .update({ fonte_path: caminho, upload_progresso: 100 })
       .eq("id", id);
-    // Acima de 1080p: pede ao worker uma versão leve para o preview (o render usa o original).
-    if (Math.min(meta.largura, meta.altura) > 1080)
+    // Se o navegador não conseguiu reduzir, o worker gera a versão leve para o preview.
+    if (Math.min(dims.largura, dims.altura) > 1080)
       await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "proxy" });
     setEnvio(id, { video: 100 });
   })();

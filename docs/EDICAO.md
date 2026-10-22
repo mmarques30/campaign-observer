@@ -59,7 +59,7 @@ publicar ◄──────────────────────�
 
 - O envio é resumível (TUS, pedaços de 6 MB) e roda na aba que o começou. Se a aba fechar, o editor mostra **Continuar envio**: escolhendo o mesmo arquivo, ele retoma de onde parou, sem transcrever de novo.
 - O limite global de upload do projeto Supabase (Project Settings → Storage) precisa ser maior que o maior vídeo (padrão 50 MB; o bucket aceita até 1 GB).
-- Recomende 1080p: um 4K de 100 s tem ~700 MB; em 1080p, ~120 MB.
+- Vídeo acima de 1080p é **reduzido para 1080p no navegador** antes de subir (WebCodecs via `mediabunny`, H.264 10 Mbps + AAC): um 4K de 100 s (~700 MB) vira ~130 MB. Se o navegador não decodificar o arquivo (sem WebCodecs, HEVC sem hardware), o original sobe e o worker gera o proxy 1080p.
 
 ## Repetições (tomadas)
 

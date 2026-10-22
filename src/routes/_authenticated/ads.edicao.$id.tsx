@@ -443,10 +443,25 @@ function Editor() {
               {!proj.fonte_path ? (
                 <div className="text-center space-y-3 text-muted-foreground max-w-sm">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                  <div className="text-sm font-medium text-foreground">
-                    Enviando o vídeo… {envio?.video ?? proj.upload_progresso ?? 0}%
-                  </div>
-                  <Progress value={envio?.video ?? proj.upload_progresso ?? 0} className="h-2" />
+                  {envio?.etapa === "Reduzindo para 1080p" ? (
+                    <>
+                      <div className="text-sm font-medium text-foreground">
+                        Reduzindo para 1080p no seu computador… {envio.reducao ?? 0}%
+                      </div>
+                      <Progress value={envio.reducao ?? 0} className="h-2" />
+                      <div className="text-xs">
+                        Vídeo em {proj.fonte_largura}×{proj.fonte_altura}: fica ~6× menor antes de
+                        subir. O resultado final é 1080p de qualquer forma.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-medium text-foreground">
+                        Enviando o vídeo… {envio?.video ?? proj.upload_progresso ?? 0}%
+                      </div>
+                      <Progress value={envio?.video ?? proj.upload_progresso ?? 0} className="h-2" />
+                    </>
+                  )}
                   <div className="text-xs">
                     {envio?.audio === "ok" || palavras.length
                       ? "Áudio já transcrito: a sugestão aparece ao lado enquanto o vídeo termina."
