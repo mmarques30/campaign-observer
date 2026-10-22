@@ -41,6 +41,8 @@ export type Projeto = {
   formato: Formato;
   status: string;
   fonte_path: string | null;
+  fonte_proxy_path: string | null;
+  upload_progresso: number;
   fonte_duracao: number | null;
   fonte_largura: number | null;
   fonte_altura: number | null;
@@ -160,22 +162,73 @@ export async function extrairAudioWav(file: File): Promise<Blob> {
   return new Blob([view], { type: "audio/wav" });
 }
 
-/** Cria o projeto, sobe vídeo + áudio e dispara a transcrição. */
-export async function criarProjeto(
-  dados: {
-    nome?: string;
-    objetivo?: "anuncio" | "organico";
-    formato?: Formato;
-    arquivo: File;
-    marcaId?: string | null;
-  },
-  etapa: (t: string) => void,
-): Promise<string> {
-  etapa("Lendo o vídeo");
+// ─── Upload em segundo plano, com progresso visível no editor ─────────────
+// A tela do Estúdio cria o projeto e vai direto para o editor; o envio continua
+// aqui (a navegação é SPA, o JS não morre). O editor lê o progresso deste store.
+export type Envio = {
+  etapa: string;
+  video: number;
+  audio: "pendente" | "ok" | "erro";
+  erro?: string;
+};
+const envios = new Map<string, Envio>();
+const ouvintes = new Set<() => void>();
+function setEnvio(id: string, patch: Partial<Envio>) {
+  envios.set(id, { etapa: "", video: 0, audio: "pendente", ...(envios.get(id) ?? {}), ...patch });
+  ouvintes.forEach((f) => f());
+}
+export function assinarEnvios(f: () => void) {
+  ouvintes.add(f);
+  return () => ouvintes.delete(f);
+}
+export const lerEnvio = (id: string) => envios.get(id) ?? null;
+
+/** Upload resumível em pedaços de 6 MB (TUS), com progresso. */
+async function uploadGrande(
+  path: string,
+  file: Blob,
+  contentType: string,
+  onProgresso: (p: number) => void,
+) {
+  const { Upload } = await import("tus-js-client");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session) throw new Error("Sessão expirada. Faça login de novo.");
+  const base = (import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL) as string;
+  await new Promise<void>((res, rej) => {
+    const up = new Upload(file, {
+      endpoint: `${base}/storage/v1/upload/resumable`,
+      retryDelays: [0, 2000, 5000, 10000, 20000],
+      headers: { authorization: `Bearer ${session.access_token}`, "x-upsert": "true" },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: { bucketName: BUCKET, objectName: path, contentType, cacheControl: "3600" },
+      chunkSize: 6 * 1024 * 1024,
+      onError: (e) => rej(new Error(`Upload: ${e.message}`)),
+      onProgress: (sent, total) => onProgresso(total ? sent / total : 0),
+      onSuccess: () => res(),
+    });
+    up.findPreviousUploads().then((prev) => {
+      if (prev.length) up.resumeFromPreviousUpload(prev[0]);
+      up.start();
+    });
+  });
+}
+
+/** Cria o projeto e devolve o id NA HORA. Vídeo e áudio sobem em segundo plano. */
+export async function criarProjeto(dados: {
+  nome?: string;
+  objetivo?: "anuncio" | "organico";
+  formato?: Formato;
+  arquivo: File;
+  marcaId?: string | null;
+}): Promise<string> {
   const meta = await metadadosVideo(dados.arquivo);
-  // Sem formato escolhido: 9:16 (vídeo deitado é reenquadrado; a sugestão pode trocar p/ 4:5).
   const formato: Formato = dados.formato ?? "9:16";
   const tl = timelineVazia(formato);
+  // Vídeo deitado: foco no centro, a sugestão pode trocar para 4:5 depois.
+  if (meta.largura > meta.altura) tl.enquadramento = { x: 0.5, y: 0.45, escala: 1 };
   const nomeAuto = !dados.nome?.trim();
   const { data: proj, error } = await db()
     .from("vedit_projetos")
@@ -195,37 +248,84 @@ export async function criarProjeto(
     .single();
   if (error) throw new Error(error.message);
   const id = proj.id as string;
-  const ext = (dados.arquivo.name.split(".").pop() || "mp4").toLowerCase();
-  etapa("Enviando o vídeo");
-  const up = await supabase.storage.from(BUCKET).upload(`${id}/fonte.${ext}`, dados.arquivo, {
-    contentType: dados.arquivo.type || "video/mp4",
-    upsert: true,
-  });
-  if (up.error) throw new Error(`Upload: ${up.error.message}`);
-  etapa("Separando o áudio");
-  const wav = await extrairAudioWav(dados.arquivo);
-  const upA = await supabase.storage
-    .from(BUCKET)
-    .upload(`${id}/audio.wav`, wav, { contentType: "audio/wav", upsert: true });
-  if (upA.error) throw new Error(`Upload do áudio: ${upA.error.message}`);
-  await db()
-    .from("vedit_projetos")
-    .update({
-      fonte_path: `${id}/fonte.${ext}`,
-      audio_path: `${id}/audio.wav`,
-      status: "transcrevendo",
-    })
-    .eq("id", id);
-  // Reenquadra automaticamente vídeo deitado para o centro.
-  if (meta.largura > meta.altura)
+  void enviarEmSegundoPlano(id, dados.arquivo, meta);
+  return id;
+}
+
+async function enviarEmSegundoPlano(
+  id: string,
+  arquivo: File,
+  meta: { largura: number; altura: number },
+) {
+  const ext = (arquivo.name.split(".").pop() || "mp4").toLowerCase();
+  const fontePath = `${id}/fonte.${ext}`;
+  setEnvio(id, { etapa: "Enviando o vídeo", video: 0, audio: "pendente" });
+  const marcarErro = async (msg: string) => {
+    setEnvio(id, { etapa: "Erro", erro: msg });
+    await db().from("vedit_projetos").update({ status: "erro", erro: msg }).eq("id", id);
+  };
+
+  // 1) Áudio primeiro: é pequeno, e destrava transcrição + sugestão enquanto o vídeo sobe.
+  const audio = (async () => {
+    try {
+      const wav = await extrairAudioWav(arquivo);
+      await uploadGrande(`${id}/audio.wav`, wav, "audio/wav", () => {});
+      await db()
+        .from("vedit_projetos")
+        .update({ audio_path: `${id}/audio.wav`, status: "transcrevendo" })
+        .eq("id", id);
+      setEnvio(id, { audio: "ok" });
+      const r = await callEdgeFunction("vedit-transcrever", { projeto_id: id });
+      if (r?.error) throw new Error(r.error);
+    } catch (e) {
+      setEnvio(id, { audio: "erro" });
+      throw e;
+    }
+  })();
+
+  // 2) Vídeo em pedaços, com progresso.
+  const video = (async () => {
+    let ultimo = -1;
+    await uploadGrande(fontePath, arquivo, arquivo.type || "video/mp4", (p) => {
+      const pct = Math.round(p * 100);
+      if (pct !== ultimo) {
+        ultimo = pct;
+        setEnvio(id, { video: pct });
+        if (pct % 10 === 0)
+          void db().from("vedit_projetos").update({ upload_progresso: pct }).eq("id", id);
+      }
+    });
     await db()
       .from("vedit_projetos")
-      .update({ timeline: { ...tl, enquadramento: { x: 0.5, y: 0.45, escala: 1 } } })
+      .update({ fonte_path: fontePath, upload_progresso: 100 })
       .eq("id", id);
-  etapa("Transcrevendo palavra por palavra");
-  const r = await callEdgeFunction("vedit-transcrever", { projeto_id: id });
-  if (r?.error) throw new Error(r.error);
-  return id;
+    // Acima de 1080p: pede ao worker uma versão leve para o preview (o render usa o original).
+    if (Math.min(meta.largura, meta.altura) > 1080)
+      await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "proxy" });
+    setEnvio(id, { video: 100 });
+  })();
+
+  const [ra, rv] = await Promise.allSettled([audio, video]);
+  if (ra.status === "rejected")
+    return marcarErro(`Áudio/transcrição: ${(ra.reason as Error).message}`);
+  if (rv.status === "rejected") return marcarErro((rv.reason as Error).message);
+  setEnvio(id, { etapa: "Concluído" });
+  // Se a transcrição já terminou, o status será pronto_para_editar; senão a função ajusta.
+  const { data } = await db().from("vedit_projetos").select("status").eq("id", id).single();
+  if (data?.status === "enviando")
+    await db().from("vedit_projetos").update({ status: "transcrevendo" }).eq("id", id);
+}
+
+/** Atualiza nome/objetivo/formato/estilo/duração do projeto. */
+export async function atualizarProjeto(
+  p: Projeto,
+  patch: Partial<Pick<Projeto, "nome" | "objetivo" | "formato" | "estilo" | "duracao_alvo">>,
+) {
+  const upd: Record<string, unknown> = { ...patch };
+  if (patch.nome) upd.nome_automatico = false;
+  if (patch.formato && p.timeline) upd.timeline = { ...p.timeline, formato: patch.formato };
+  const { error } = await db().from("vedit_projetos").update(upd).eq("id", p.id);
+  if (error) throw new Error(error.message);
 }
 
 export async function enviarAoClaude(projetoId: string, mensagem: string) {

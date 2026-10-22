@@ -247,12 +247,10 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     try {
       const blob = await (await fetch(a.url)).blob();
       const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
-      const up = await sb.storage
-        .from("video-edicao")
-        .upload(path, blob, {
-          contentType: a.tipo === "video" ? "video/mp4" : "image/jpeg",
-          upsert: true,
-        });
+      const up = await sb.storage.from("video-edicao").upload(path, blob, {
+        contentType: a.tipo === "video" ? "video/mp4" : "image/jpeg",
+        upsert: true,
+      });
       if (up.error) continue;
       const { data } = await sb
         .from("vedit_midias")
@@ -493,14 +491,25 @@ Deno.serve(async (req) => {
   }
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
 
+  // Comandos que mudam o projeto valem já nesta edição.
+  const objetivoAtual = /^\/anuncio\b/i.test(mensagem!)
+    ? "anuncio"
+    : /^\/organico\b/i.test(mensagem!)
+      ? "organico"
+      : proj.objetivo;
+  const formatoAtual = mensagem!.match(/^\/formato\s+(9:16|4:5|1:1)/)?.[1] ?? proj.formato;
+  const estiloAtual =
+    mensagem!.match(/^\/estilo\s+(viral|editorial|limpo)/i)?.[1]?.toLowerCase() ??
+    proj.estilo ??
+    "viral";
   const sistemaTxt = sistema(
     catalogo ?? "",
     marcaRow?.marca ?? {},
     marcaRow?.instrucoes ?? "",
-    proj.objetivo,
-    proj.formato,
+    objetivoAtual,
+    formatoAtual,
     Number(proj.fonte_duracao ?? 0),
-    proj.estilo ?? "viral",
+    estiloAtual,
     proj.duracao_alvo ?? null,
     marketing,
   );
@@ -557,10 +566,14 @@ Deno.serve(async (req) => {
   const upd: Record<string, unknown> = { status: "editando" };
   const mEstilo = mensagem!.match(/^\/estilo\s+(viral|editorial|limpo)/i);
   if (mEstilo) upd.estilo = mEstilo[1].toLowerCase();
+  if (/^\/anuncio\b/i.test(mensagem!)) upd.objetivo = "anuncio";
+  if (/^\/organico\b/i.test(mensagem!)) upd.objetivo = "organico";
+  const mFormato = mensagem!.match(/^\/formato\s+(9:16|4:5|1:1)/);
+  if (mFormato) upd.formato = mFormato[1];
   if (uso.storyboard?.length) upd.storyboard = uso.storyboard;
   if (uso.timeline && typeof uso.timeline === "object") {
     const tl = uso.timeline;
-    tl.formato = tl.formato ?? proj.formato;
+    tl.formato = mFormato ? mFormato[1] : (tl.formato ?? proj.formato);
     (tl.efeitos ?? []).forEach((e: any, i: number) => {
       if (!e.id) e.id = `e${Date.now().toString(36)}${i}`;
     });

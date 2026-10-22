@@ -7,11 +7,22 @@ import os from "node:os";
 import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition, ensureBrowser } from "@remotion/renderer";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const execFileP = promisify(execFile);
+/** ffmpeg que vem com o Remotion (sem instalar nada no container). */
+function ffmpegBin() {
+  const dir = path.dirname(require.resolve("@remotion/compositor-linux-x64-gnu/package.json"));
+  return path.join(dir, "ffmpeg");
+}
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-let _sb: ReturnType<typeof createClient> | null = null;
+let _sb: any = null;
 const sbc = () =>
   (_sb ??= createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false },

@@ -24,10 +24,14 @@ import {
 } from "lucide-react";
 import { EFEITO_POR_TIPO, EFEITOS } from "@/video/catalogo";
 import { ESTILOS_LEGENDA, LOOKS, POSICOES_LEGENDA, type Timeline } from "@/video/schema";
-import { fmtTempo, type Midia } from "@/lib/vedit";
+import { fmtTempo, type Midia, type Projeto } from "@/lib/vedit";
+import { ESTILOS } from "@/video/catalogo";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export function Painel({
+  projeto,
+  onAtualizar,
   tl,
   setTl,
   midias,
@@ -37,6 +41,10 @@ export function Painel({
   onCorteRapido,
   selecionado,
 }: {
+  projeto: Projeto;
+  onAtualizar: (
+    patch: Partial<Pick<Projeto, "nome" | "objetivo" | "formato" | "estilo" | "duracao_alvo">>,
+  ) => Promise<void>;
   tl: Timeline;
   setTl: (t: Timeline, resumo: string) => void;
   midias: Midia[];
@@ -61,6 +69,112 @@ export function Painel({
       </TabsList>
 
       <TabsContent value="edicao" className="flex-1 overflow-y-auto px-3 pb-3 space-y-5 mt-0">
+        <section className="space-y-2">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Projeto
+          </div>
+          <Input
+            defaultValue={projeto.nome}
+            key={projeto.nome}
+            className="h-8"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== projeto.nome)
+                onAtualizar({ nome: v }).catch((er) => toast.error(er.message));
+            }}
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Objetivo</Label>
+              <Select
+                value={projeto.objetivo}
+                onValueChange={(v) =>
+                  onAtualizar({ objetivo: v as any })
+                    .then(() =>
+                      toast.success(
+                        v === "anuncio"
+                          ? "Agora é anúncio. Peça /anuncio para o editor reajustar."
+                          : "Agora é orgânico.",
+                      ),
+                    )
+                    .catch((er) => toast.error(er.message))
+                }
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="anuncio">Anúncio Meta</SelectItem>
+                  <SelectItem value="organico">Reel orgânico</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Formato</Label>
+              <Select
+                value={projeto.formato}
+                onValueChange={(v) =>
+                  onAtualizar({ formato: v as any }).catch((er) => toast.error(er.message))
+                }
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["9:16", "4:5", "1:1"].map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Estilo</Label>
+              <Select
+                value={projeto.estilo}
+                onValueChange={(v) =>
+                  onAtualizar({ estilo: v as any })
+                    .then(() =>
+                      toast.success(
+                        `Estilo ${v}. Peça "/estilo ${v}" para o editor refazer os efeitos.`,
+                      ),
+                    )
+                    .catch((er) => toast.error(er.message))
+                }
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(ESTILOS).map(([id, e]) => (
+                    <SelectItem key={id} value={id}>
+                      {e.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Duração alvo (s)</Label>
+              <Input
+                type="number"
+                min={5}
+                max={180}
+                defaultValue={projeto.duracao_alvo ?? ""}
+                key={projeto.duracao_alvo ?? "x"}
+                className="h-8"
+                placeholder="livre"
+                onBlur={(e) => {
+                  const n = Number(e.target.value);
+                  if (n && n !== projeto.duracao_alvo)
+                    onAtualizar({ duracao_alvo: n }).catch((er) => toast.error(er.message));
+                }}
+              />
+            </div>
+          </div>
+        </section>
+
         <section className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Efeitos aplicados ({efeitos.length})

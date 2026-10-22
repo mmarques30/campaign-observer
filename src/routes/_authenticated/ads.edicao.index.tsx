@@ -69,17 +69,15 @@ function Estudio() {
   async function criar() {
     if (!arquivo) return toast.error("Escolha o vídeo cru.");
     try {
-      const id = await criarProjeto(
-        {
-          nome: nome.trim() || undefined,
-          objetivo: decidir ? undefined : objetivo,
-          formato: decidir ? undefined : formato,
-          arquivo,
-          marcaId: marcas.data?.find((m) => m.padrao)?.id,
-        },
-        setEtapa,
-      );
-      toast.success("Vídeo pronto para editar.");
+      setEtapa("Lendo o vídeo");
+      const id = await criarProjeto({
+        nome: nome.trim() || undefined,
+        objetivo: decidir ? undefined : objetivo,
+        formato: decidir ? undefined : formato,
+        arquivo,
+        marcaId: marcas.data?.find((m) => m.padrao)?.id,
+      });
+      toast.success("Enviando em segundo plano. Você já pode acompanhar no editor.");
       setAberto(false);
       navigate({ to: "/ads/edicao/$id", params: { id } });
     } catch (e) {
@@ -199,8 +197,9 @@ function Estudio() {
           <DialogHeader>
             <DialogTitle>Novo vídeo</DialogTitle>
             <DialogDescription>
-              O vídeo é enviado, o áudio é separado no seu navegador e transcrito palavra por
-              palavra.
+              Você vai direto para o editor; o vídeo sobe em segundo plano com barra de progresso e
+              a transcrição começa antes de ele terminar. Dica: exportar em 1080p deixa tudo mais
+              rápido que em 4K.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -316,7 +315,7 @@ function Estudio() {
                 </>
               ) : (
                 <>
-                  <Upload className="h-4 w-4 mr-2" /> Enviar e transcrever
+                  <Upload className="h-4 w-4 mr-2" /> Enviar e abrir o editor
                 </>
               )}
             </Button>

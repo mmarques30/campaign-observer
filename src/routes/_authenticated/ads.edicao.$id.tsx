@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { PlayerRef } from "@remotion/player";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,9 @@ import { Publicar } from "@/components/edicao/Publicar";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import {
   assinar,
+  assinarEnvios,
+  atualizarProjeto,
+  lerEnvio,
   db,
   desfazer,
   enviarAoClaude,
@@ -56,6 +59,11 @@ function Editor() {
   const [publicar, setPublicar] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
 
+  const envio = useSyncExternalStore(
+    assinarEnvios,
+    () => lerEnvio(id),
+    () => null,
+  );
   const projQ = useQuery({
     queryKey: ["vedit", "projeto", id],
     queryFn: async () => {
@@ -63,12 +71,15 @@ function Editor() {
       if (error) throw error;
       return data as Projeto;
     },
-    refetchInterval: (q) =>
-      ["enviando", "transcrevendo", "renderizando"].includes(
-        (q.state.data as Projeto | undefined)?.status ?? "",
-      )
+    refetchInterval: (q) => {
+      const p = q.state.data as Projeto | undefined;
+      return ["enviando", "transcrevendo", "renderizando"].includes(p?.status ?? "") ||
+        (p?.fonte_path &&
+          !p.fonte_proxy_path &&
+          Math.min(p.fonte_largura ?? 0, p.fonte_altura ?? 0) > 1080)
         ? 3000
-        : false,
+        : false;
+    },
   });
   const proj = projQ.data;
 
@@ -317,6 +328,14 @@ function Editor() {
           </div>
         </div>
 
+        {proj.fonte_path &&
+          !proj.fonte_proxy_path &&
+          Math.min(proj.fonte_largura ?? 0, proj.fonte_altura ?? 0) > 1080 && (
+            <div className="px-4 py-1 border-b bg-muted/40 text-xs text-muted-foreground">
+              Vídeo em {proj.fonte_largura}x{proj.fonte_altura}: o worker está gerando uma versão
+              leve para o preview (1–3 min). Enquanto isso o preview pode engasgar.
+            </div>
+          )}
         {proj.status === "renderizando" && (
           <div className="px-4 py-1.5 border-b bg-amber-500/5 flex items-center gap-3 text-xs">
             <span>
@@ -352,6 +371,12 @@ function Editor() {
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[300px_1fr_380px]">
           <aside className="hidden lg:flex flex-col border-r min-h-0 bg-card">
             <Painel
+              projeto={proj}
+              onAtualizar={async (patch) => {
+                await atualizarProjeto(proj, patch);
+                versaoCarregada.current = -1;
+                await projQ.refetch();
+              }}
               tl={tl}
               setTl={setTl}
               midias={midiasQ.data ?? []}
@@ -374,13 +399,23 @@ function Editor() {
 
           <main className="flex flex-col min-h-0 min-w-0">
             <div className="flex-1 min-h-0 flex items-center justify-center p-4 bg-muted/40">
-              {["enviando", "transcrevendo"].includes(proj.status) ? (
-                <div className="text-center space-y-3 text-muted-foreground">
+              {!proj.fonte_path ? (
+                <div className="text-center space-y-3 text-muted-foreground max-w-sm">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-                  <div className="text-sm">
-                    {proj.status === "enviando"
-                      ? "Enviando o vídeo…"
-                      : "Transcrevendo palavra por palavra…"}
+                  <div className="text-sm font-medium text-foreground">
+                    Enviando o vídeo… {envio?.video ?? proj.upload_progresso ?? 0}%
+                  </div>
+                  <Progress value={envio?.video ?? proj.upload_progresso ?? 0} className="h-2" />
+                  <div className="text-xs">
+                    {envio?.audio === "ok" || palavras.length
+                      ? "Áudio já transcrito: a sugestão aparece ao lado enquanto o vídeo termina."
+                      : "Separando o áudio e transcrevendo…"}
+                    {envio == null && (proj.upload_progresso ?? 0) < 100 && (
+                      <div className="mt-1 text-amber-700">
+                        O envio roda na aba que começou. Se você fechou ou recarregou, suba o vídeo
+                        de novo.
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : props ? (
