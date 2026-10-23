@@ -36,7 +36,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { COMANDOS, montarPrompt } from "@/criativos/comandos";
+import { COMANDOS, GRUPOS, montarPrompt, precisaFoto } from "@/criativos/comandos";
 import {
   editarFoto,
   enviarFoto,
@@ -58,12 +58,6 @@ const FILTROS = [
   { v: "ia", l: "Criadas com IA" },
   { v: "fav", l: "Favoritas" },
 ] as const;
-
-const GRUPOS: { id: "ajuste" | "estilo" | "cena"; nome: string }[] = [
-  { id: "ajuste", nome: "Ajustes" },
-  { id: "estilo", nome: "Estilo da foto" },
-  { id: "cena", nome: "Cenário e pose" },
-];
 
 function MinhasFotos() {
   const qc = useQueryClient();
@@ -97,7 +91,9 @@ function MinhasFotos() {
     try {
       for (let i = 0; i < arr.length; i++) {
         setEnviando(`Enviando ${i + 1} de ${arr.length}`);
-        await enviarFoto(arr[i]);
+        const nova = await enviarFoto(arr[i]);
+        // A foto que acabou de subir já fica selecionada para o estúdio.
+        if (i < 3) setSel((l) => [...l, nova.id].slice(-3));
       }
       toast.success(arr.length > 1 ? `${arr.length} fotos na biblioteca.` : "Foto na biblioteca.");
       recarregar();
@@ -116,6 +112,10 @@ function MinhasFotos() {
   async function criar() {
     if (!cmds.length && !livre.trim())
       return toast.error("Escolha um comando ou descreva o que quer.");
+    if (!sel.length && precisaFoto(cmds))
+      return toast.error(
+        "Esses comandos transformam uma foto sua: clique na foto da biblioteca para selecionar antes.",
+      );
     setGerando(true);
     try {
       const prompt = montarPrompt(cmds, livre, rosto && sel.length > 0);
@@ -310,7 +310,7 @@ function MinhasFotos() {
             <CardDescription>
               {sel.length
                 ? "Edita a partir das fotos selecionadas."
-                : "Sem foto selecionada, cria do zero (fundos, objetos, cenas). Para usar seu rosto, selecione uma foto."}
+                : "Clique numa foto sua para transformá-la. Sem foto selecionada, só dá para criar do zero (fundos, objetos, cenas sem você)."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -341,35 +341,37 @@ function MinhasFotos() {
                 <Switch checked={rosto} onCheckedChange={setRosto} />
               </div>
             )}
-            {GRUPOS.map((g) => (
-              <div key={g.id} className="space-y-1.5">
-                <div className="text-xs font-medium text-muted-foreground">{g.nome}</div>
-                <div className="flex flex-wrap gap-1.5">
-                  {COMANDOS.filter((c) => c.grupo === g.id).map((c) => {
-                    const on = cmds.includes(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        title={c.dica}
-                        onClick={() =>
-                          setCmds((l) => (on ? l.filter((x) => x !== c.id) : [...l, c.id]))
-                        }
-                        className={cn(
-                          "text-xs font-mono px-2 py-1 rounded-md border",
-                          on
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "hover:bg-muted",
-                        )}
-                      >
-                        {on && <Check className="inline h-3 w-3 mr-0.5" />}
-                        {c.nome}
-                      </button>
-                    );
-                  })}
+            <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+              {GRUPOS.map((g) => (
+                <div key={g.id} className="space-y-1.5">
+                  <div className="text-xs font-medium text-muted-foreground">{g.nome}</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {COMANDOS.filter((c) => c.grupo === g.id).map((c) => {
+                      const on = cmds.includes(c.id);
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          title={c.dica}
+                          onClick={() =>
+                            setCmds((l) => (on ? l.filter((x) => x !== c.id) : [...l, c.id]))
+                          }
+                          className={cn(
+                            "text-xs font-mono px-2 py-1 rounded-md border",
+                            on
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "hover:bg-muted",
+                          )}
+                        >
+                          {on && <Check className="inline h-3 w-3 mr-0.5" />}
+                          {c.nome}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">O que você quer (pode ser em português)</Label>
               <Textarea
