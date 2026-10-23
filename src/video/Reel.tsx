@@ -137,6 +137,8 @@ export function Reel(bruto: ReelProps) {
   }, [props.palavras, trechos, fps, durationInFrames]);
 
   const { escala, ox, oy } = zoomNoFrame(frame, fps, props, trechos);
+  // Preview: áudio do WAV (leve, exato com a legenda) e vídeo mudo. Render: áudio do vídeo.
+  const audioSeparado = !!props.audioUrl && !getRemotionEnvironment().isRendering;
 
   // Efeito de transição no início de cada trecho (menos o primeiro).
   const inicioTrechoAtual = [...trechos]
@@ -230,10 +232,15 @@ export function Reel(bruto: ReelProps) {
               from={Math.round(t.saidaDe * fps)}
               durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
               name={`Trecho ${i + 1}`}
+              // Pré-monta o próximo trecho 1s antes: o <video> já chega carregado no corte.
+              premountFor={fps}
             >
               <OffthreadVideo
                 src={props.fonteUrl}
                 trimBefore={Math.round(t.de * fps)}
+                // No preview o som vem do WAV leve (abaixo); no render, do próprio vídeo.
+                muted={audioSeparado}
+                pauseWhenBuffering
                 onError={
                   getRemotionEnvironment().isRendering
                     ? undefined
@@ -246,6 +253,9 @@ export function Reel(bruto: ReelProps) {
                   objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
                 }}
               />
+              {audioSeparado && (
+                <Audio src={props.audioUrl!} trimBefore={Math.round(t.de * fps)} />
+              )}
             </Sequence>
           ))
         )}

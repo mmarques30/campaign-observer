@@ -122,6 +122,9 @@ export type ReelProps = {
   timeline: Timeline;
   palavras: Palavra[];
   fonteUrl: string;
+  // Áudio leve (WAV da transcrição). No preview, o som vem daqui e o vídeo fica mudo:
+  // nunca engasga e bate exatamente com a legenda. No render, o som é o do vídeo original.
+  audioUrl?: string;
   duracaoFonte: number;
   // id de mídia (upload do projeto) → URL assinada
   midias: Record<string, string>;

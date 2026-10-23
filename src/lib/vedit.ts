@@ -2,6 +2,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { catalogoParaClaude } from "@/video/catalogo";
+import { cortarSilencios } from "@/video/automatico";
+import { detectarRepeticoes } from "@/video/repeticoes";
 import {
   normalizarTimeline,
   timelineVazia,
@@ -201,6 +203,7 @@ export async function reduzirPara1080p(
   try {
     const mb = await import("mediabunny");
     const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
+    const temAudio = (await input.getAudioTracks()).length > 0;
     const output = new mb.Output({
       format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
       target: new mb.BufferTarget(),
@@ -212,11 +215,25 @@ export async function reduzirPara1080p(
     const conv = await mb.Conversion.init({
       input,
       output,
-      video: { width: largura, height: altura, fit: "contain", codec: "avc", bitrate: 10_000_000 },
-      audio: { codec: "aac", bitrate: 160_000 },
+      video: {
+        width: largura,
+        height: altura,
+        fit: "contain",
+        codec: "avc",
+        // Taxa constante: encoders por hardware ignoram a taxa em modo "qualidade" (saía 19 Mbps).
+        bitrate: new mb.Quality({ bitrate: 8_000_000, bitrateMode: "constant" }),
+        keyFrameInterval: 2,
+      },
+      // Sem codec fixo: o mediabunny escolhe o que o navegador consegue codificar (AAC quando houver).
+      audio: { bitrate: 160_000 },
       showWarnings: false,
     });
     if (!conv.isValid) return null;
+    // Nunca entregar um vídeo mudo: se o áudio foi descartado, sobe o original.
+    if (temAudio && conv.discardedTracks.some((d) => d.track.type === "audio")) {
+      console.warn("Redução descartaria o áudio; enviando o original.", conv.discardedTracks);
+      return null;
+    }
     conv.onProgress = (p) => onProgresso(p);
     await conv.execute();
     const buf = output.target.buffer;
@@ -407,8 +424,9 @@ async function enviarEmSegundoPlano(
       .from("vedit_projetos")
       .update({ fonte_path: caminho, upload_progresso: 100 })
       .eq("id", id);
-    // Se o navegador não conseguiu reduzir, o worker gera a versão leve para o preview.
-    if (Math.min(dims.largura, dims.altura) > 1080)
+    // Preview precisa de um arquivo leve para não engasgar: acima de 1080p ou acima de 40 MB,
+    // o worker gera a versão 720p; o render final continua usando o arquivo enviado.
+    if (Math.min(dims.largura, dims.altura) > 1080 || envio.size > 40 * 1024 * 1024)
       await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "proxy" });
     setEnvio(id, { video: 100 });
   })();
@@ -463,6 +481,20 @@ export async function pedirSugestao(projetoId: string) {
 /** Aplica a sugestão (toda ou com ajustes da pessoa) no projeto. */
 export async function aplicarSugestao(p: Projeto, s: Sugestao) {
   const tl = normalizarTimeline({ ...(p.timeline ?? {}), formato: s.formato }).timeline;
+  // Primeira versão já sai limpa: silêncios, muletas e tomadas repetidas fora (fica a última).
+  const palavras = (p.palavras ?? []) as Palavra[];
+  const duracao = Number(p.fonte_duracao ?? 0);
+  let resumoCorte = "";
+  if (!tl.cortes.length && palavras.length && duracao > 0) {
+    const reps = detectarRepeticoes(palavras);
+    tl.cortes = cortarSilencios(palavras, duracao, {
+      tirarMuletas: true,
+      tirarRepeticoes: true,
+      repeticoes: reps,
+    });
+    const final = tl.cortes.reduce((acc, c) => acc + c.ate - c.de, 0);
+    resumoCorte = ` Corte automático: ${reps.length} fala(s) repetida(s) fora (ficou a última de cada) e silêncios removidos — ${fmtTempo(duracao)} → ${fmtTempo(final)}. Ajuste em "Na edição" ou peça no chat.`;
+  }
   const { error } = await db()
     .from("vedit_projetos")
     .update({
@@ -483,8 +515,21 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
     .insert({
       projeto_id: p.id,
       papel: "sistema",
-      conteudo: `Projeto definido: "${s.nome}" · ${s.objetivo === "anuncio" ? "anúncio" : "orgânico"} · ${s.formato} · estilo ${s.estilo} · alvo ~${s.duracao_alvo}s.${s.palavra_cta ? ` Palavra do CTA: ${s.palavra_cta}.` : ""}`,
+      conteudo: `Projeto definido: "${s.nome}" · ${s.objetivo === "anuncio" ? "anúncio" : "orgânico"} · ${s.formato} · estilo ${s.estilo} · alvo ~${s.duracao_alvo}s.${s.palavra_cta ? ` Palavra do CTA: ${s.palavra_cta}.` : ""}${resumoCorte}`,
     });
+  if (resumoCorte)
+    await db().from("vedit_versoes").insert({
+      projeto_id: p.id,
+      versao: (p.versao ?? 0) + 1,
+      timeline: tl,
+      origem: "manual",
+      resumo: "Corte automático: silêncios e tomadas repetidas",
+    });
+  if (resumoCorte)
+    await db()
+      .from("vedit_projetos")
+      .update({ versao: (p.versao ?? 0) + 1, status: "editando" })
+      .eq("id", p.id);
 }
 
 /** Salva uma edição feita à mão (controles rápidos, corte rápido, apagar efeito). */

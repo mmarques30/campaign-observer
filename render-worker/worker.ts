@@ -89,8 +89,8 @@ async function baixar(caminho: string, destino: string) {
 }
 
 /**
- * Proxy 1080p para o preview no navegador (o vídeo cru acima de 1080p — 4K, HEVC do
- * iPhone — não toca bem no Chrome). O render final continua usando o original.
+ * Proxy 720p leve (~2 Mbps) para o preview no navegador: arquivos pesados ou acima de 1080p
+ * engasgam no <video> do Chrome (imagem trava, som some). O render final usa o original.
  */
 export async function gerarProxy(projetoId: string) {
   const { data: proj, error } = await sbc()
@@ -109,13 +109,17 @@ export async function gerarProxy(projetoId: string) {
       "-i",
       entrada,
       "-vf",
-      vertical ? "scale=1080:-2" : "scale=-2:1080",
+      vertical ? "scale=720:-2" : "scale=-2:720",
       "-c:v",
       "libx264",
       "-preset",
       "veryfast",
       "-crf",
-      "23",
+      "26",
+      "-maxrate",
+      "2500k",
+      "-bufsize",
+      "5000k",
       "-g",
       "30",
       "-pix_fmt",
@@ -128,7 +132,7 @@ export async function gerarProxy(projetoId: string) {
       "160k",
       saida,
     ]);
-    const destino = `${projetoId}/fonte-1080p.mp4`;
+    const destino = `${projetoId}/fonte-720p.mp4`;
     const up = await sbc()
       .storage.from(BUCKET)
       .upload(destino, await fs.readFile(saida), { contentType: "video/mp4", upsert: true });
