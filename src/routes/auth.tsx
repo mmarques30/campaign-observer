@@ -4,9 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Leaf } from "lucide-react";
+import { Logo, LogoMark } from "@/components/ads/Logo";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -38,31 +38,41 @@ function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md shadow-lg border-border/60">
-        <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto h-14 w-14 rounded-2xl bg-foreground flex items-center justify-center shadow-md">
-            <Leaf className="h-7 w-7 text-primary" strokeWidth={2.5} />
-          </div>
-          <CardTitle className="text-2xl font-bold tracking-tight">ADS IAplicada</CardTitle>
-          <CardDescription>Dashboard de Ads · acesso restrito @iaplicada.com</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@iaplicada.com" />
+    <div className="min-h-dvh grid lg:grid-cols-[1.1fr_1fr] bg-background text-foreground bg-grain">
+      {/* Painel de marca */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden bg-aurora border-r border-border/60">
+        <div className="relative z-[1]"><Logo size={26} /></div>
+        <div className="relative z-[1] max-w-md">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-3">Cockpit de mídia paga</div>
+          <h1 className="text-4xl font-semibold tracking-tight leading-[1.1]">Campanhas, criativos, landing pages e CRM em um só painel.</h1>
+          <p className="mt-4 text-sm text-muted-foreground max-w-sm">Dados da Meta sincronizados a cada 15 minutos, cruzados com a régua de qualificação do CRM.</p>
+        </div>
+        <div className="relative z-[1] text-[11px] text-muted-foreground/70 flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" /> Acesso restrito a contas @iaplicada.com</div>
+        {/* Símbolo grande ao fundo, bem discreto */}
+        <LogoMark size={520} className="absolute -right-32 -bottom-32 opacity-[0.06] pointer-events-none" />
+      </div>
+
+      {/* Formulário */}
+      <div className="flex items-center justify-center p-6 sm:p-10">
+        <div className="w-full max-w-sm animate-fade-up">
+          <div className="lg:hidden mb-8"><Logo size={24} /></div>
+          <h2 className="text-2xl font-semibold tracking-tight">Entrar</h2>
+          <p className="text-sm text-muted-foreground mt-1">Use sua conta IAplicada.</p>
+          <form onSubmit={onSubmit} className="mt-7 space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs">E-mail</Label>
+              <Input id="email" type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@iaplicada.com" className="h-10 rounded-lg bg-card/60" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs">Senha</Label>
+              <Input id="password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-10 rounded-lg bg-card/60" />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Entrando..." : "Entrar"}
+            <Button type="submit" size="lg" className="w-full mt-2" disabled={loading}>
+              {loading ? "Entrando…" : <>Entrar <ArrowRight className="h-4 w-4" /></>}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

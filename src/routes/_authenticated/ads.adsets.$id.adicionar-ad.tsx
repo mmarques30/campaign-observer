@@ -70,7 +70,7 @@ function AdicionarAd() {
             <ArrowLeft className="h-4 w-4 mr-1" /> Voltar
           </Link>
         )}
-        <h1 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight mt-2 flex items-center gap-2">
           <Plus className="h-6 w-6 text-primary" /> Adicionar anúncio
         </h1>
         <p className="text-sm text-muted-foreground">

@@ -156,7 +156,7 @@ function Insights() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Insights estratégicos</h1>
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight flex items-center gap-2"><Lightbulb className="h-6 w-6 text-primary" /> Insights estratégicos</h1>
           <p className="text-sm text-muted-foreground">Qualificação (CRM) por ad · {periodoLabel(periodo)} vs período anterior</p>
         </div>
         <Select value={periodo} onValueChange={(v) => setPeriodo(v as Periodo)}>
@@ -188,18 +188,18 @@ function Insights() {
       </Card>
 
       {/* Seção 2 — Dinheiro voltando */}
-      <Card className="border-emerald-500/30">
-        <CardHeader><CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-emerald-600" /> Onde o dinheiro está voltando</CardTitle><CardDescription>Top 3 ads com menor CPMQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
+      <Card className="border-success/30">
+        <CardHeader><CardTitle className="flex items-center gap-2"><Trophy className="h-5 w-5 text-success" /> Onde o dinheiro está voltando</CardTitle><CardDescription>Top 3 ads com menor CPMQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {carregando && <div className="text-sm text-muted-foreground">Carregando...</div>}
           {!carregando && voltando.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad com MQL atribuído no período.</div>}
           {voltando.map((a) => (
-            <div key={a.ad_uuid} className="p-4 rounded-md border border-emerald-500/30 bg-emerald-500/5 space-y-2">
+            <div key={a.ad_uuid} className="p-4 rounded-md border border-success/30 bg-success/5 space-y-2">
               <div className="font-medium text-sm truncate" title={a.ad_nome}>{a.ad_nome}</div>
               <div className="text-xs text-muted-foreground truncate">{a.campanha_nome}</div>
               <div className="flex gap-3 text-xs tabular-nums">
                 <span>Gasto {brl(a.gasto)}</span><span>{num(a.mql)} MQL</span>
-                <span className="font-bold text-emerald-700">CPMQL {brl(a.cpmql_brl)}</span>
+                <span className="font-bold text-success">CPMQL {brl(a.cpmql_brl)}</span>
               </div>
               <Button size="sm" variant="outline" className="w-full" title="Cria uma cópia deste ad (PAUSADA) em outro ad set, pra escalar o que funciona sem recomeçar do zero" onClick={() => setDupAd({ id: a.ad_uuid, nome: a.ad_nome })}>
                 <Copy className="h-3.5 w-3.5 mr-1" /> Escalar: duplicar ad (PAUSED)
@@ -210,17 +210,17 @@ function Insights() {
       </Card>
 
       {/* Seção 3 — Dinheiro sumindo */}
-      <Card className="border-red-500/30">
-        <CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-red-600" /> Onde o dinheiro está sumindo</CardTitle><CardDescription>Top 3 ads com maior gasto e 0 MQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
+      <Card className="border-danger/30">
+        <CardHeader><CardTitle className="flex items-center gap-2"><Flame className="h-5 w-5 text-danger" /> Onde o dinheiro está sumindo</CardTitle><CardDescription>Top 3 ads com maior gasto e 0 MQL · {periodoLabel(periodo)}</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {carregando && <div className="text-sm text-muted-foreground">Carregando...</div>}
           {!carregando && sumindo.length === 0 && <div className="text-sm text-muted-foreground">Nenhum ad gastando sem MQL no período. 🎉</div>}
           {sumindo.map((a) => (
-            <div key={a.ad_uuid} className="p-4 rounded-md border border-red-500/30 bg-red-500/5 space-y-2">
+            <div key={a.ad_uuid} className="p-4 rounded-md border border-danger/30 bg-danger/5 space-y-2">
               <div className="font-medium text-sm truncate" title={a.ad_nome}>{a.ad_nome}</div>
               <div className="text-xs text-muted-foreground truncate">{a.campanha_nome}</div>
               <div className="flex gap-3 text-xs tabular-nums">
-                <span className="font-bold text-red-700">Gasto {brl(a.gasto)}</span><span>{num(a.leads_meta)} leads Meta</span><span>0 MQL</span>
+                <span className="font-bold text-danger">Gasto {brl(a.gasto)}</span><span>{num(a.leads_meta)} leads Meta</span><span>0 MQL</span>
               </div>
               {a.meta_ad_id
                 ? <AbrirNoMetaButton url={urlMetaAd(a.meta_ad_id)} label="Pausar no Meta Ads Manager" />
@@ -235,25 +235,25 @@ function Insights() {
         <CardHeader><CardTitle className="flex items-center gap-2"><Globe className="h-5 w-5 text-primary" /> Qualificação por LP</CardTitle><CardDescription>Quais landing pages qualificam melhor (menor CPMQL) e quais queimam verba · {periodoLabel(periodo)}</CardDescription></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <div className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1"><Trophy className="h-4 w-4" /> Mais qualificam (menor CPMQL)</div>
+            <div className="text-xs font-semibold text-success mb-2 flex items-center gap-1"><Trophy className="h-4 w-4" /> Mais qualificam (menor CPMQL)</div>
             {lpMelhor.length === 0 && <div className="text-sm text-muted-foreground">Nenhuma LP com MQL no período.</div>}
             <div className="space-y-1.5">
               {lpMelhor.map((l) => (
-                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-emerald-500/20 bg-emerald-500/5">
+                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-success/30 bg-success/5">
                   <span className="font-medium truncate">{l.nome}</span>
-                  <span className="tabular-nums text-xs shrink-0"><span className="text-muted-foreground">{num(l.mql)} MQL · </span><span className="font-bold text-emerald-700">CPMQL {brl(l.cpmql)}</span></span>
+                  <span className="tabular-nums text-xs shrink-0"><span className="text-muted-foreground">{num(l.mql)} MQL · </span><span className="font-bold text-success">CPMQL {brl(l.cpmql)}</span></span>
                 </div>
               ))}
             </div>
           </div>
           <div>
-            <div className="text-xs font-semibold text-red-700 mb-2 flex items-center gap-1"><Flame className="h-4 w-4" /> Queimando verba (gasto e 0 MQL)</div>
+            <div className="text-xs font-semibold text-danger mb-2 flex items-center gap-1"><Flame className="h-4 w-4" /> Queimando verba (gasto e 0 MQL)</div>
             {lpQueimando.length === 0 && <div className="text-sm text-muted-foreground">Nenhuma LP gastando sem MQL. 🎉</div>}
             <div className="space-y-1.5">
               {lpQueimando.map((l) => (
-                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-red-500/20 bg-red-500/5">
+                <div key={l.id} className="flex items-center justify-between gap-3 text-sm p-2 rounded-md border border-danger/30 bg-danger/5">
                   <span className="font-medium truncate">{l.nome}</span>
-                  <span className="tabular-nums text-xs shrink-0"><span className="font-bold text-red-700">Gasto {brl(l.gasto)}</span><span className="text-muted-foreground"> · {num(l.submissions)} forms · 0 MQL</span></span>
+                  <span className="tabular-nums text-xs shrink-0"><span className="font-bold text-danger">Gasto {brl(l.gasto)}</span><span className="text-muted-foreground"> · {num(l.submissions)} forms · 0 MQL</span></span>
                 </div>
               ))}
             </div>
@@ -267,9 +267,9 @@ function Insights() {
         <CardContent className="space-y-2">
           {recomendacoes.map((r, i) => (
             <div key={i} className={`flex items-start gap-2 p-3 rounded-md border text-sm ${
-              r.tone === "verde" ? "border-emerald-500/40 bg-emerald-500/5" : r.tone === "vermelho" ? "border-red-500/40 bg-red-500/5" : "border-yellow-500/40 bg-yellow-500/5"
+              r.tone === "verde" ? "border-success/30 bg-success/5" : r.tone === "vermelho" ? "border-danger/30 bg-danger/5" : "border-warning/30 bg-warning/5"
             }`}>
-              <Lightbulb className={`h-4 w-4 shrink-0 mt-0.5 ${r.tone === "verde" ? "text-emerald-600" : r.tone === "vermelho" ? "text-red-600" : "text-yellow-600"}`} />
+              <Lightbulb className={`h-4 w-4 shrink-0 mt-0.5 ${r.tone === "verde" ? "text-success" : r.tone === "vermelho" ? "text-danger" : "text-warning"}`} />
               <span>{r.texto}</span>
             </div>
           ))}
@@ -287,8 +287,8 @@ function Metric({ label, value, atual, anterior }: { label: string; value: strin
   return (
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
-      <div className={`text-xs flex items-center gap-1 mt-0.5 ${up ? "text-emerald-600" : down ? "text-red-600" : "text-muted-foreground"}`}>
+      <div className="mt-1 font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none">{value}</div>
+      <div className={`text-xs flex items-center gap-1 mt-0.5 ${up ? "text-success" : down ? "text-danger" : "text-muted-foreground"}`}>
         {varia == null ? <><Minus className="h-3 w-3" /> sem base</> : <>{up ? <ArrowUpRight className="h-3 w-3" /> : down ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}{varia >= 0 ? "+" : ""}{varia.toFixed(0)}% vs período anterior</>}
       </div>
     </div>

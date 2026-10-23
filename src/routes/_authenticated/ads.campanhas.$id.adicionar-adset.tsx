@@ -107,7 +107,7 @@ function AdicionarAdset() {
         <Link to="/ads/campanhas/$id" params={{ id }} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar para a campanha
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight mt-2 flex items-center gap-2">
           <Layers className="h-6 w-6 text-primary" /> Adicionar ad set
         </h1>
         <p className="text-sm text-muted-foreground">

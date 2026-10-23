@@ -22,9 +22,9 @@ export const Route = createFileRoute("/_authenticated/ads/anuncios")({
 
 function semaforoText(s: string | null | undefined) {
   switch ((s ?? "").toLowerCase()) {
-    case "verde": return "text-emerald-600";
-    case "amarelo": return "text-yellow-600";
-    case "vermelho": return "text-red-600";
+    case "verde": return "text-success";
+    case "amarelo": return "text-warning";
+    case "vermelho": return "text-danger";
     default: return "text-muted-foreground";
   }
 }
@@ -122,7 +122,7 @@ function Anuncios() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Anúncios</h1>
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight">Anúncios</h1>
         <p className="text-sm text-muted-foreground">Todos os anúncios · {periodoLabel(periodo)}</p>
       </div>
 
@@ -176,11 +176,11 @@ function Anuncios() {
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
                       {(a.status ?? "").toLowerCase() === "ativa" ? (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "pause")}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-warning hover:text-warning" title="Pausar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "pause")}>
                           {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
                         </Button>
                       ) : (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "activate")}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" title="Ativar" disabled={busy === a.ad_uuid} onClick={() => toggleAd(a.ad_uuid ?? "", "activate")}>
                           {busy === a.ad_uuid ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                         </Button>
                       )}

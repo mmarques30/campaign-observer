@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useChartTheme } from "@/components/ads/kit";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/_authenticated/ads/campanhas/$id")({
 });
 
 function CampanhaDetail() {
+  const ct = useChartTheme();
   const { id } = Route.useParams();
 
   const camp = useQuery({
@@ -159,7 +161,7 @@ function CampanhaDetail() {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">{c?.campanha_nome ?? "Carregando..."}</h1>
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight">{c?.campanha_nome ?? "Carregando..."}</h1>
           <div className="flex items-center gap-2 mt-2">
             {c?.status && <Badge variant="outline" className={statusBadge(c.status)}>{c.status}</Badge>}
             {c?.tipo_lead && <Badge variant="outline">{c.tipo_lead}</Badge>}
@@ -180,7 +182,7 @@ function CampanhaDetail() {
             </Button>
           )}
           {status === "ativa" && (
-            <Button size="sm" variant="outline" onClick={pausar} disabled={!!busy} className="border-yellow-500/40 text-yellow-600 hover:text-yellow-700">
+            <Button size="sm" variant="outline" onClick={pausar} disabled={!!busy} className="border-warning/30 text-warning hover:text-warning">
               {busy === "pause" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Pause className="h-4 w-4 mr-2" />} Pausar
             </Button>
           )}
@@ -240,15 +242,15 @@ function CampanhaDetail() {
         <CardHeader><CardTitle>Evolução diária</CardTitle></CardHeader>
         <CardContent className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={funil.data ?? []}>
-              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.3} />
-              <XAxis dataKey="dia" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(d) => d?.slice(5)} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-              <Legend />
-              <Line type="monotone" dataKey="leads_meta" stroke="#3b82f6" strokeWidth={2} name="Leads Meta" dot={false} />
-              <Line type="monotone" dataKey="contacts_crm" stroke="#10b981" strokeWidth={2} name="Contacts CRM" dot={false} />
-              <Line type="monotone" dataKey="lp_views" stroke="#f59e0b" strokeWidth={2} name="LP Views" dot={false} />
+            <LineChart data={funil.data ?? []} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+              <CartesianGrid stroke={ct.grid} strokeDasharray="3 3" vertical={false} opacity={0.6} />
+              <XAxis dataKey="dia" tick={ct.tick} axisLine={false} tickLine={false} tickFormatter={(d) => d?.slice(5)} minTickGap={24} />
+              <YAxis tick={ct.tick} axisLine={false} tickLine={false} width={40} />
+              <Tooltip {...ct.tooltip} />
+              <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
+              <Line type="monotone" dataKey="leads_meta" stroke={ct.blue} strokeWidth={2} name="Leads Meta" dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="contacts_crm" stroke={ct.green} strokeWidth={2} name="Contacts CRM" dot={false} activeDot={{ r: 4 }} />
+              <Line type="monotone" dataKey="lp_views" stroke={ct.amber} strokeWidth={2} name="LP Views" dot={false} activeDot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
@@ -280,11 +282,11 @@ function CampanhaDetail() {
                           <Link to="/ads/adsets/$id/adicionar-ad" params={{ id: a.id }}><Plus className="h-3.5 w-3.5 mr-1" /> Ad</Link>
                         </Button>
                         {ativo ? (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-600 hover:text-yellow-700" title="Pausar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "pause")}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-warning hover:text-warning" title="Pausar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "pause")}>
                             {adsetBusy === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700" title="Ativar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "activate")}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-success hover:text-success" title="Ativar ad set" disabled={adsetBusy === a.id} onClick={() => toggleAdset(a.id, "activate")}>
                             {adsetBusy === a.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                           </Button>
                         )}
@@ -346,9 +348,9 @@ function CampanhaDetail() {
 
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
-    <Card><CardContent className="pt-6">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
+    <Card><CardContent className="p-4 sm:p-5">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1.5 font-display text-[22px] font-semibold tracking-tight tabular-nums leading-none">{value}</div>
     </CardContent></Card>
   );
 }

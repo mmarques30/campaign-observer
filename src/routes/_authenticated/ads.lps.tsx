@@ -51,50 +51,50 @@ const HEALTH_PRIORITY: Record<string, number> = { erro_servidor: 0, erro_cliente
 
 function healthBadge(s: string | null | undefined) {
   const v = (s ?? "").toLowerCase();
-  if (v === "online") return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
-  if (v === "erro_cliente") return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
-  if (v === "erro_servidor") return "bg-red-500/15 text-red-700 border-red-500/30";
-  return "bg-zinc-500/15 text-zinc-600 border-zinc-500/30";
+  if (v === "online") return "bg-success-soft text-success border-success/30";
+  if (v === "erro_cliente") return "bg-warning-soft text-warning border-warning/30";
+  if (v === "erro_servidor") return "bg-danger-soft text-danger border-danger/30";
+  return "bg-muted text-muted-foreground border-border";
 }
 function sampleColor(v: number | null | undefined) {
   if (v == null) return "text-muted-foreground";
-  if (v >= 30) return "text-emerald-600";
-  if (v >= 10) return "text-yellow-600";
-  return "text-red-600";
+  if (v >= 30) return "text-success";
+  if (v >= 10) return "text-warning";
+  return "text-danger";
 }
 function convMetaClass(v: number | null | undefined) {
-  if (v == null) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
-  if (v >= 10) return "bg-emerald-500/20 text-emerald-700 border-emerald-500/40";
-  if (v >= 2) return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
-  return "bg-red-500/15 text-red-700 border-red-500/30";
+  if (v == null) return "bg-muted text-muted-foreground border-border";
+  if (v >= 10) return "bg-success-soft text-success border-success/30";
+  if (v >= 2) return "bg-warning-soft text-warning border-warning/30";
+  return "bg-danger-soft text-danger border-danger/30";
 }
 function cplColor(v: number | null | undefined) {
   if (v == null) return "text-muted-foreground";
-  if (v <= 50) return "text-emerald-600";
-  if (v <= 150) return "text-yellow-600";
-  return "text-red-600";
+  if (v <= 50) return "text-success";
+  if (v <= 150) return "text-warning";
+  return "text-danger";
 }
 // CPMQL por LP: ≤R$100 verde, ≤R$200 amarelo, >R$200 vermelho (régua padrão do app).
 function cpmqlColor(v: number | null | undefined) {
   if (v == null) return "text-muted-foreground";
-  if (v <= 100) return "text-emerald-600";
-  if (v <= 200) return "text-yellow-600";
-  return "text-red-600";
+  if (v <= 100) return "text-success";
+  if (v <= 200) return "text-warning";
+  return "text-danger";
 }
 // Taxa de qualificação lead→MQL: ≥25% verde, ≥10% amarelo, <10% vermelho.
 function taxaMqlClass(v: number | null | undefined) {
-  if (v == null) return "bg-zinc-500/15 text-zinc-500 border-zinc-500/30";
-  if (v >= 25) return "bg-emerald-500/20 text-emerald-700 border-emerald-500/40";
-  if (v >= 10) return "bg-yellow-500/15 text-yellow-700 border-yellow-500/30";
-  return "bg-red-500/15 text-red-700 border-red-500/30";
+  if (v == null) return "bg-muted text-muted-foreground border-border";
+  if (v >= 25) return "bg-success-soft text-success border-success/30";
+  if (v >= 10) return "bg-warning-soft text-warning border-warning/30";
+  return "bg-danger-soft text-danger border-danger/30";
 }
 function tipoBadge(t: string | null | undefined) {
   const v = (t ?? "").toLowerCase();
-  if (v === "business") return "bg-blue-500/15 text-blue-700 border-blue-500/30";
+  if (v === "business") return "bg-info-soft text-info border-info/30";
   if (v === "contabil") return "bg-purple-500/15 text-purple-700 border-purple-500/30";
   if (v === "academy") return "bg-pink-500/15 text-pink-700 border-pink-500/30";
-  if (v === "isca") return "bg-amber-500/15 text-amber-700 border-amber-500/30";
-  return "bg-zinc-500/15 text-zinc-600 border-zinc-500/30";
+  if (v === "isca") return "bg-warning-soft text-warning border-warning/30";
+  return "bg-muted text-muted-foreground border-border";
 }
 
 function readLS(key: string): any {
@@ -240,26 +240,26 @@ function LPs() {
     <TooltipProvider>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Landing Pages</h1>
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight">Landing Pages</h1>
           <p className="text-sm text-muted-foreground">Performance, saúde e conversão das LPs</p>
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card><CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Globe className="h-3.5 w-3.5" />Total de LPs</div>
-            <div className="text-2xl font-bold tabular-nums mt-1">{total}</div>
+            <div className="font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none mt-1">{total}</div>
           </CardContent></Card>
           <Card><CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" />Online</div>
-            <div className="text-2xl font-bold tabular-nums mt-1 text-emerald-600">{online}</div>
+            <div className="font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none mt-1 text-success">{online}</div>
           </CardContent></Card>
           <Card><CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5" />Com Pixel Meta</div>
-            <div className="text-2xl font-bold tabular-nums mt-1">{comPixel}</div>
+            <div className="font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none mt-1">{comPixel}</div>
           </CardContent></Card>
           <Card><CardContent className="p-4">
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><AlertTriangle className="h-3.5 w-3.5" />Com alerta</div>
-            <div className={`text-2xl font-bold tabular-nums mt-1 ${comAlertas > 0 ? "text-red-600" : ""}`}>{comAlertas}</div>
+            <div className={`font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none mt-1 ${comAlertas > 0 ? "text-danger" : ""}`}>{comAlertas}</div>
           </CardContent></Card>
         </div>
 
@@ -348,7 +348,7 @@ function LPs() {
                   <TableHead className="text-right">Forms</TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
-                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">Conv % (Meta) <Star className="h-3 w-3 text-amber-500 fill-amber-500" /></TooltipTrigger>
+                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">Conv % (Meta) <Star className="h-3 w-3 text-warning fill-warning" /></TooltipTrigger>
                       <TooltipContent className="max-w-xs">CVR real: submissions meta ÷ LP views da Meta (no período escolhido). Métrica primária.</TooltipContent>
                     </Tooltip>
                   </TableHead>
@@ -378,7 +378,7 @@ function LPs() {
                   </TableHead>
                   <TableHead className="text-right">
                     <Tooltip>
-                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">CVR → MQL <Star className="h-3 w-3 text-amber-500 fill-amber-500" /></TooltipTrigger>
+                      <TooltipTrigger className="inline-flex items-center gap-1 font-semibold text-foreground">CVR → MQL <Star className="h-3 w-3 text-warning fill-warning" /></TooltipTrigger>
                       <TooltipContent className="max-w-xs">Taxa de qualificação REAL da LP: MQL ÷ forms. É o que mostra se a LP gera lead que presta, não só volume.</TooltipContent>
                     </Tooltip>
                   </TableHead>
@@ -432,12 +432,12 @@ function LPs() {
                           {r.org_pct_pago != null && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <Badge variant="outline" className={`text-[10px] ${r.org_pct_pago >= 80 ? "bg-blue-500/10 text-blue-600 border-blue-500/30" : "bg-amber-500/10 text-amber-700 border-amber-500/30"}`}>{Number(r.org_pct_pago).toFixed(0)}% pago</Badge>
+                                <Badge variant="outline" className={`text-[10px] ${r.org_pct_pago >= 80 ? "bg-info/10 text-info border-info/30" : "bg-warning/10 text-warning border-warning/30"}`}>{Number(r.org_pct_pago).toFixed(0)}% pago</Badge>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-xs">% das visitas que vieram de tráfego pago (o resto é direct/orgânico/referral). Abaixo de ~80% a LP está "diluída" — o CVR total mistura pago com não-pago.</TooltipContent>
                             </Tooltip>
                           )}
-                          {inativa && <Badge variant="outline" className="bg-zinc-500/15 text-zinc-500 border-zinc-500/30 text-[10px]">inativa</Badge>}
+                          {inativa && <Badge variant="outline" className="bg-muted text-muted-foreground border-border text-[10px]">inativa</Badge>}
                         </div>
                         {r.url && (
                           <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-primary inline-flex items-center gap-1">
@@ -450,7 +450,7 @@ function LPs() {
                       <TableCell><Badge variant="outline" className={healthBadge(r.health_status)}>{r.health_status ?? "—"}</Badge></TableCell>
                       <TableCell className="text-right tabular-nums text-xs">{r.ultimo_tempo_ms ?? "—"}</TableCell>
                       <TableCell className="text-center">
-                        {r.pixel_meta_detectado ? <CheckCircle2 className="h-4 w-4 text-emerald-600 inline" /> : <XCircle className="h-4 w-4 text-red-500 inline" />}
+                        {r.pixel_meta_detectado ? <CheckCircle2 className="h-4 w-4 text-success inline" /> : <XCircle className="h-4 w-4 text-danger inline" />}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">{is30 ? num(r.sessions_clarity_30d) : dash}</TableCell>
                       <TableCell className="text-right tabular-nums">
@@ -481,7 +481,7 @@ function LPs() {
                         {!is30 ? "—" : (() => { const c = r.cvr_clarity_pct_30d ?? r.taxa_conversao_clarity_pct; return c == null ? "—" : pct(c); })()}
                       </TableCell>
                       <TableCell>
-                        {r.alerta ? <Badge variant="outline" className="bg-red-500/15 text-red-700 border-red-500/30">{r.alerta}</Badge> : <span className="text-xs text-muted-foreground">—</span>}
+                        {r.alerta ? <Badge variant="outline" className="bg-danger-soft text-danger border-danger/30">{r.alerta}</Badge> : <span className="text-xs text-muted-foreground">—</span>}
                       </TableCell>
                     </TableRow>
                     {isOpen && (

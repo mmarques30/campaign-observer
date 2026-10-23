@@ -218,7 +218,7 @@ function NovaCampanha() {
         <Link to="/ads/campanhas" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4 mr-1" /> Voltar para campanhas
         </Link>
-        <h1 className="text-2xl font-bold tracking-tight mt-2 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight mt-2 flex items-center gap-2">
           <Megaphone className="h-6 w-6 text-primary" /> Nova campanha
         </h1>
         <p className="text-sm text-muted-foreground">Será criada PAUSED no Meta. Você revisa e ativa depois.</p>
@@ -377,7 +377,7 @@ function NovaCampanha() {
                       {ad.validating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                       Validar URLs Drive
                     </Button>
-                    {ad.midiasBucketUrls.length > 0 && <span className="text-xs text-emerald-600">{ad.midiasBucketUrls.length} ok</span>}
+                    {ad.midiasBucketUrls.length > 0 && <span className="text-xs text-success">{ad.midiasBucketUrls.length} ok</span>}
                   </div>
                   {ad.midiasBucketUrls.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-2">
@@ -424,8 +424,8 @@ function NovaCampanha() {
 
       {step === 4 && (
         <div className="space-y-4">
-          <div className="rounded-md border border-yellow-500/40 bg-yellow-500/5 p-4 text-sm flex items-start gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+          <div className="rounded-md border border-warning/30 bg-warning/5 p-4 text-sm flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-warning mt-0.5 shrink-0" />
             Será criada <strong>PAUSED</strong> no Meta. Você revisa e ativa depois no detalhe da campanha.
           </div>
           <Card>

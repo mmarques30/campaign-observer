@@ -77,23 +77,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ADS IAplicada" },
-      { name: "description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "ADS IAplicada" },
-      { property: "og:description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
+      { title: "IAplicada Ads" },
+      { name: "description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos, landing pages e CRM em um só lugar." },
+      { name: "author", content: "IAplicada" },
+      { name: "theme-color", content: "#1a1c14" },
+      { property: "og:title", content: "IAplicada Ads" },
+      { property: "og:description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos, landing pages e CRM em um só lugar." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "ADS IAplicada" },
-      { name: "twitter:description", content: "IAplicada Ads View is a read-only dashboard for monitoring Meta Ads campaigns." },
+      { name: "twitter:title", content: "IAplicada Ads" },
+      { name: "twitter:description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos, landing pages e CRM em um só lugar." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/png", href: "/brand/iaplicada-mark.png" },
+      { rel: "apple-touch-icon", href: "/brand/iaplicada-mark.png" },
+      { rel: "preload", as: "font", type: "font/woff2", href: "/fonts/inter-latin.woff2", crossOrigin: "anonymous" },
+      { rel: "preload", as: "font", type: "font/woff2", href: "/fonts/inter-tight-latin.woff2", crossOrigin: "anonymous" },
+    ],
+    scripts: [
       {
-        rel: "stylesheet",
-        href: appCss,
+        // Aplica o tema antes do primeiro paint (sem flash). Padrão: escuro (marca).
+        children: `(function(){try{var t=localStorage.getItem("mads_theme");if(t==="system"){t=window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}if(t!=="light"){document.documentElement.classList.add("dark")}}catch(e){document.documentElement.classList.add("dark")}})();`,
       },
     ],
   }),
@@ -105,7 +113,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>

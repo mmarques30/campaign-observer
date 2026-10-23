@@ -23,9 +23,9 @@ function urlKey(u: string | null | undefined): string {
 }
 function cpmqlColor(v: number | null | undefined) {
   if (v == null) return "text-muted-foreground";
-  if (v <= 100) return "text-emerald-600";
-  if (v <= 200) return "text-yellow-600";
-  return "text-red-600";
+  if (v <= 100) return "text-success";
+  if (v <= 200) return "text-warning";
+  return "text-danger";
 }
 
 function CampanhasList() {
@@ -123,7 +123,7 @@ function CampanhasList() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Campanhas</h1>
+          <h1 className="text-2xl sm:text-[28px] font-semibold tracking-tight">Campanhas</h1>
           <p className="text-sm text-muted-foreground">Performance vs CRM · {periodoLabel(periodo)}</p>
         </div>
         <Button asChild>
@@ -191,7 +191,7 @@ function CampanhasList() {
                     <TableCell className="text-right tabular-nums">{cpl == null ? "—" : brl(cpl)}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 max-w-[280px]">
-                        {ok ? <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" /> : <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0" />}
+                        {ok ? <CheckCircle2 className="h-4 w-4 text-success shrink-0" /> : <AlertTriangle className="h-4 w-4 text-warning shrink-0" />}
                         <span className={`text-xs ${healthColor(c.status_conexao).split(" ")[1]}`}>{c.diagnostico ?? healthLabel(c.status_conexao)}</span>
                       </div>
                     </TableCell>
