@@ -77,8 +77,102 @@ export async function renderizar(
   return comp;
 }
 
+/** Baixa um arquivo do bucket para o disco (stream, sem carregar tudo em memória). */
+async function baixar(caminho: string, destino: string) {
+  const url = await assinar(caminho);
+  const r = await fetch(url);
+  if (!r.ok || !r.body) throw new Error(`download falhou (${r.status}) ${caminho}`);
+  const { Readable } = await import("node:stream");
+  const { pipeline } = await import("node:stream/promises");
+  const { createWriteStream } = await import("node:fs");
+  await pipeline(Readable.fromWeb(r.body as any), createWriteStream(destino));
+}
+
+/**
+ * Proxy 1080p para o preview no navegador (o vídeo cru acima de 1080p — 4K, HEVC do
+ * iPhone — não toca bem no Chrome). O render final continua usando o original.
+ */
+export async function gerarProxy(projetoId: string) {
+  const { data: proj, error } = await sbc()
+    .from("vedit_projetos")
+    .select("id, fonte_path, fonte_largura, fonte_altura")
+    .eq("id", projetoId)
+    .single();
+  if (error || !proj?.fonte_path) throw new Error("projeto sem vídeo");
+  const entrada = path.join(os.tmpdir(), `${projetoId}-fonte${path.extname(proj.fonte_path) || ".mp4"}`);
+  const saida = path.join(os.tmpdir(), `${projetoId}-1080p.mp4`);
+  try {
+    await baixar(proj.fonte_path, entrada);
+    const vertical = Number(proj.fonte_altura) >= Number(proj.fonte_largura);
+    await execFileP(ffmpegBin(), [
+      "-y",
+      "-i",
+      entrada,
+      "-vf",
+      vertical ? "scale=1080:-2" : "scale=-2:1080",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "23",
+      "-g",
+      "30",
+      "-pix_fmt",
+      "yuv420p",
+      "-movflags",
+      "+faststart",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "160k",
+      saida,
+    ]);
+    const destino = `${projetoId}/fonte-1080p.mp4`;
+    const up = await sbc()
+      .storage.from(BUCKET)
+      .upload(destino, await fs.readFile(saida), { contentType: "video/mp4", upsert: true });
+    if (up.error) throw new Error(up.error.message);
+    await sbc().from("vedit_projetos").update({ fonte_proxy_path: destino }).eq("id", projetoId);
+    return destino;
+  } finally {
+    await fs.rm(entrada, { force: true });
+    await fs.rm(saida, { force: true });
+  }
+}
+
+/** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
+async function rodarJobs(): Promise<boolean> {
+  const { data, error } = await sbc().rpc("vedit_pegar_job", { p_worker: NOME });
+  if (error) {
+    console.error("[jobs]", error.message);
+    return false;
+  }
+  const job = Array.isArray(data) ? data[0] : null;
+  if (!job) return false;
+  console.log(`[job] ${job.tipo} ${job.id} projeto ${job.projeto_id}`);
+  try {
+    if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
+    else throw new Error(`tipo desconhecido: ${job.tipo}`);
+    await sbc()
+      .from("vedit_jobs")
+      .update({ status: "pronto", concluido_em: new Date().toISOString() })
+      .eq("id", job.id);
+    console.log(`[job] ok ${job.id}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[job] erro", msg);
+    await sbc()
+      .from("vedit_jobs")
+      .update({ status: "erro", erro: msg.slice(0, 2000), concluido_em: new Date().toISOString() })
+      .eq("id", job.id);
+  }
+  return true;
+}
+
 async function loop(serveUrl: string) {
   for (;;) {
+    if (await rodarJobs()) continue;
     const { data, error } = await sbc().rpc("vedit_pegar_render", { p_worker: NOME });
     const job = Array.isArray(data) ? data[0] : null;
     if (error) console.error("[fila]", error.message);

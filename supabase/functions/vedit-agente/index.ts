@@ -5,7 +5,28 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
 
-const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5-5";
+// Mesmo modelo das outras funções do projeto (centenas de chamadas ok com esta chave).
+const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5";
+
+/** Consumo em api_usage_log (aba Custo do PMO), como as demais funções. Nunca lança. */
+async function logUso(sb: any, origem: string, usage: any, projetoId: string | null) {
+  try {
+    const input = usage?.input_tokens ?? 0,
+      output = usage?.output_tokens ?? 0;
+    if (!input && !output) return;
+    await sb.from("api_usage_log").insert({
+      provider: "anthropic",
+      origem,
+      model: MODELO,
+      input_tokens: input,
+      output_tokens: output,
+      custo_usd: (input * 5 + output * 25) / 1_000_000,
+      metadata: { vedit_projeto_id: projetoId },
+    });
+  } catch (_) {
+    /* telemetria não derruba a função */
+  }
+}
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -423,7 +444,19 @@ Estilos disponíveis:\n${catalogo.split("ESTILOS VISUAIS:")[1]?.split("COMANDOS 
     }),
   });
   const txt = await r.text();
-  if (!r.ok) return json({ error: `Claude ${r.status}: ${txt.slice(0, 300)}` }, 502);
+  try {
+    await logUso(sb, "vedit-agente:sugerir", JSON.parse(txt)?.usage, proj.id);
+  } catch (_) {
+    /* corpo não-JSON */
+  }
+  if (!r.ok) {
+    await sb.from("vedit_mensagens").insert({
+      projeto_id: proj.id,
+      papel: "sistema",
+      conteudo: `Erro do Claude na sugestão (${r.status}): ${txt.slice(0, 300)}`,
+    });
+    return json({ error: `Claude ${r.status}: ${txt.slice(0, 300)}` }, 502);
+  }
   const uso = JSON.parse(txt).content?.find((c: any) => c.type === "tool_use")?.input ?? {};
   await sb.from("vedit_projetos").update({ sugestao: uso }).eq("id", proj.id);
   return json({ sugestao: uso });
@@ -454,7 +487,7 @@ Deno.serve(async (req) => {
   const { data: marcaRow } = proj.marca_id
     ? await sb.from("vedit_marcas").select("*").eq("id", proj.marca_id).single()
     : await sb.from("vedit_marcas").select("*").eq("padrao", true).limit(1).maybeSingle();
-  const key = Deno.env.get("CLAUDE_API_KEY") || Deno.env.get("ANTHROPIC_API_KEY");
+  const key = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("CLAUDE_API_KEY");
   if (!key) return json({ error: "CLAUDE_API_KEY não configurada" }, 500);
   if (acao === "sugerir") return sugerir(sb, proj, key, catalogo ?? "", marcaRow);
   const marketing = await contextoMarketing(sb, proj.content_item_id ?? null);
@@ -532,7 +565,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 32000,
+        max_tokens: 16000,
         system: sistemaTxt,
         tools: ultima ? [FERRAMENTA] : [FERRAMENTA, FERRAMENTA_BUSCA],
         tool_choice: ultima ? { type: "tool", name: "aplicar_edicao" } : { type: "any" },
@@ -543,10 +576,15 @@ Deno.serve(async (req) => {
     if (!r.ok) {
       await sb
         .from("vedit_mensagens")
-        .insert({ projeto_id, papel: "sistema", conteudo: `Erro do Claude (${r.status}).` });
+        .insert({
+          projeto_id,
+          papel: "sistema",
+          conteudo: `Erro do Claude (${r.status}): ${txt.slice(0, 300)}`,
+        });
       return json({ error: `Claude ${r.status}: ${txt.slice(0, 400)}` }, 502);
     }
     resp = JSON.parse(txt);
+    await logUso(sb, "vedit-agente", resp?.usage, projeto_id);
     const chamadas = (resp.content ?? []).filter((c: any) => c.type === "tool_use");
     const aplicar = chamadas.find((c: any) => c.name === "aplicar_edicao");
     if (aplicar) {
