@@ -354,9 +354,25 @@ export async function aguardarReferencia(
       ultimo = r.status;
       onStatus?.(r.status);
     }
-    if (r?.status === "pronta" && r.analise) return r;
+    if (r?.status === "pronta" && analiseOk(r.analise)) return r;
+    if (r?.status === "pronta") throw new Error("A análise veio incompleta. Tente de novo.");
     if (r?.status === "erro") throw new Error(r.erro ?? "a análise falhou");
     await new Promise((ok) => setTimeout(ok, 2500));
   }
   throw new Error("a análise está demorando; ela continua no servidor e aparece em Referências");
+}
+
+/** Análise utilizável ou null (protege a tela de análises que vieram quebradas do Claude). */
+export function analiseOk(a: unknown): Analise | null {
+  const x = a as Partial<Analise> | null | undefined;
+  if (!x || typeof x.estilo?.nome !== "string" || !Array.isArray(x.tecnicas)) return null;
+  return {
+    ...x,
+    resumo: x.resumo ?? "",
+    gancho: { texto: "", tecnica: "", ...(x.gancho ?? {}) },
+    estilo: { ...x.estilo, descricao: x.estilo.descricao ?? "" },
+    tecnicas: x.tecnicas,
+    aprendizados: Array.isArray(x.aprendizados) ? x.aprendizados : [],
+    prompt_para_editor: x.prompt_para_editor ?? "",
+  } as Analise;
 }

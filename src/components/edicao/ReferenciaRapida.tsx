@@ -17,7 +17,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Link2, Loader2, Wand2 } from "lucide-react";
 import { db } from "@/lib/vedit";
-import { aguardarReferencia, criarReferenciaPorLink, type Referencia } from "@/lib/referencias";
+import {
+  aguardarReferencia,
+  analiseOk,
+  criarReferenciaPorLink,
+  type Referencia,
+} from "@/lib/referencias";
 import { aplicarReferencia } from "@/lib/aplicarReferencia";
 import { cn } from "@/lib/utils";
 
@@ -57,9 +62,13 @@ export function ReferenciaRapida({
   });
 
   async function aplicar(r: Referencia) {
-    if (!r.analise) return toast.error("Esta referência ainda não foi analisada.");
+    const a = analiseOk(r.analise);
+    if (!a) {
+      setPasso(null);
+      return toast.error("A análise desta referência veio incompleta. Reanalise em Referências.");
+    }
     setPasso("aplicando");
-    const { nome, pedido } = await aplicarReferencia(projetoId, r, r.analise);
+    const { nome, pedido } = await aplicarReferencia(projetoId, r, a);
     void pedido.catch((e) => toast.error(`Editor: ${(e as Error).message}`));
     toast.success(`Estilo de ${nome} aplicado. O editor está montando os efeitos (veja o chat).`);
     onAplicado();
@@ -177,11 +186,11 @@ export function ReferenciaRapida({
                       <Wand2 className="h-4 w-4 text-primary shrink-0" />
                       <div className="min-w-0">
                         <div className="text-sm font-medium truncate">
-                          {r.analise?.estilo.nome ?? r.titulo ?? "Referência"}
+                          {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {r.autor ? `@${r.autor} · ` : ""}
-                          {r.analise?.resumo}
+                          {analiseOk(r.analise)?.resumo}
                         </div>
                       </div>
                     </button>

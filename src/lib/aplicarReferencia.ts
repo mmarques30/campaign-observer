@@ -37,7 +37,7 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
       nome: `Referência ${r.autor ? `@${r.autor}` : (r.titulo ?? "")}`.trim(),
       efeitos,
       ritmo: a.ritmo?.estimulo_medio_s ? +(60 / a.ritmo.estimulo_medio_s).toFixed(1) : null,
-      notas: `${a.estilo.nome}: ${a.estilo.descricao}`.slice(0, 400),
+      notas: `${a.estilo?.nome ?? ""}: ${a.estilo?.descricao ?? ""}`.slice(0, 400),
     },
   };
   await salvarManual(p, novo, `Estilo da referência ${novo.modelo.nome}`);

@@ -59,7 +59,8 @@ async function metadados(sb: any, url: string) {
     let oembed: string | null = null;
     if (plataforma === "youtube")
       oembed = `https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`;
-    if (plataforma === "tiktok") oembed = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+    if (plataforma === "tiktok")
+      oembed = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
     if (plataforma === "instagram") {
       // Precisa de app com a feature "oEmbed Read"; se não tiver, segue só com o código do post.
       let token: string | null = null;
@@ -124,7 +125,11 @@ async function transcrever(sb: any, id: string) {
   }
   const t = JSON.parse(corpo);
   const tokens: string[] = (t.segments ?? [])
-    .flatMap((s: any) => String(s.text ?? "").trim().split(/\s+/))
+    .flatMap((s: any) =>
+      String(s.text ?? "")
+        .trim()
+        .split(/\s+/),
+    )
     .filter(Boolean);
   let k = 0;
   const palavras = (t.words ?? []).map((w: any) => {
@@ -169,7 +174,10 @@ const FERRAMENTA = {
       estilo: {
         type: "object",
         properties: {
-          nome: { type: "string", description: "Nome curto do estilo (ex.: 'estúdio branco + vermelho')." },
+          nome: {
+            type: "string",
+            description: "Nome curto do estilo (ex.: 'estúdio branco + vermelho').",
+          },
           descricao: { type: "string" },
           paleta: { type: "array", items: { type: "string" }, description: "Cores em hex." },
           tipografia: { type: "string" },
@@ -180,7 +188,10 @@ const FERRAMENTA = {
       ritmo: {
         type: "object",
         properties: {
-          estimulo_medio_s: { type: "number", description: "Segundos entre um estímulo visual e o próximo." },
+          estimulo_medio_s: {
+            type: "number",
+            description: "Segundos entre um estímulo visual e o próximo.",
+          },
           legenda_estilo: { type: "string" },
           legenda_palavras_por_bloco: { type: "integer" },
           legenda_posicao: { type: "string", enum: ["inferior", "centro", "superior"] },
@@ -200,11 +211,15 @@ const FERRAMENTA = {
               enum: ["texto", "ui", "midia", "formato", "transicao", "legenda", "som", "cenario"],
             },
             descricao: { type: "string", description: "O que aparece na tela." },
-            como_reproduzir: { type: "string", description: "Receita técnica curta (camadas, animação, duração)." },
+            como_reproduzir: {
+              type: "string",
+              description: "Receita técnica curta (camadas, animação, duração).",
+            },
             status: {
               type: "string",
               enum: ["temos", "adaptar", "criar"],
-              description: "temos = existe no catálogo; adaptar = existe mas precisa de ajuste; criar = não existe.",
+              description:
+                "temos = existe no catálogo; adaptar = existe mas precisa de ajuste; criar = não existe.",
             },
             efeito_nosso: {
               type: ["string", "null"],
@@ -241,7 +256,16 @@ const FERRAMENTA = {
           "Um pedido pronto, em português, para colar no chat do editor e reproduzir esse estilo num vídeo nosso (cite efeitos do catálogo pelo /comando).",
       },
     },
-    required: ["resumo", "gancho", "estilo", "ritmo", "tecnicas", "aprendizados", "preset_estilo", "prompt_para_editor"],
+    required: [
+      "resumo",
+      "gancho",
+      "estilo",
+      "ritmo",
+      "tecnicas",
+      "aprendizados",
+      "preset_estilo",
+      "prompt_para_editor",
+    ],
   },
 };
 
@@ -278,41 +302,55 @@ ${catalogo || "(catálogo não enviado)"}
 
 Analise e chame registrar_analise.`;
 
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": key,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: MODELO,
-      max_tokens: 8000,
-      system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
-      tools: [FERRAMENTA],
-      tool_choice: { type: "tool", name: "registrar_analise" },
-      messages: [{ role: "user", content: [...imagens, { type: "text", text: texto }] }],
-    }),
-  });
-  const corpo = await r.text();
-  let resp: any = null;
-  try {
-    resp = JSON.parse(corpo);
-  } catch (_) {
-    /* não-JSON */
+  // Às vezes o Claude devolve a ferramenta com campos quebrados: valida e tenta de novo (até 3x).
+  const valida = (a: any) =>
+    a &&
+    typeof a.resumo === "string" &&
+    typeof a.estilo?.nome === "string" &&
+    Array.isArray(a.tecnicas) &&
+    typeof a.prompt_para_editor === "string" &&
+    !/<parameter name=/.test(JSON.stringify(a));
+  let analise: any = null;
+  for (let tentativa = 0; tentativa < 3 && !valida(analise); tentativa++) {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: MODELO,
+        max_tokens: 8000,
+        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
+        tools: [FERRAMENTA],
+        tool_choice: { type: "tool", name: "registrar_analise" },
+        messages: [{ role: "user", content: [...imagens, { type: "text", text: texto }] }],
+      }),
+    });
+    const corpo = await r.text();
+    let resp: any = null;
+    try {
+      resp = JSON.parse(corpo);
+    } catch (_) {
+      /* não-JSON */
+    }
+    await logUso(sb, "vedit-referencia", resp?.usage, id);
+    if (!r.ok) {
+      await sb
+        .from("vedit_referencias")
+        .update({ status: "erro", erro: `Claude ${r.status}: ${corpo.slice(0, 300)}` })
+        .eq("id", id);
+      return json({ error: `Claude ${r.status}: ${corpo.slice(0, 300)}` }, 502);
+    }
+    analise = resp?.content?.find((c: any) => c.type === "tool_use")?.input ?? null;
   }
-  await logUso(sb, "vedit-referencia", resp?.usage, id);
-  if (!r.ok) {
+  if (!valida(analise)) {
     await sb
       .from("vedit_referencias")
-      .update({ status: "erro", erro: `Claude ${r.status}: ${corpo.slice(0, 300)}` })
+      .update({ status: "erro", erro: "A análise veio incompleta. Clique em Reanalisar." })
       .eq("id", id);
-    return json({ error: `Claude ${r.status}: ${corpo.slice(0, 300)}` }, 502);
-  }
-  const analise = resp?.content?.find((c: any) => c.type === "tool_use")?.input ?? null;
-  if (!analise) {
-    await sb.from("vedit_referencias").update({ status: "erro", erro: "Claude não devolveu a análise" }).eq("id", id);
-    return json({ error: "sem análise" }, 502);
+    return json({ error: "análise incompleta" }, 502);
   }
   await sb.from("vedit_referencias").update({ analise, status: "pronta", erro: null }).eq("id", id);
   return json({ ok: true, analise });
