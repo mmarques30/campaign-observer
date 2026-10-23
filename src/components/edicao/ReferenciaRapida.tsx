@@ -97,7 +97,7 @@ export function ReferenciaRapida({
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && onFechar()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Editar no estilo de um vídeo</DialogTitle>
           <DialogDescription>
@@ -131,7 +131,7 @@ export function ReferenciaRapida({
             </p>
           </div>
         ) : (
-          <Tabs defaultValue="link">
+          <Tabs defaultValue="link" className="min-w-0">
             <TabsList className="grid grid-cols-2">
               <TabsTrigger value="link">Link novo</TabsTrigger>
               <TabsTrigger value="salvas">
@@ -170,12 +170,12 @@ export function ReferenciaRapida({
                   Nenhuma referência analisada ainda. Use a aba "Link novo".
                 </p>
               ) : (
-                <div className="max-h-80 overflow-y-auto divide-y rounded-md border">
+                <div className="max-h-80 overflow-y-auto overflow-x-hidden divide-y rounded-md border min-w-0">
                   {salvas.data.map((r) => (
                     <button
                       key={r.id}
                       type="button"
-                      className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2"
+                      className="w-full min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
                       onClick={() =>
                         aplicar(r).catch((e) => {
                           toast.error((e as Error).message);
@@ -183,12 +183,12 @@ export function ReferenciaRapida({
                         })
                       }
                     >
-                      <Wand2 className="h-4 w-4 text-primary shrink-0" />
-                      <div className="min-w-0">
+                      <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium truncate">
                           {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
+                        <div className="text-xs text-muted-foreground line-clamp-2 break-words">
                           {r.autor ? `@${r.autor} · ` : ""}
                           {analiseOk(r.analise)?.resumo}
                         </div>
