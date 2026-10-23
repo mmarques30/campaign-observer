@@ -197,8 +197,10 @@ export function AdsLayout() {
 
   const go = (to: string) => { setCmdOpen(false); navigate({ to: to as any }); };
 
-  // No mobile a sidebar nunca fica só-ícones; é largura cheia dentro do drawer.
-  const showLabels = isMobile ? true : !collapsed;
+  // A sidebar sempre renderiza completa (com rótulos). No desktop, "ocultar"
+  // esconde o painel inteiro deslizando para fora — não existe modo só-ícones.
+  // O botão no topo (com o símbolo da marca) traz de volta.
+  const showLabels = true;
   const initials = (email ?? "IA").slice(0, 2).toUpperCase();
 
   const itemClass = (active: boolean, indent = false) => cn(
@@ -242,7 +244,12 @@ export function AdsLayout() {
             "z-50 flex flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-md transition-[width,transform] duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
             isMobile
               ? cn("fixed inset-y-0 left-0 w-72 shadow-elevated", mobileOpen ? "translate-x-0" : "-translate-x-full")
-              : cn("sticky top-0 h-dvh", collapsed ? "w-[4.25rem]" : "w-[15.5rem]"),
+              : cn(
+                  "sticky top-0 h-dvh",
+                  collapsed
+                    ? "w-0 -translate-x-full border-r-0 overflow-hidden pointer-events-none"
+                    : "w-[15.5rem] translate-x-0",
+                ),
           )}
           aria-label="Navegação principal"
         >
@@ -347,15 +354,32 @@ export function AdsLayout() {
         <main className="flex-1 flex flex-col min-w-0 relative">
           <header className="h-14 sticky top-0 z-30 flex items-center justify-between gap-3 px-3 sm:px-5 border-b border-border/60 bg-background/70 backdrop-blur-md">
             <div className="flex items-center gap-2 min-w-0">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground"
-                onClick={() => (isMobile ? setMobileOpen(true) : setCollapsed((c) => !c))}
-                aria-label={isMobile ? "Abrir menu" : collapsed ? "Expandir menu" : "Recolher menu"}
-              >
-                {isMobile ? <Menu className="h-4.5 w-4.5" /> : collapsed ? <PanelLeftOpen className="h-4.5 w-4.5" /> : <PanelLeftClose className="h-4.5 w-4.5" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className={cn("text-muted-foreground", collapsed && !isMobile && "text-primary bg-primary/10 hover:bg-primary/15")}
+                    onClick={() => (isMobile ? setMobileOpen(true) : setCollapsed((c) => !c))}
+                    aria-label={isMobile ? "Abrir menu" : collapsed ? "Mostrar menu" : "Ocultar menu"}
+                    aria-expanded={isMobile ? mobileOpen : !collapsed}
+                  >
+                    {isMobile ? <Menu className="h-4.5 w-4.5" /> : collapsed ? <PanelLeftOpen className="h-4.5 w-4.5" /> : <PanelLeftClose className="h-4.5 w-4.5" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{isMobile ? "Abrir menu" : collapsed ? "Mostrar menu" : "Ocultar menu"}</TooltipContent>
+              </Tooltip>
+              {/* Com a sidebar oculta, o símbolo da marca aparece no topo e também reabre o menu. */}
+              {collapsed && !isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(false)}
+                  className="hidden sm:inline-flex items-center rounded-md p-1 hover:bg-accent transition-colors animate-fade-up"
+                  aria-label="Mostrar menu"
+                >
+                  <LogoMark size={22} />
+                </button>
+              )}
               <div className="min-w-0 hidden sm:block">
                 {activeGroup && <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground leading-none mb-0.5">{activeGroup.label}</div>}
                 <div className="text-sm font-semibold leading-none truncate">{activeItem?.label ?? "IAplicada Ads"}</div>
