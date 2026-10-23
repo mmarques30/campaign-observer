@@ -65,6 +65,16 @@ publicar ◄──────────────────────�
 
 `src/video/repeticoes.ts` (cópia em `supabase/functions/vedit-agente/`) detecta falas repetidas sem IA: quebra a transcrição em frases por pausa, compara cada frase com as 3 seguintes (Jaccard sem stopwords + prefixo para tomadas abortadas) e marca a anterior para sair, mantendo a última. O editor mostra o painel "falas repetidas", o corte rápido já as remove e o agente recebe a lista pronta.
 
+## Pesquisa de nicho (Edição → Pesquisa)
+
+O que o Igão mostra no reel: achar os Reels que mais viralizaram no nicho, explicar por que funcionaram e virar roteiro original. Tudo pela **API oficial do Instagram** (Graph API) com o `META_ADS_TOKEN` que já publica os Reels (`instagram_basic` + `instagram_manage_insights`):
+- **Perfis**: `business_discovery.username(x){followers_count, media{like_count, comments_count, …}}` para qualquer conta business/creator. "Sugerir perfis" pede ao Claude usernames do nicho e só cadastra os que a API valida.
+- **Hashtags**: `ig_hashtag_search` + `/top_media` (Meta limita a 30 hashtags distintas por 7 dias).
+- **Índice viral** = (curtidas + comentários) ÷ mediana dos reels do próprio perfil — "quantas vezes acima do normal". A API não expõe plays de terceiros; curtidas+comentários é o que existe oficialmente.
+- **Analisar** (`vedit-pesquisa` → Claude): por que funcionou (gancho, mecanismo, estrutura, CTA, o que é transferível) + roteiro original na voz da Mariana (gancho, falas, CTA, legenda, palavra-chave, formato, efeitos sugeridos do editor).
+- **Enviar para o Marketing**: cria o roteiro em `content_items` (status backlog, link de referência, recomendações de edição). De lá o Estúdio já lê o roteiro na sugestão.
+Tabelas: `vedit_nicho_config`, `vedit_nicho_perfis`, `vedit_nicho_reels` (migração `20261023010000_vedit_pesquisa_nicho.sql`).
+
 ## Referências (Edição → Referências)
 
 Biblioteca de Reels de referência. Pipeline: link + arquivo do vídeo → no navegador: áudio (WAV) e folhas de quadros (12 quadros por imagem, 1 a cada ~1,2 s, tempo carimbado) → `vedit-referencia`:

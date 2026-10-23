@@ -56,6 +56,7 @@ const GROUPS: NavGroup[] = [
     id: "edicao", label: "Edição", icon: Clapperboard, items: [
       { to: "/ads/edicao", label: "Estúdio", icon: Clapperboard, exact: true, keywords: "vídeo editor reels" },
       { to: "/ads/edicao/efeitos", label: "Efeitos", icon: Wand2, keywords: "legenda animação" },
+      { to: "/ads/edicao/pesquisa", label: "Pesquisa", icon: Search, keywords: "nicho reels virais roteiro concorrentes" },
       { to: "/ads/edicao/referencias", label: "Referências", icon: BookOpen, keywords: "reels análise técnicas benchmark" },
       { to: "/ads/edicao/marca", label: "Marca", icon: Palette, keywords: "cores fontes identidade" },
     ],
