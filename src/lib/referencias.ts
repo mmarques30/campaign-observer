@@ -263,7 +263,8 @@ async function processar(id: string, arquivo: File, url: string | null) {
       catalogo: catalogoParaClaude(),
     });
     if (r?.error) throw new Error(r.error);
-    setEtapa(id, { etapa: "Pronta", pct: 100 });
+    // A análise segue no servidor; quando terminar, o status da referência vira "pronta".
+    setEtapa(id, { etapa: "Claude analisando (no servidor)", pct: 85 });
   } catch (e) {
     const msg = (e as Error).message;
     setEtapa(id, { etapa: `Erro: ${msg}`, pct: 0 });

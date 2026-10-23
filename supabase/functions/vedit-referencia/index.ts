@@ -302,7 +302,7 @@ ${catalogo || "(catálogo não enviado)"}
 
 Analise e chame registrar_analise.`;
 
-  // Às vezes o Claude devolve a ferramenta com campos quebrados: valida e tenta de novo (até 3x).
+  // Às vezes o Claude devolve a ferramenta com campos quebrados: valida e tenta de novo (até 2x).
   const valida = (a: any) =>
     a &&
     typeof a.resumo === "string" &&
@@ -311,7 +311,7 @@ Analise e chame registrar_analise.`;
     typeof a.prompt_para_editor === "string" &&
     !/<parameter name=/.test(JSON.stringify(a));
   let analise: any = null;
-  for (let tentativa = 0; tentativa < 3 && !valida(analise); tentativa++) {
+  for (let tentativa = 0; tentativa < 2 && !valida(analise); tentativa++) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -376,7 +376,19 @@ Deno.serve(async (req) => {
     }
     if (!id) return json({ error: "id obrigatório" }, 400);
     if (acao === "transcrever") return await transcrever(sb, id);
-    if (acao === "analisar") return await analisar(sb, id, catalogo ?? "");
+    if (acao === "analisar") {
+      // Roda em segundo plano (a resposta HTTP tem limite de tempo); a tela acompanha pelo status.
+      const tarefa = analisar(sb, id, catalogo ?? "").catch(async (e) => {
+        await sb
+          .from("vedit_referencias")
+          .update({ status: "erro", erro: e instanceof Error ? e.message : String(e) })
+          .eq("id", id);
+      });
+      // @ts-ignore EdgeRuntime existe no runtime do Supabase
+      if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(tarefa);
+      else await tarefa;
+      return json({ ok: true, segundoPlano: true });
+    }
     return json({ error: "ação desconhecida" }, 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

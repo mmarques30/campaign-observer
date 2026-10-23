@@ -441,6 +441,17 @@ async function processarReferencia(jobId: string, refId: string, url: string) {
       id: refId,
       catalogo: catalogoParaClaude(),
     });
+    // A análise roda em segundo plano na função: espera o status final (até 6 min).
+    for (let i = 0; i < 72; i++) {
+      await new Promise((ok) => setTimeout(ok, 5000));
+      const { data: r } = await sbc()
+        .from("vedit_referencias")
+        .select("status, erro")
+        .eq("id", refId)
+        .single();
+      if (r?.status === "pronta") break;
+      if (r?.status === "erro") throw new Error(r.erro ?? "a análise falhou");
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await patch({ status: "erro", erro: msg.slice(0, 500) });
