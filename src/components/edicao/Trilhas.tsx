@@ -23,6 +23,9 @@ export function Trilhas({
   onSeek,
   efeitoSelecionado,
   onSelecionarEfeito,
+  trechoSelecionado,
+  onSelecionarTrecho,
+  pausas = [],
 }: {
   tl: Timeline;
   palavras: Palavra[];
@@ -31,6 +34,9 @@ export function Trilhas({
   onSeek: (segundosSaida: number) => void;
   efeitoSelecionado?: string | null;
   onSelecionarEfeito?: (id: string) => void;
+  trechoSelecionado?: number | null;
+  onSelecionarTrecho?: (i: number | null) => void;
+  pausas?: { de: number; ate: number; duracao: number }[];
 }) {
   const fps = 30;
   const total = Math.max(1, duracaoSaida(trechos));
@@ -74,18 +80,36 @@ export function Trilhas({
         <div className="relative">
           {linha(
             "Vídeo",
-            trechos.map((t, i) => (
-              <div
-                key={i}
-                onClick={() => onSeek(t.saidaDe + 0.01)}
-                className={cn(
-                  "absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer",
-                  i % 2 ? "bg-zinc-600" : "bg-zinc-500",
-                )}
-                style={{ left: pos(t.saidaDe), width: pos(t.ate - t.de) }}
-                title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original`}
-              />
-            )),
+            trechos
+              .map((t, i) => (
+                <div
+                  key={i}
+                  onClick={() => {
+                    onSeek(t.saidaDe + 0.01);
+                    onSelecionarTrecho?.(trechoSelecionado === i ? null : i);
+                  }}
+                  className={cn(
+                    "absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer",
+                    i % 2 ? "bg-zinc-600" : "bg-zinc-500",
+                    trechoSelecionado === i && "ring-2 ring-primary bg-primary/60 z-[1]",
+                  )}
+                  style={{ left: pos(t.saidaDe), width: pos(t.ate - t.de) }}
+                  title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original · clique para ajustar ou excluir`}
+                />
+              ))
+              .concat(
+                pausas.map((p, k) => {
+                  const a = paraSaida(trechos, p.de);
+                  return (
+                    <div
+                      key={`p${k}`}
+                      className="absolute top-0 bottom-0 bg-amber-400/70 pointer-events-none z-[2]"
+                      style={{ left: pos(a), width: pos(Math.max(0.08, p.ate - p.de)) }}
+                      title={`Pausa de ${p.duracao.toFixed(1)}s`}
+                    />
+                  );
+                }),
+              ),
           )}
           {linha(
             "Legenda",

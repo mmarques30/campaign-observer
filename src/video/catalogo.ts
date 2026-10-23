@@ -496,7 +496,8 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "midia",
     descricao: "A pessoa sai de dentro da moldura.",
     quandoUsar: "Pattern interrupt.",
-    params: "escala? (0.6–0.9), topo? (0.15–0.45, padrão 0.3: onde fica a borda de cima; a cabeça acima dela sai da moldura), cor?, fundo?",
+    params:
+      "escala? (0.6–0.9), topo? (0.15–0.45, padrão 0.3: onde fica a borda de cima; a cabeça acima dela sai da moldura), cor?, fundo?",
     duracaoPadrao: 2,
     disponivel: true,
     precisaRecorte: true,
@@ -587,7 +588,8 @@ export const COMANDOS: ComandoDef[] = [
   {
     comando: "/legenda",
     titulo: "Legenda",
-    descricao: "Liga ou troca o estilo: karaoke, caixa, editorial, neon, maquina, impacto.",
+    descricao:
+      'Liga ou troca o estilo: karaoke, simples (legenda comum), caixa, editorial, neon, maquina, impacto. Também sobe/desce: "/legenda mais baixa".',
     exemplo: "/legenda neon",
   },
   {
@@ -681,7 +683,7 @@ export const ESTILOS: Record<string, { nome: string; descricao: string; regras: 
     nome: "Limpo",
     descricao: "Só corte, legenda discreta e um título. Para depoimento e vídeo institucional.",
     regras:
-      'legenda "caixa"; look "natural"; sem transição; no máximo 3 efeitos no vídeo todo (titulo, contador ou antes-depois, cta-final); sem sfx além do título.',
+      'legenda "simples" (ou "caixa"); look "natural"; transição "suave" ou nenhuma; no máximo 3 efeitos no vídeo todo (titulo, contador ou antes-depois, cta-final); sem sfx além do título.',
   },
 };
 
@@ -689,7 +691,7 @@ export function catalogoParaClaude(): string {
   const disp = EFEITOS.filter((e) => e.disponivel)
     .map(
       (e) =>
-        `- tipo "${e.tipo}" (${e.comando}) — ${e.nome}: ${e.descricao} Quando usar: ${e.quandoUsar} Props: ${e.params}. Duração típica ${e.duracaoPadrao}s.${e.telaCheia ? " COBRE A TELA INTEIRA (a pessoa some)." : ""}${e.escondeLegenda ? " A legenda some enquanto ele aparece: use o painel para a ideia principal." : ""}${e.somPadrao ? ` Som sugerido: ${e.somPadrao}.` : ""}${e.precisaRecorte ? " PRECISA DO RECORTE DA PESSOA: só use se em MÍDIAS ENVIADAS existir \"recorte-pessoa.webm\"; senão diga para clicar em Recortar pessoa no topo do editor." : ""}`,
+        `- tipo "${e.tipo}" (${e.comando}) — ${e.nome}: ${e.descricao} Quando usar: ${e.quandoUsar} Props: ${e.params}. Duração típica ${e.duracaoPadrao}s.${e.telaCheia ? " COBRE A TELA INTEIRA (a pessoa some)." : ""}${e.escondeLegenda ? " A legenda some enquanto ele aparece: use o painel para a ideia principal." : ""}${e.somPadrao ? ` Som sugerido: ${e.somPadrao}.` : ""}${e.precisaRecorte ? ' PRECISA DO RECORTE DA PESSOA: só use se em MÍDIAS ENVIADAS existir "recorte-pessoa.webm"; senão diga para clicar em Recortar pessoa no topo do editor.' : ""}`,
     )
     .join("\n");
   const fase2 = EFEITOS.filter((e) => !e.disponivel)

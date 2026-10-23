@@ -134,12 +134,13 @@ FORMATO DA TIMELINE
   "cortes": [{"de": s, "ate": s}],            // trechos que FICAM, em ordem. [] = vídeo inteiro
   "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
   "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
-  "legenda": {"ativa": true, "estilo": "karaoke"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "palavrasPorBloco": 1–5, "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
+  "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
   "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
   "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
   "musica": {"midia": "trilha:<id>" (lista TRILHAS DISPONÍVEIS) | "<id de áudio enviado>" | null, "volume": 0.08–0.3, "abaixarNaVoz": true, "abaixarPara": 0.2–0.5, "fade": true},
-  "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|flash|chicote|glitch|zoom",
+  "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|suave|escurecer|desfoque|zoom-suave|flash|chicote|glitch|zoom" (suave = dissolve curto entre os cortes; escurecer = passa rápido pelo preto; desfoque = desfoca e volta; zoom-suave = aproximação leve; "transição suave/sem ser só zoom" → "suave"),
              "brilho": 0.5–1.6 (1 = original), "contraste": 0.5–1.6, "saturacao": 0–2, "temperatura": -1 (frio) … 1 (quente), "sombras": 0–1 (clareia rosto escuro), "nitidez": 0–1},   // /luz mexe só nestes; ajustes sutis (±0.05–0.2) ficam naturais
+  "modelo": {…} | null,  // modelo de edição salvo (veja MODELO DE EDIÇÃO); devolva como recebeu
   "marca": ${JSON.stringify(marca)}
 }
 
@@ -163,7 +164,7 @@ ${
 MODO ANÚNCIO (Meta Ads)
 - Duração: NÃO é regra. Quem manda é o conteúdo: corte o que não prende e pare aí. Como referência de mercado, anúncios de Reels costumam render melhor entre 15 e 45s, e o Meta aceita até 90s; se a fala boa tem 50s, entregue 50s. ${duracaoAlvo ? `A pessoa aprovou duração alvo de ~${duracaoAlvo}s; chegue perto sem cortar ideia inteira.` : "Se o vídeo cru passa de 60s, diga na resposta qual trecho você deixaria de fora e por quê."}
 - Gancho em ≤3s com a dor ou o resultado.
-- Zonas seguras: nada importante nos 14% de cima nem nos 35% de baixo; legenda "centro" ou "inferior" (o sistema já posiciona acima da zona de baixo).
+- Zonas seguras: nada importante nos 14% de cima nem nos 35% de baixo; legenda "centro" ou "inferior" ("inferior" fica a ~71% da altura; em anúncio, se a pessoa não pediu para descer, prefira altura ≤ 0.66 para não ficar sob o botão do Meta).
 - Legenda obrigatória (muita gente vê sem som). Mostre prova (número, antes/depois, print) até a metade.`
     : `
 MODO ORGÂNICO (Reels)
@@ -172,6 +173,10 @@ MODO ORGÂNICO (Reels)
 }
 
 ESTILO VISUAL DESTE VÍDEO: "${estilo}". Siga as regras desse estilo (lista em ESTILOS VISUAIS). "/estilo X" troca o estilo e você refaz legenda, look, transição e troca os efeitos pelos preferidos do novo estilo, mantendo cortes e conteúdo.
+
+MODELO DE EDIÇÃO: se timeline.modelo existir, a pessoa salvou esse padrão de um vídeo que aprovou. Mantenha legenda, posição/altura, look, transição, zoom e música como estão na timeline (não troque sem ela pedir), use de preferência os tipos de efeito em timeline.modelo.efeitos (na mesma ordem de preferência) e mire em ~timeline.modelo.ritmo efeitos por minuto. Siga timeline.modelo.notas. Sempre devolva "modelo" igual ao recebido.
+
+CORTES À MÃO: a pessoa também corta pelo roteiro (aba Cortes). Ao receber pedidos como "tira de 0:12 a 0:15", "corta a parte que eu falo X" ou "essa pausa está longa", ajuste só "cortes" (segundos do ORIGINAL) e preserve o resto.
 
 MARCA E TOM: ${instrucoes}
 
@@ -639,6 +644,8 @@ Deno.serve(async (req) => {
   if (uso.timeline && typeof uso.timeline === "object") {
     const tl = uso.timeline;
     tl.formato = mFormato ? mFormato[1] : (tl.formato ?? proj.formato);
+    // O modelo salvo não se perde se o Claude esquecer de devolver.
+    if (tl.modelo === undefined && proj.timeline?.modelo) tl.modelo = proj.timeline.modelo;
     // Nivelamento da trilha escolhida (ganho medido no upload).
     const chave = tl.musica?.midia as string | undefined;
     if (chave?.startsWith("trilha:")) {

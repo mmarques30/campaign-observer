@@ -98,6 +98,24 @@ Biblioteca de Reels de referência. Pipeline: link + arquivo do vídeo → no na
 - `metadados`: oEmbed (YouTube/TikTok; Instagram só com app com "oEmbed Read").
 O Instagram não permite baixar o vídeo pelo servidor sem login — por isso o arquivo é solto na tela. Tabela `vedit_referencias` (migração `20261023000000_vedit_referencias.sql`); arquivos em `video-edicao/referencias/<id>/`. A seção "Para criar ou adaptar" agrega as técnicas que ainda não temos → backlog de efeitos.
 
+## Cortes à mão (aba Cortes)
+
+- O roteiro inteiro aparece palavra por palavra; riscado = fora do vídeo. Clique + Shift+clique (ou arraste) para marcar um trecho e **Cortar** ou **Trazer de volta**. O corte leva junto o silêncio em volta e deixa ~0,12 s de respiro de cada lado.
+- **Pausas longas** que ficaram no vídeo aparecem como ⏸ no texto e em amarelo na timeline; um clique encurta para 0,3 s ("Encurtar todas" faz de uma vez). O limite (0,4–2 s) é ajustável.
+- Na timeline, clicar num trecho abre a barra do trecho: início/fim ±0,2 s e **Excluir trecho**.
+- Funções puras em `src/video/cortes.ts` (tempos sempre do ORIGINAL).
+
+## Transições e legenda simples
+
+- Transições nos cortes: nenhuma, **suave** (dissolve de ~8 quadros), **escurecer**, **desfoque**, **zoom suave**, flash, chicote, glitch, zoom de soco.
+- Legenda **simples**: frase em letra normal, branca, contorno fino, 5–7 palavras. "Altura da legenda" (ajuste fino) desce/sobe além das três posições; "inferior" agora fica a 71%.
+
+## Modelos de edição
+
+- "Salvar o estilo deste vídeo como modelo" (aba Na edição) guarda legenda, altura, look, transição, zoom, música, marca e os tipos de efeito usados (e o ritmo). Cortes e textos não vão.
+- O modelo marcado com ★ é aplicado sozinho em todo vídeo novo (ao aceitar a sugestão). Também dá para aplicar um modelo em qualquer vídeo.
+- Manifesto em `video-edicao/modelos/biblioteca.json` (sem tabela). A timeline guarda `modelo` e o editor IA segue esse padrão ao fazer /editar.
+
 ## Comandos do chat
 
 | Comando | O que faz |

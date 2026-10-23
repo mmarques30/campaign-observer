@@ -23,7 +23,16 @@ import {
   Upload,
 } from "lucide-react";
 import { EFEITO_POR_TIPO, EFEITOS } from "@/video/catalogo";
-import { ESTILOS_LEGENDA, LOOKS, POSICOES_LEGENDA, type Timeline } from "@/video/schema";
+import {
+  ESTILOS_LEGENDA,
+  LOOKS,
+  NOME_TRANSICAO,
+  POSICOES_LEGENDA,
+  TRANSICOES,
+  type Palavra,
+  type Timeline,
+} from "@/video/schema";
+import { TOPO } from "@/video/legenda";
 import { fmtTempo, type Midia, type Projeto } from "@/lib/vedit";
 import { ESTILOS } from "@/video/catalogo";
 import { Input } from "@/components/ui/input";
@@ -32,6 +41,8 @@ import type { Trecho } from "@/video/tempo";
 import { CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
 import { TrilhaSonora } from "./TrilhaSonora";
 import { ImagensSugeridas } from "./ImagensSugeridas";
+import { Roteiro } from "./Roteiro";
+import { ModeloEdicao } from "./ModeloEdicao";
 
 export function Painel({
   projeto,
@@ -49,6 +60,8 @@ export function Painel({
   temRecorte,
   recarregarMidias,
   agora,
+  palavras,
+  duracaoFonte,
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -67,6 +80,8 @@ export function Painel({
   temRecorte: boolean;
   recarregarMidias: () => Promise<unknown>;
   agora: number;
+  palavras: Palavra[];
+  duracaoFonte: number;
 }) {
   const [subindo, setSubindo] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -76,8 +91,9 @@ export function Painel({
 
   return (
     <Tabs defaultValue="edicao" className="flex flex-col h-full min-h-0">
-      <TabsList className="grid grid-cols-3 m-2">
+      <TabsList className="grid grid-cols-4 m-2">
         <TabsTrigger value="edicao">Na edição</TabsTrigger>
+        <TabsTrigger value="roteiro">Cortes</TabsTrigger>
         <TabsTrigger value="biblioteca">Efeitos</TabsTrigger>
         <TabsTrigger value="midias">Mídias</TabsTrigger>
       </TabsList>
@@ -189,6 +205,8 @@ export function Painel({
           </div>
         </section>
 
+        <ModeloEdicao projeto={projeto} tl={tl} setTl={setTl} duracaoFonte={duracaoFonte} />
+
         <section className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Efeitos aplicados ({efeitos.length})
@@ -244,7 +262,12 @@ export function Painel({
           })}
         </section>
 
-        <TrilhaSonora tl={tl} setTl={setTl} objetivo={projeto.objetivo} estilo={projeto.estilo ?? "viral"} />
+        <TrilhaSonora
+          tl={tl}
+          setTl={setTl}
+          objetivo={projeto.objetivo}
+          estilo={projeto.estilo ?? "viral"}
+        />
 
         <SonsAplicados tl={tl} setTl={setTl} trechos={trechos} onIr={onIr} />
 
@@ -265,7 +288,16 @@ export function Painel({
                 onValueChange={(v) =>
                   set(
                     "legenda",
-                    v === "off" ? { ativa: false } : { ativa: true, estilo: v as any },
+                    v === "off"
+                      ? { ativa: false }
+                      : v === "simples"
+                        ? {
+                            ativa: true,
+                            estilo: "simples",
+                            caixaAlta: false,
+                            palavrasPorBloco: Math.max(5, tl.legenda.palavrasPorBloco),
+                          }
+                        : { ativa: true, estilo: v as any },
                     `Legenda: ${v}`,
                   )
                 }
@@ -288,7 +320,7 @@ export function Painel({
               <Select
                 value={tl.legenda.posicao}
                 onValueChange={(v) =>
-                  set("legenda", { posicao: v as any }, `Legenda na posição ${v}`)
+                  set("legenda", { posicao: v as any, altura: null }, `Legenda na posição ${v}`)
                 }
               >
                 <SelectTrigger className="h-8">
@@ -331,9 +363,9 @@ export function Painel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {["nenhuma", "flash", "chicote", "glitch", "zoom"].map((s) => (
+                  {TRANSICOES.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s}
+                      {NOME_TRANSICAO[s]}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -341,12 +373,36 @@ export function Painel({
             </div>
           </div>
           <div className="space-y-1">
+            <Label className="text-xs flex justify-between">
+              <span>Altura da legenda</span>
+              {tl.legenda.altura != null && (
+                <button
+                  className="text-[11px] text-muted-foreground underline"
+                  onClick={() => set("legenda", { altura: null }, "Altura da legenda padrão")}
+                >
+                  voltar ao padrão
+                </button>
+              )}
+            </Label>
+            <Slider
+              min={0.12}
+              max={0.88}
+              step={0.01}
+              value={[tl.legenda.altura ?? parseFloat(TOPO[tl.legenda.posicao]) / 100]}
+              onValueChange={([v]) => set("legenda", { altura: v }, "Altura da legenda")}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Arraste para a direita para descer. Ligue a zona segura no preview para ver até onde o
+              Instagram cobre.
+            </p>
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs">
               Palavras por bloco de legenda: {tl.legenda.palavrasPorBloco}
             </Label>
             <Slider
               min={1}
-              max={5}
+              max={8}
               step={1}
               value={[tl.legenda.palavrasPorBloco]}
               onValueChange={([v]) =>
@@ -379,6 +435,18 @@ export function Painel({
             />
           </div>
         </section>
+      </TabsContent>
+
+      <TabsContent value="roteiro" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+        <Roteiro
+          palavras={palavras}
+          tl={tl}
+          setTl={setTl}
+          trechos={trechos}
+          duracaoFonte={duracaoFonte}
+          agora={agora}
+          onIr={onIr}
+        />
       </TabsContent>
 
       <TabsContent value="biblioteca" className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 mt-0">

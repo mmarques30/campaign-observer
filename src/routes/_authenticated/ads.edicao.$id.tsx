@@ -53,6 +53,7 @@ import { duracaoSaida, paraFonte, paraSaida, trechosMantidos } from "@/video/tem
 import { cortarSilencios } from "@/video/automatico";
 import { detectarRepeticoes } from "@/video/repeticoes";
 import { Repeticoes } from "@/components/edicao/Repeticoes";
+import { ajustarBorda, excluirTrecho, pausasLongas } from "@/video/cortes";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/$id")({
   component: Editor,
@@ -72,19 +73,26 @@ function Editor() {
   const [enviando, setEnviando] = useState(false);
   const [rascunho, setRascunho] = useState("");
   const [zonas, setZonas] = useState(false);
+  const [trechoSel, setTrechoSel] = useState<number | null>(null);
   const [publicar, setPublicar] = useState(false);
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
   async function recortarPessoa() {
     const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
     if (!p?.fonte_path) return;
-    if (!suportaRecorte()) return toast.error("Este navegador não suporta o recorte. Use o Chrome atualizado.");
+    if (!suportaRecorte())
+      return toast.error("Este navegador não suporta o recorte. Use o Chrome atualizado.");
     setRecortando({ p: 0, etapa: "Baixando o vídeo" });
     try {
       const arq = await baixarFonte(p.fonte_proxy_path ?? p.fonte_path);
       await prepararRecorte(id, arq, (x, etapa) => setRecortando({ p: x, etapa }));
-      await Promise.all([midiasQ.refetch(), qc.invalidateQueries({ queryKey: ["vedit", "urls", id] })]);
-      toast.success("Pessoa recortada. Texto atrás, troca de fundo, contorno, moldura e vertigo liberados.");
+      await Promise.all([
+        midiasQ.refetch(),
+        qc.invalidateQueries({ queryKey: ["vedit", "urls", id] }),
+      ]);
+      toast.success(
+        "Pessoa recortada. Texto atrás, troca de fundo, contorno, moldura e vertigo liberados.",
+      );
     } catch (e) {
       toast.error(`Recorte: ${(e as Error).message}`);
     } finally {
@@ -214,7 +222,11 @@ function Editor() {
     try {
       const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
       if (!p) return;
-      const v = await salvarManual({ ...p, versao: Math.max(p.versao, versaoCarregada.current) }, item.novo, item.resumo);
+      const v = await salvarManual(
+        { ...p, versao: Math.max(p.versao, versaoCarregada.current) },
+        item.novo,
+        item.resumo,
+      );
       versaoCarregada.current = v;
       qc.setQueryData(["vedit", "projeto", id], { ...p, timeline: item.novo, versao: v });
     } catch (e) {
@@ -249,6 +261,7 @@ function Editor() {
   const repeticoes = useMemo(() => detectarRepeticoes(palavras), [palavras]);
   const duracaoFonte = Number(proj?.fonte_duracao ?? 0);
   const trechos = useMemo(() => (tl ? trechosMantidos(tl, duracaoFonte) : []), [tl, duracaoFonte]);
+  const pausas = useMemo(() => pausasLongas(palavras, trechos, 0.7), [palavras, trechos]);
   const props: ReelProps | null = useMemo(
     () =>
       tl && urlsQ.data
@@ -405,7 +418,12 @@ function Editor() {
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={recortarPessoa} disabled={!!recortando || !proj.fonte_path}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={recortarPessoa}
+                  disabled={!!recortando || !proj.fonte_path}
+                >
                   {recortando ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -508,6 +526,8 @@ function Editor() {
               temRecorte={!!urlsQ.data?.recorte}
               recarregarMidias={() => midiasQ.refetch()}
               agora={paraFonte(trechos, frame / 30)}
+              palavras={palavras}
+              duracaoFonte={duracaoFonte}
               amostra={{
                 url: urlsQ.data?.fonte,
                 tempos: trechos.length
@@ -552,7 +572,10 @@ function Editor() {
                       <div className="text-sm font-medium text-foreground">
                         Enviando o vídeo… {envio?.video ?? proj.upload_progresso ?? 0}%
                       </div>
-                      <Progress value={envio?.video ?? proj.upload_progresso ?? 0} className="h-2" />
+                      <Progress
+                        value={envio?.video ?? proj.upload_progresso ?? 0}
+                        className="h-2"
+                      />
                     </>
                   )}
                   <div className="text-xs">
@@ -610,7 +633,101 @@ function Editor() {
                 onSeek={(s) => player.current?.seekTo(Math.round(s * 30))}
                 efeitoSelecionado={selecionado}
                 onSelecionarEfeito={setSelecionado}
+                trechoSelecionado={trechoSel}
+                onSelecionarTrecho={setTrechoSel}
+                pausas={pausas}
               />
+              {trechoSel != null &&
+                trechos[trechoSel] &&
+                (() => {
+                  const t = trechos[trechoSel];
+                  const mexer = (borda: "de" | "ate", d: number) => {
+                    setTl(
+                      {
+                        ...tl,
+                        cortes: ajustarBorda(tl.cortes, trechos, trechoSel, borda, d, duracaoFonte),
+                      },
+                      `Trecho ${trechoSel + 1}: ${borda === "de" ? "início" : "fim"} ${d > 0 ? "+" : ""}${d}s`,
+                    );
+                    // Mostra o ponto que mudou.
+                    setTimeout(
+                      () =>
+                        irPara(
+                          borda === "de" ? t.de + (d > 0 ? d : 0) : Math.max(t.de, t.ate + d - 1.2),
+                        ),
+                      50,
+                    );
+                  };
+                  const btn = "h-7 px-2 text-xs";
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5 pb-2 text-xs">
+                      <span className="font-medium">Trecho {trechoSel + 1}</span>
+                      <span className="text-muted-foreground font-mono">
+                        {fmtTempo(t.de)}–{fmtTempo(t.ate)} ({(t.ate - t.de).toFixed(1)}s)
+                      </span>
+                      <span className="ml-2 text-muted-foreground">Início</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={btn}
+                        title="Começar antes (traz um pouco do que foi cortado)"
+                        onClick={() => mexer("de", -0.2)}
+                      >
+                        −0,2s
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={btn}
+                        title="Começar depois (corta o começo)"
+                        onClick={() => mexer("de", 0.2)}
+                      >
+                        +0,2s
+                      </Button>
+                      <span className="ml-2 text-muted-foreground">Fim</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={btn}
+                        title="Terminar antes (corta o final)"
+                        onClick={() => mexer("ate", -0.2)}
+                      >
+                        −0,2s
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={btn}
+                        title="Terminar depois (traz um pouco do que foi cortado)"
+                        onClick={() => mexer("ate", 0.2)}
+                      >
+                        +0,2s
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className={`${btn} ml-auto`}
+                        onClick={() => {
+                          setTl(
+                            { ...tl, cortes: excluirTrecho(trechos, trechoSel, duracaoFonte) },
+                            `Excluiu o trecho ${trechoSel + 1}`,
+                          );
+                          setTrechoSel(null);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Excluir trecho
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className={btn}
+                        onClick={() => setTrechoSel(null)}
+                      >
+                        Fechar
+                      </Button>
+                    </div>
+                  );
+                })()}
             </div>
           </main>
 
@@ -648,7 +765,9 @@ function Editor() {
                     repeticoes,
                   });
                   setTl({ ...tl, cortes }, `Repetições removidas: ${repeticoes.length}`);
-                  toast.success(`${repeticoes.length} fala(s) repetida(s) fora. Ficou a última tomada de cada.`);
+                  toast.success(
+                    `${repeticoes.length} fala(s) repetida(s) fora. Ficou a última tomada de cada.`,
+                  );
                 }}
               />
             )}

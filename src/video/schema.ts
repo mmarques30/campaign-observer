@@ -14,12 +14,37 @@ export type Formato = keyof typeof FORMATOS;
 
 export const ESTILOS_LEGENDA = [
   "karaoke",
+  "simples",
   "caixa",
   "editorial",
   "neon",
   "maquina",
   "impacto",
 ] as const;
+// Transições nos cortes. "suave" = dissolve curto; "escurecer" = passa rapidinho pelo preto;
+// "desfoque" = desfoca e volta; "zoom-suave" = aproximação leve com easing.
+export const TRANSICOES = [
+  "nenhuma",
+  "suave",
+  "escurecer",
+  "desfoque",
+  "zoom-suave",
+  "flash",
+  "chicote",
+  "glitch",
+  "zoom",
+] as const;
+export const NOME_TRANSICAO: Record<(typeof TRANSICOES)[number], string> = {
+  nenhuma: "Nenhuma (corte seco)",
+  suave: "Suave (dissolve)",
+  escurecer: "Escurecer rápido",
+  desfoque: "Desfoque",
+  "zoom-suave": "Zoom suave",
+  flash: "Flash branco",
+  chicote: "Chicote",
+  glitch: "Glitch",
+  zoom: "Zoom de soco",
+};
 export const POSICOES_LEGENDA = ["inferior", "centro", "superior"] as const;
 export const LOOKS = ["natural", "quente", "frio", "cinema", "pb", "vivo"] as const;
 
@@ -77,6 +102,8 @@ export const timelineSchema = z.object({
       // Correções de grafia: índice da palavra → texto certo.
       correcoes: z.record(z.string()).default({}),
       caixaAlta: z.boolean().default(false),
+      // Ajuste fino da altura (0 = topo, 1 = rodapé). null = usa a posição escolhida.
+      altura: z.number().min(0.1).max(0.9).nullable().default(null),
     })
     .default({}),
   efeitos: z.array(efeitoSchema).default([]),
@@ -104,7 +131,7 @@ export const timelineSchema = z.object({
       grao: z.number().min(0).max(1).default(0),
       vinheta: z.number().min(0).max(1).default(0.25),
       barraProgresso: z.boolean().default(false),
-      transicao: z.enum(["nenhuma", "flash", "chicote", "glitch", "zoom"]).default("nenhuma"),
+      transicao: z.enum(TRANSICOES).default("nenhuma"),
       // Correção de imagem (1 = sem mudança). Aplicada antes do look.
       brilho: z.number().min(0.5).max(1.6).default(1),
       contraste: z.number().min(0.5).max(1.6).default(1),
@@ -114,6 +141,17 @@ export const timelineSchema = z.object({
       nitidez: z.number().min(0).max(1).default(0),
     })
     .default({}),
+  // Modelo de edição aplicado (salvo de outro vídeo). O editor IA segue esse padrão.
+  modelo: z
+    .object({
+      id: z.string(),
+      nome: z.string(),
+      efeitos: z.array(z.string()).default([]), // tipos de efeito que o vídeo de origem usou
+      ritmo: z.number().nullable().default(null), // efeitos por minuto no vídeo de origem
+      notas: z.string().default(""),
+    })
+    .nullable()
+    .default(null),
   marca: z
     .object({
       primaria: z.string().default("#6C2BD9"),
