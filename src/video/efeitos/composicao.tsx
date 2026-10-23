@@ -14,21 +14,34 @@ type Caixa = { x: number; y: number; w: number; h: number };
 /** Empurra a caixa (fração do quadro) para fora da zona do rosto, para o lado com mais espaço. */
 export function desviarDoRosto(c: Caixa, rosto?: Caixa | null): Caixa {
   if (!rosto) return c;
+  // Close (rosto ocupa boa parte do quadro): usa só o miolo do rosto, senão tudo vai para as bordas.
+  if (rosto.w * rosto.h > 0.2) {
+    const kw = Math.min(1, 0.35 / rosto.w),
+      kh = Math.min(1, 0.3 / rosto.h);
+    rosto = {
+      x: rosto.x + (rosto.w * (1 - kw)) / 2,
+      y: rosto.y + (rosto.h * (1 - kh)) / 2,
+      w: rosto.w * kw,
+      h: rosto.h * kh,
+    };
+  }
   const cruza =
     c.x < rosto.x + rosto.w &&
     c.x + c.w > rosto.x &&
     c.y < rosto.y + rosto.h &&
     c.y + c.h > rosto.y;
   if (!cruza) return c;
-  const acima = rosto.y; // espaço livre acima do rosto
-  const abaixo = 1 - (rosto.y + rosto.h);
-  if (abaixo >= c.h || abaixo >= acima)
-    return { ...c, y: Math.min(1 - c.h, rosto.y + rosto.h + 0.01) };
-  return { ...c, y: Math.max(0, rosto.y - c.h - 0.01) };
+  // Menor deslocamento que tira a caixa do rosto, sem sair do quadro (se não couber, encosta na borda).
+  const cima = Math.max(0, rosto.y - c.h - 0.01);
+  const baixo = Math.min(1 - c.h, rosto.y + rosto.h + 0.01);
+  const sobra = (y: number) =>
+    Math.max(0, Math.min(y + c.h, rosto.y + rosto.h) - Math.max(y, rosto.y));
+  const custo = (y: number) => sobra(y) * 3 + Math.abs(y - c.y);
+  return { ...c, y: custo(cima) <= custo(baixo) ? cima : baixo };
 }
 
 type Elemento = {
-  tipo?: "texto" | "caixa" | "icone" | "midia" | "brilho" | "linha";
+  tipo?: "texto" | "caixa" | "icone" | "midia" | "brilho" | "linha" | "pessoa";
   x?: number;
   y?: number;
   w?: number;
@@ -116,7 +129,13 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
   const rosto = ctx.tl.rosto ?? null;
   const els: Elemento[] = Array.isArray(p.elementos) ? p.elementos.slice(0, 14) : [];
 
-  const fundo = p.fundo as string | undefined;
+  const temPessoa = els.some((e) => e.tipo === "pessoa");
+  // Cor sólida cobre o vídeo: só vale se a pessoa aparece num card; senão vira escurecer (você nunca some).
+  let fundo = p.fundo as string | undefined;
+  const fundoSolido = !!fundo && !["nenhum", "escurecer", "desfocar"].includes(fundo);
+  if (fundoSolido && !temPessoa) fundo = "escurecer";
+  // Com fundo sólido + card da pessoa, não há rosto no quadro para desviar.
+  const rostoAtivo = fundoSolido && temPessoa ? null : rosto;
   const camadaFundo =
     fundo === "escurecer" ? (
       <AbsoluteFill style={{ background: `rgba(0,0,0,${0.55 * entrada})` }} />
@@ -142,7 +161,8 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           w: el.w ?? 0.84,
           h: el.h ?? (tipo === "texto" ? ((el.tamanho ?? 64) * 1.3 * k) / height : 0.12),
         };
-        if (el.livreDoRosto !== false && tipo !== "brilho") caixa = desviarDoRosto(caixa, rosto);
+        if (el.livreDoRosto !== false && tipo !== "brilho" && tipo !== "pessoa")
+          caixa = desviarDoRosto(caixa, rostoAtivo);
         const a = animacao(el, frame, fps, k);
         const flutua = el.flutuar ? Math.sin((frame + i * 13) / (fps * 0.9)) * 9 * k : 0;
         const base: React.CSSProperties = {
@@ -199,7 +219,14 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
               }}
             />
           );
-        if (tipo === "midia" && (!el.midia || /^\{.*\}$/.test(el.midia))) return null;
+        if (tipo === "pessoa")
+          return (
+            <div key={i} style={{ ...base, overflow: "hidden", background: "#000" }}>
+              <Midia ctx={ctx} />
+            </div>
+          );
+        if (tipo === "midia" && (!el.midia || !(ctx.midias[el.midia] || /^https?:/.test(el.midia))))
+          return null;
         if (tipo === "midia")
           return (
             <div key={i} style={base}>

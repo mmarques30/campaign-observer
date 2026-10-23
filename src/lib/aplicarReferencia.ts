@@ -5,6 +5,8 @@ import { FONTES } from "@/video/fontes";
 import { ESTILOS_LEGENDA, LOOKS, TRANSICOES, normalizarTimeline } from "@/video/schema";
 import type { Analise, Referencia } from "@/lib/referencias";
 
+const PALETA_REFERENCIA = ["composicao", "mockup", "cards-flutuantes", "cta-final"];
+
 const valido = <T extends string>(lista: readonly T[], v?: string | null): T | undefined =>
   v && (lista as readonly string[]).includes(v) ? (v as T) : undefined;
 
@@ -19,12 +21,16 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
   const p = proj as Projeto;
   const tl = normalizarTimeline(p.timeline ?? {}).timeline;
   const pr = a.preset_estilo ?? {};
-  const efeitos = (pr.efeitos_preferidos ?? []).filter((t) => EFEITO_POR_TIPO[t]?.disponivel);
+  // Paleta fechada ao seguir referência: o visual vem da composição livre, não dos modelos prontos.
+  const efeitos = PALETA_REFERENCIA.filter((t) => EFEITO_POR_TIPO[t]?.disponivel);
   const estiloLeg = valido(ESTILOS_LEGENDA, pr.legenda ?? a.ritmo?.legenda_estilo);
   const look = valido(LOOKS, pr.look);
   const transicao = valido(TRANSICOES, pr.transicao);
   const novo = {
     ...tl,
+    // Começa limpo: os grafismos e sons do estilo anterior saem (não empilha estilos).
+    efeitos: [],
+    sfx: [],
     legenda: {
       ...tl.legenda,
       ...(estiloLeg ? { estilo: estiloLeg, ativa: true } : {}),
@@ -81,10 +87,13 @@ ${JSON.stringify(a.layouts).slice(0, 6000)}`
 
 REGRAS AO SEGUIR A REFERÊNCIA:
 1. Copie só a FORMA: layout, grafismos, tipografia, cores, ritmo, transições e posição da legenda. NUNCA copie textos, marcas, nomes de produto, @, assunto ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo e da nossa marca.
-2. Não encurte o vídeo para ficar do tamanho da referência. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas, sem perder nenhuma ideia da fala.
-3. Para reproduzir o visual, prefira /composicao (layout sob medida, com as fontes e cores da referência); /mockup e /cards servem para telas e cards rápidos. Não use colagem/broll com imagens aleatórias; mídia só entra se mostrar exatamente o que está sendo dito. Substitua os efeitos que o vídeo já tinha pelos desta referência (não empilhe estilos).
-5. Nada em cima do rosto: o sistema desvia sozinho, mas planeje os grafismos no espaço livre (acima da cabeça, laterais ou terço inferior, sem cobrir a legenda).
-4. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
+2. Não encurte o vídeo. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas.
+3. Os efeitos antigos foram apagados. Use SOMENTE /composicao (o visual da referência), /mockup e /cards para telas e cards, e /cta-final no fim. NÃO use palavra-gigante, letreiro, colagem, broll, dividir, rabisco, partículas, fundo-imagem nem outros modelos prontos.
+4. A pessoa NUNCA some da tela. Em /composicao use fundo "nenhum" (grafismos sobre o vídeo, no espaço livre) ou, para telas de UI com fundo sólido, inclua obrigatoriamente um elemento {"tipo":"pessoa"} num card arredondado (ex.: x 0.06, y 0.5, w 0.88, h 0.44) como na referência. Fundo sólido sem "pessoa" vira só escurecer.
+5. Mídia só entra se o arquivo existe neste vídeo e mostra exatamente o que está sendo dito; sem arquivo certo, desenhe a tela com caixas e textos. Nada de molduras vazias.
+6. Ritmo: no máximo um grafismo a cada 5–8 segundos, cada um com 2–4 s, e o vídeo respirando entre eles (você falando sem nada por cima).
+7. Nada em cima do rosto: o sistema desvia, mas planeje no espaço livre (acima da cabeça ou terço inferior, sem cobrir a legenda).
+8. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
   );
   return { nome: novo.modelo.nome, pedido };
 }
