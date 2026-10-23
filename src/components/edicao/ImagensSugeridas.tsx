@@ -233,7 +233,7 @@ export function ImagensSugeridas({
       )}
       {semChave && momentos && (
         <p className="text-[11px] text-amber-700">
-          Usando bancos livres (Wikimedia/Openverse). Com a chave gratuita do Pexels as opções ficam
+          Usando bancos livres (Wikimedia/Openverse). Com a chave gratuita do Pixabay (PIXABAY_API_KEY) as opções ficam
           muito melhores e incluem vídeos. Para logos de apps (WhatsApp, e-mail, planilha), use o
           efeito Ícones.
         </p>

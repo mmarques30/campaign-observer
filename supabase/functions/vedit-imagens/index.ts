@@ -20,7 +20,7 @@ type Candidata = {
   url: string; // arquivo para usar (≤ 1920 px)
   thumb: string;
   credito: string;
-  fonte: "pexels" | "unsplash" | "openverse" | "wikimedia";
+  fonte: "pexels" | "pixabay" | "unsplash" | "openverse" | "wikimedia";
   tipo: "imagem" | "video";
   largura?: number;
   altura?: number;
@@ -87,9 +87,52 @@ async function openverse(consulta: string, n: number): Promise<Candidata[]> {
   }));
 }
 
+/** Pixabay (chave grátis, fotos e vídeos, uso comercial sem crédito obrigatório). */
+async function pixabay(consulta: string, tipo: "imagem" | "video", n: number, chave: string): Promise<Candidata[]> {
+  const base = tipo === "video" ? "https://pixabay.com/api/videos/" : "https://pixabay.com/api/";
+  const qs = new URLSearchParams({
+    key: chave,
+    q: consulta.slice(0, 100),
+    per_page: String(Math.max(3, Math.min(30, n))),
+    safesearch: "true",
+    ...(tipo === "imagem" ? { image_type: "photo" } : {}),
+  });
+  const j = await (await fetch(`${base}?${qs}`, { signal: AbortSignal.timeout(8000) })).json();
+  return (j.hits ?? []).slice(0, n).flatMap((h: any): Candidata[] => {
+    if (tipo === "video") {
+      const v = h.videos?.medium?.url ? h.videos.medium : h.videos?.small;
+      if (!v?.url) return [];
+      return [
+        {
+          url: v.url,
+          thumb: v.thumbnail ?? h.videos?.tiny?.thumbnail ?? "",
+          credito: `Vídeo de ${h.user ?? "Pixabay"} no Pixabay`,
+          fonte: "pixabay",
+          tipo: "video",
+          largura: v.width,
+          altura: v.height,
+          duracao: h.duration,
+        },
+      ];
+    }
+    return [
+      {
+        url: h.largeImageURL ?? h.webformatURL,
+        thumb: h.webformatURL ?? h.previewURL,
+        credito: `Imagem de ${h.user ?? "Pixabay"} no Pixabay`,
+        fonte: "pixabay",
+        tipo: "imagem",
+        largura: h.imageWidth,
+        altura: h.imageHeight,
+      },
+    ];
+  });
+}
+
 async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n = 6): Promise<Candidata[]> {
   const pexels = Deno.env.get("PEXELS_API_KEY");
   const unsplash = Deno.env.get("UNSPLASH_ACCESS_KEY");
+  const chavePixabay = Deno.env.get("PIXABAY_API_KEY");
   const out: Candidata[] = [];
   const q = encodeURIComponent(consulta);
   try {
@@ -135,6 +178,8 @@ async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n =
           altura: ph.height,
         });
     }
+    if (chavePixabay && out.length < n)
+      out.push(...(await pixabay(consulta, tipo, n - out.length, chavePixabay).catch(() => [])));
     if (unsplash && tipo === "imagem" && out.length < n) {
       const j = await (
         await fetch(`https://api.unsplash.com/search/photos?query=${q}&per_page=${n - out.length}`, {
@@ -299,7 +344,11 @@ Deno.serve(async (req) => {
         );
       const res = {
         momentos,
-        temChave: !!(Deno.env.get("PEXELS_API_KEY") || Deno.env.get("UNSPLASH_ACCESS_KEY")),
+        temChave: !!(
+          Deno.env.get("PEXELS_API_KEY") ||
+          Deno.env.get("PIXABAY_API_KEY") ||
+          Deno.env.get("UNSPLASH_ACCESS_KEY")
+        ),
         gerado_em: new Date().toISOString(),
         cortes: cortes.length,
       };
