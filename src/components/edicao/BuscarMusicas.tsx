@@ -43,15 +43,31 @@ const ATALHOS: { nome: string; q: string; humor: string[] }[] = [
   { nome: "Tensão", q: "suspense", humor: ["tenso", "urgente"] },
 ];
 
+// Openverse: busca anônima aceita no máximo 20 por página (acima disso responde 401).
+async function paginaDoAcervo(params: string): Promise<any[]> {
+  const r = await fetch(`https://api.openverse.org/v1/audio/?${params}&page_size=20&mature=false`, {
+    signal: AbortSignal.timeout(20000),
+  });
+  if (r.status === 429) throw new Error("O acervo pediu uma pausa. Tente de novo em 1 minuto.");
+  if (!r.ok) throw new Error(`O acervo respondeu ${r.status}. Tente de novo em instantes.`);
+  return (await r.json()).results ?? [];
+}
+
 async function buscarNoAcervo(q: string, licenca: string): Promise<Musica[]> {
   const lic = licenca === "livre" ? "cc0,pdm" : "cc0,pdm,by";
-  const r = await fetch(
-    `https://api.openverse.org/v1/audio/?q=${encodeURIComponent(q)}&license=${lic}&category=music&page_size=30&mature=false`,
-    { signal: AbortSignal.timeout(20000) },
-  );
-  if (!r.ok) throw new Error(`O acervo respondeu ${r.status}. Tente de novo em instantes.`);
-  const j = await r.json();
-  return (j.results ?? [])
+  const qq = encodeURIComponent(q);
+  // 1) só o que está marcado como música; 2) se vier pouco, completa com "<termo> music"
+  // (boa parte do Freesound não tem categoria). Em sequência, para não estourar o limite.
+  let brutos = await paginaDoAcervo(`q=${qq}&license=${lic}&category=music`);
+  if (brutos.length < 12) {
+    const extra = await paginaDoAcervo(
+      `q=${encodeURIComponent(/music|beat|loop/i.test(q) ? q : `${q} music`)}&license=${lic}`,
+    ).catch(() => []);
+    brutos = [...brutos, ...extra];
+  }
+  const vistos = new Set<string>();
+  return brutos
+    .filter((a) => a?.source !== "wikimedia_audio" && !vistos.has(a.id) && vistos.add(a.id))
     .map((a: any) => ({
       id: a.id,
       titulo: a.title ?? "Sem título",
@@ -64,7 +80,7 @@ async function buscarNoAcervo(q: string, licenca: string): Promise<Musica[]> {
       pagina: a.foreign_landing_url ?? null,
       tags: (a.tags ?? []).map((t: any) => t.name).slice(0, 6),
     }))
-    .filter((a: Musica) => a.url && (!a.duracao || (a.duracao >= 30 && a.duracao <= 420)));
+    .filter((a: Musica) => a.url && (!a.duracao || (a.duracao >= 20 && a.duracao <= 420)));
 }
 
 export function BuscarMusicas({ onAdicionada }: { onAdicionada: () => void }) {

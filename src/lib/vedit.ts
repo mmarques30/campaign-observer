@@ -595,6 +595,12 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
 }
 
 /** Salva uma edição feita à mão (controles rápidos, corte rápido, apagar efeito). */
+export class VersaoMaisNova extends Error {
+  constructor() {
+    super("Este vídeo tem uma versão mais nova salva em outro lugar.");
+  }
+}
+
 export async function salvarManual(
   p: Projeto,
   timeline: Timeline,
@@ -602,11 +608,15 @@ export async function salvarManual(
   origem: "manual" | "desfazer" = "manual",
 ) {
   const versao = p.versao + 1;
-  const { error } = await db()
+  // Só grava se ninguém salvou versão mais nova (outra aba, o editor IA, uma correção feita por fora).
+  const { data, error } = await db()
     .from("vedit_projetos")
     .update({ timeline, versao, status: p.status === "renderizado" ? "editando" : p.status })
-    .eq("id", p.id);
+    .eq("id", p.id)
+    .lte("versao", p.versao)
+    .select("id");
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new VersaoMaisNova();
   await db().from("vedit_versoes").insert({ projeto_id: p.id, versao, timeline, origem, resumo });
   return versao;
 }

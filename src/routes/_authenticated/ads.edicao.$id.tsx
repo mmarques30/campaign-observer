@@ -54,6 +54,7 @@ import {
   pedirRender,
   retomarEnvio,
   salvarManual,
+  VersaoMaisNova,
   STATUS_LABEL,
   type Mensagem,
   type Midia,
@@ -277,7 +278,7 @@ function Editor() {
           return;
         }
         const v = await salvarManual(
-          { ...p, versao: Math.max(p.versao, versaoCarregada.current) },
+          { ...p, versao: versaoCarregada.current || p.versao },
           item.novo,
           item.resumo,
         );
@@ -290,6 +291,19 @@ function Editor() {
             /* ok */
           }
       } catch (e) {
+        if (e instanceof VersaoMaisNova) {
+          // Não atropela a versão mais nova: descarta o ajuste desta tela e carrega a do banco.
+          try {
+            localStorage.removeItem(chaveRascunho);
+          } catch {
+            /* ok */
+          }
+          void qc.invalidateQueries({ queryKey: ["vedit", "projeto", id] });
+          toast.warning(
+            "Este vídeo foi alterado em outro lugar. Carreguei a versão mais nova; refaça o último ajuste.",
+          );
+          return;
+        }
         pendente.current ??= item; // tenta de novo no próximo ajuste ou ao sair
         toast.error(`Não salvou: ${(e as Error).message}`);
       }
