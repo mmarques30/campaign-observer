@@ -44,8 +44,8 @@ function AuthPage() {
         <div className="relative z-[1]"><Logo size={26} /></div>
         <div className="relative z-[1] max-w-md">
           <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary mb-3">Cockpit de mídia paga</div>
-          <h1 className="text-4xl font-semibold tracking-tight leading-[1.1]">Campanhas, criativos, landing pages e CRM em um só painel.</h1>
-          <p className="mt-4 text-sm text-muted-foreground max-w-sm">Dados da Meta sincronizados a cada 15 minutos, cruzados com a régua de qualificação do CRM.</p>
+          <h1 className="text-4xl font-semibold tracking-tight leading-[1.1]">Campanhas, criativos e landing pages em um só painel.</h1>
+          <p className="mt-4 text-sm text-muted-foreground max-w-sm">Dados da Meta sincronizados a cada 15 minutos e cruzados com os dados de qualificação vindos do CRM.</p>
         </div>
         <div className="relative z-[1] text-[11px] text-muted-foreground/70 flex items-center gap-2"><ShieldCheck className="h-3.5 w-3.5" /> Acesso restrito a contas @iaplicada.com</div>
         {/* Símbolo grande ao fundo, bem discreto */}
