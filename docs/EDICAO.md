@@ -41,7 +41,7 @@ publicar ◄──────────────────────�
      - `META_ADS_TOKEN`, lido via `rpc get_secret`
    - Secrets opcionais:
      - `PEXELS_API_KEY` e `UNSPLASH_ACCESS_KEY` (busca de imagens/vídeos da internet pelo chat)
-     - `VEDIT_MODELO` (padrão `claude-opus-5-5`)
+     - `VEDIT_MODELO` (padrão `claude-opus-5`)
      - `IG_USER_ID` (conta do Instagram para publicar Reels)
 3. **Worker de render**: é um container Node 22 que fica lendo a fila `vedit_renders`.
    ```bash
