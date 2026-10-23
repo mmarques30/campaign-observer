@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,15 @@ function MinhasFotos() {
   const [excluir, setExcluir] = useState<FotoComUrl | null>(null);
   const [ampliada, setAmpliada] = useState<FotoComUrl | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  // Assim que a foto nova chega na biblioteca, abre em tela cheia para conferir.
+  const abrir = useRef<string | null>(null);
+  useEffect(() => {
+    const f = abrir.current ? fotos.data?.porId.get(abrir.current) : undefined;
+    if (f) {
+      abrir.current = null;
+      setAmpliada(f);
+    }
+  }, [fotos.data]);
 
   const lista = useMemo(() => {
     const l = fotos.data?.lista.filter((f) => f.origem !== "referencia") ?? [];
@@ -135,6 +145,7 @@ function MinhasFotos() {
             r.map((f) => f.id),
           );
       setNovas(r.map((f) => f.id));
+      abrir.current = r[0]?.id ?? null;
       toast.success(r.length > 1 ? `${r.length} fotos novas.` : "Foto nova pronta.");
       recarregar();
     } catch (e) {
@@ -238,15 +249,30 @@ function MinhasFotos() {
                       i >= 0 && "ring-2 ring-primary ring-offset-2 ring-offset-background",
                       novas.includes(f.id) && "border-primary",
                     )}
-                    onClick={() => alternar(f.id)}
+                    onClick={() => setAmpliada(f)}
                     title={f.descricao ?? f.nome ?? ""}
                   >
                     <img src={f.url} className="h-full w-full object-cover" loading="lazy" />
-                    {i >= 0 && (
-                      <div className="absolute top-2 left-2 h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                        {i + 1}
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      title={i >= 0 ? "Tirar da seleção" : "Selecionar para o estúdio"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alternar(f.id);
+                      }}
+                      className={cn(
+                        "absolute top-2 left-2 h-7 w-7 rounded-full border-2 text-xs font-bold flex items-center justify-center transition",
+                        i >= 0
+                          ? "bg-primary border-primary text-primary-foreground"
+                          : "bg-black/30 border-white/90 text-white opacity-70 group-hover:opacity-100",
+                      )}
+                    >
+                      {i >= 0 ? (
+                        i + 1
+                      ) : (
+                        <Check className="h-3.5 w-3.5 opacity-0 group-hover:opacity-60" />
+                      )}
+                    </button>
                     {f.origem === "ia" && (
                       <Badge
                         className="absolute bottom-2 left-2 h-5 px-1.5 text-[10px]"
@@ -446,39 +472,19 @@ function MinhasFotos() {
         </Card>
       </div>
 
-      {ampliada && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-6"
-          onClick={() => setAmpliada(null)}
-        >
-          <div className="relative max-h-full" onClick={(e) => e.stopPropagation()}>
-            <img src={ampliada.url} className="max-h-[85vh] rounded-lg" />
-            <div className="mt-2 flex items-center justify-between gap-3 text-white text-sm">
-              <span className="truncate">{ampliada.descricao ?? ampliada.nome}</span>
-              <div className="flex gap-2 shrink-0">
-                <Button size="sm" variant="secondary" asChild>
-                  <a href={ampliada.url} download target="_blank" rel="noreferrer">
-                    <Download className="h-4 w-4 mr-1" /> Baixar
-                  </a>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    setSel([ampliada.id]);
-                    setAmpliada(null);
-                  }}
-                >
-                  Usar no estúdio
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setAmpliada(null)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {ampliada &&
+        createPortal(
+          <Previa
+            foto={ampliada}
+            original={ampliada.base_id ? fotos.data?.porId.get(ampliada.base_id) : undefined}
+            onFechar={() => setAmpliada(null)}
+            onUsar={() => {
+              setSel([ampliada.id]);
+              setAmpliada(null);
+            }}
+          />,
+          document.body,
+        )}
 
       <AlertDialog open={!!excluir} onOpenChange={(o) => !o && setExcluir(null)}>
         <AlertDialogContent>
@@ -508,6 +514,64 @@ function MinhasFotos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+/** Foto em tela cheia; nas criadas por IA, alterna com a original para comparar. */
+function Previa({
+  foto,
+  original,
+  onFechar,
+  onUsar,
+}: {
+  foto: FotoComUrl;
+  original?: FotoComUrl;
+  onFechar: () => void;
+  onUsar: () => void;
+}) {
+  const [verOriginal, setVerOriginal] = useState(false);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && onFechar();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onFechar]);
+  const atual = verOriginal && original ? original : foto;
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 sm:p-8"
+      onClick={onFechar}
+    >
+      <div
+        className="relative flex flex-col items-center max-h-full max-w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <img
+          src={atual.url}
+          className="max-h-[calc(100vh-9rem)] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-white text-sm">
+          <span className="max-w-md truncate opacity-80">
+            {verOriginal ? "Foto original" : (foto.nome ?? "")}
+          </span>
+          {original && (
+            <Button size="sm" variant="secondary" onClick={() => setVerOriginal((v) => !v)}>
+              {verOriginal ? "Ver resultado" : "Comparar com a original"}
+            </Button>
+          )}
+          <Button size="sm" variant="secondary" asChild>
+            <a href={atual.url} download target="_blank" rel="noreferrer">
+              <Download className="h-4 w-4 mr-1" /> Baixar
+            </a>
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onUsar}>
+            Usar no estúdio
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onFechar} aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

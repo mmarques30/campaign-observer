@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { SlideEscalado, SlideView } from "@/components/criativos/SlideView";
 import { EscolherFoto } from "@/components/criativos/EscolherFoto";
+import { BotaoVoz } from "@/components/BotaoVoz";
 import {
   baixarPngs,
   carregarFontes,
@@ -299,9 +300,10 @@ function EditorCriativo() {
         </Card>
       )}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_400px] items-start">
-        <div className="space-y-3">
-          <div className="flex items-center justify-center gap-3 rounded-xl border bg-muted/40 p-4 min-h-[420px]">
+      {/* Ocupa a altura da tela: prévia e painel lado a lado, do mesmo tamanho. */}
+      <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:h-[calc(100dvh-10.5rem)] xl:min-h-[560px]">
+        <div className="flex flex-col gap-3 min-h-0">
+          <div className="flex-1 min-h-[420px] xl:min-h-0 flex items-center justify-center gap-3 rounded-xl border bg-muted/40 p-4 overflow-hidden">
             {slide && design ? (
               <>
                 <Button
@@ -312,7 +314,14 @@ function EditorCriativo() {
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </Button>
-                <div className="w-full max-w-[460px] rounded-lg overflow-hidden shadow-xl">
+                <div
+                  className="rounded-lg overflow-hidden shadow-xl max-w-full max-h-full"
+                  style={{
+                    height: "100%",
+                    aspectRatio:
+                      p.formato === "1:1" ? "1 / 1" : p.formato === "9:16" ? "9 / 16" : "4 / 5",
+                  }}
+                >
                   <SlideEscalado {...props(slide, idx)} />
                 </div>
                 <Button
@@ -383,8 +392,8 @@ function EditorCriativo() {
           )}
         </div>
 
-        <Card>
-          <Tabs defaultValue="chat">
+        <Card className="flex flex-col min-h-[520px] xl:min-h-0 overflow-hidden">
+          <Tabs defaultValue="chat" className="flex flex-col flex-1 min-h-0">
             <TabsList className="w-full grid grid-cols-3 rounded-b-none">
               <TabsTrigger value="chat">Chat</TabsTrigger>
               <TabsTrigger value="slide" disabled={!slide}>
@@ -395,8 +404,11 @@ function EditorCriativo() {
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="chat" className="m-0 p-3 space-y-3">
-              <div className="h-[380px] overflow-y-auto space-y-2 pr-1">
+            <TabsContent
+              value="chat"
+              className="m-0 p-3 gap-3 flex-1 min-h-0 flex-col data-[state=active]:flex"
+            >
+              <div className="flex-1 min-h-[200px] overflow-y-auto space-y-2 pr-1">
                 {(msgs.data ?? []).map((m) => (
                   <div
                     key={m.id}
@@ -448,18 +460,19 @@ function EditorCriativo() {
                   }
                   disabled={gerando}
                 />
-                <Button
-                  size="icon"
-                  className="h-auto"
-                  onClick={() => enviar()}
-                  disabled={gerando || !msg.trim()}
-                >
-                  <Send className="h-4 w-4" />
-                </Button>
+                <div className="flex flex-col gap-1.5">
+                  <BotaoVoz
+                    disabled={gerando}
+                    onTexto={(t) => setMsg((m) => (m.trim() ? `${m.trim()} ${t}` : t))}
+                  />
+                  <Button size="icon" onClick={() => enviar()} disabled={gerando || !msg.trim()}>
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="slide" className="m-0 p-3 space-y-3">
+            <TabsContent value="slide" className="m-0 p-3 space-y-3 flex-1 min-h-0 overflow-y-auto">
               {slide && (
                 <>
                   <div className="flex gap-1.5">
@@ -661,7 +674,7 @@ function EditorCriativo() {
               )}
             </TabsContent>
 
-            <TabsContent value="tema" className="m-0 p-3 space-y-3">
+            <TabsContent value="tema" className="m-0 p-3 space-y-3 flex-1 min-h-0 overflow-y-auto">
               {design && (
                 <>
                   <div className="grid grid-cols-3 gap-2">
