@@ -593,6 +593,7 @@ export async function pedirRender(p: Projeto, midias: Midia[]) {
     duracaoFonte: Number(p.fonte_duracao ?? 0),
     fontePath: p.fonte_path,
     midiasPaths: Object.fromEntries(midias.map((m) => [m.id, m.path])),
+    recortePath: midias.find((m) => m.nome === "recorte-pessoa.webm")?.path ?? null,
   };
   const { error } = await db()
     .from("vedit_renders")

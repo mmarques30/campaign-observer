@@ -99,6 +99,13 @@ export const timelineSchema = z.object({
       vinheta: z.number().min(0).max(1).default(0.25),
       barraProgresso: z.boolean().default(false),
       transicao: z.enum(["nenhuma", "flash", "chicote", "glitch", "zoom"]).default("nenhuma"),
+      // Correção de imagem (1 = sem mudança). Aplicada antes do look.
+      brilho: z.number().min(0.5).max(1.6).default(1),
+      contraste: z.number().min(0.5).max(1.6).default(1),
+      saturacao: z.number().min(0).max(2).default(1),
+      temperatura: z.number().min(-1).max(1).default(0), // -1 frio … +1 quente
+      sombras: z.number().min(0).max(1).default(0), // levanta as sombras (rosto escuro)
+      nitidez: z.number().min(0).max(1).default(0),
     })
     .default({}),
   marca: z
@@ -122,6 +129,8 @@ export type ReelProps = {
   timeline: Timeline;
   palavras: Palavra[];
   fonteUrl: string;
+  // Pessoa recortada (WebM com alfa) para os efeitos da fase 2.
+  recorteUrl?: string;
   // Áudio leve (WAV da transcrição). No preview, o som vem daqui e o vídeo fica mudo:
   // nunca engasga e bate exatamente com a legenda. No render, o som é o do vídeo original.
   audioUrl?: string;

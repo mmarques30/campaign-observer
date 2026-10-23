@@ -120,7 +120,8 @@ FORMATO DA TIMELINE
   "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
   "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
   "musica": {"midia": "<id de mídia de áudio enviada>"|null, "volume": 0.08–0.2, "abaixarNaVoz": true},
-  "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|flash|chicote|glitch|zoom"},
+  "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|flash|chicote|glitch|zoom",
+             "brilho": 0.5–1.6 (1 = original), "contraste": 0.5–1.6, "saturacao": 0–2, "temperatura": -1 (frio) … 1 (quente), "sombras": 0–1 (clareia rosto escuro), "nitidez": 0–1},   // /luz mexe só nestes; ajustes sutis (±0.05–0.2) ficam naturais
   "marca": ${JSON.stringify(marca)}
 }
 
