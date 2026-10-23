@@ -53,6 +53,7 @@ import {
   reanalisar,
   STATUS_REF,
   urlAssinada,
+  analiseOk,
   criarReferenciaPorLink,
   type Referencia,
   type Tecnica,
@@ -119,7 +120,7 @@ function ReferenciasPage() {
       { nome: string; vezes: number; status: Tecnica["status"]; refs: string[] }
     >();
     for (const r of lista)
-      for (const t of r.analise?.tecnicas ?? [])
+      for (const t of analiseOk(r.analise)?.tecnicas ?? [])
         if (t.status !== "temos") {
           const k = t.nome.toLowerCase();
           const cur = m.get(k) ?? { nome: t.nome, vezes: 0, status: t.status, refs: [] };
@@ -255,7 +256,7 @@ function CartaoRef({
   useEffect(() => {
     if (r.folhas?.[0]) void urlAssinada(r.folhas[0]).then(setThumb);
   }, [r.folhas]);
-  const a = r.analise;
+  const a = analiseOk(r.analise);
   const contagem = { temos: 0, adaptar: 0, criar: 0 };
   for (const t of a?.tecnicas ?? []) contagem[t.status]++;
   const ocupado = r.status !== "pronta" && r.status !== "erro";
@@ -459,7 +460,7 @@ function Detalhe({
       setFolhas(u.filter(Boolean) as string[]),
     );
   }, [r?.folhas]);
-  const a = r?.analise;
+  const a = analiseOk(r?.analise);
   const copiar = async (t: string) => {
     await navigator.clipboard.writeText(t);
     toast.success("Copiado.");
@@ -622,7 +623,7 @@ function Detalhe({
                     </ul>
                     {a.cta?.texto && (
                       <p className="text-sm mt-3">
-                        <b>CTA:</b> "{a.cta.texto}" — {a.cta.tecnica}
+                        <b>CTA:</b> "{a.cta?.texto}" — {a.cta?.tecnica}
                       </p>
                     )}
                     {a.preset_estilo && (
