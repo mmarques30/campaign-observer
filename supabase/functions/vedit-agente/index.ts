@@ -311,6 +311,45 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
           tipo: "imagem",
         });
     }
+    // Pixabay (chave grátis): fotos e vídeos.
+    const chavePixabay = Deno.env.get("PIXABAY_API_KEY");
+    if (achados.length < n && chavePixabay) {
+      const video = args.tipo === "video";
+      const qs = new URLSearchParams({
+        key: chavePixabay,
+        q: String(args.consulta).slice(0, 100),
+        per_page: "5",
+        safesearch: "true",
+        ...(video ? {} : { image_type: "photo", ...(orient ? { orientation: orient === "portrait" ? "vertical" : "horizontal" } : {}) }),
+      });
+      try {
+        const j = await (
+          await fetch(`https://pixabay.com/api/${video ? "videos/" : ""}?${qs}`, { signal: AbortSignal.timeout(10000) })
+        ).json();
+        for (const h of j.hits ?? []) {
+          if (achados.length >= n) break;
+          if (video) {
+            const v = h.videos?.medium?.url ? h.videos.medium : h.videos?.small;
+            if (v?.url)
+              achados.push({
+                url: v.url,
+                nome: `pixabay-video-${h.id}.mp4`,
+                credito: `Vídeo de ${h.user ?? "Pixabay"} no Pixabay`,
+                tipo: "video",
+                duracao: h.duration,
+              });
+          } else
+            achados.push({
+              url: h.largeImageURL ?? h.webformatURL,
+              nome: `pixabay-${h.id}.jpg`,
+              credito: `Imagem de ${h.user ?? "Pixabay"} no Pixabay`,
+              tipo: "imagem",
+            });
+        }
+      } catch (_) {
+        /* segue para as outras fontes */
+      }
+    }
     if (achados.length < n && unsplash && args.tipo !== "video") {
       const r = await fetch(
         `https://api.unsplash.com/search/photos?query=${encodeURIComponent(args.consulta)}&per_page=${n - achados.length}${orient ? `&orientation=${orient === "portrait" ? "portrait" : "landscape"}` : ""}`,
@@ -337,8 +376,8 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
   if (!achados.length)
     return {
       erro:
-        args.tipo === "video" && !pexels
-          ? "Vídeos de banco precisam da chave PEXELS_API_KEY. Busque uma imagem (tipo imagem) ou use o efeito icones."
+        args.tipo === "video" && !pexels && !Deno.env.get("PIXABAY_API_KEY")
+          ? "Vídeos de banco precisam da chave PIXABAY_API_KEY (ou PEXELS_API_KEY). Busque uma imagem (tipo imagem) ou use o efeito icones."
           : "Nada encontrado. Tente termos mais simples em inglês, ou use o efeito icones.",
     };
   const salvas: { id: string; nome: string; tipo: string; duracao?: number; credito: string }[] =
