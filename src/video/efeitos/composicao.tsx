@@ -156,7 +156,11 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           filter: a.filter || undefined,
           borderRadius: (el.raio ?? (tipo === "texto" ? 0 : 24)) * k,
           background: el.fundo,
-          border: el.borda ? `${Math.max(1, 2 * k)}px solid ${el.borda}` : undefined,
+          border: el.borda
+            ? /\b(solid|dashed|dotted)\b/.test(el.borda)
+              ? el.borda
+              : `${Math.max(1, 2 * k)}px solid ${el.borda}`
+            : undefined,
           boxShadow:
             [
               el.sombra ? `0 ${30 * k}px ${90 * k}px rgba(0,0,0,.5)` : "",
@@ -195,6 +199,7 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
               }}
             />
           );
+        if (tipo === "midia" && (!el.midia || /^\{.*\}$/.test(el.midia))) return null;
         if (tipo === "midia")
           return (
             <div key={i} style={base}>
