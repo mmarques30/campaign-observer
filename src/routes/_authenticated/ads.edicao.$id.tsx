@@ -59,6 +59,12 @@ function Editor() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
   const player = useRef<PlayerRef>(null);
+  // O Player monta depois (o Preview espera o cliente): avisa quando a ref existe para ligar a agulha.
+  const [playerPronto, setPlayerPronto] = useState(false);
+  const refPlayer = (p: PlayerRef | null) => {
+    (player as React.MutableRefObject<PlayerRef | null>).current = p;
+    setPlayerPronto(!!p);
+  };
   const [frame, setFrame] = useState(0);
   const [enviando, setEnviando] = useState(false);
   const [rascunho, setRascunho] = useState("");
@@ -204,7 +210,7 @@ function Editor() {
       p.removeEventListener("frameupdate", h as any);
       p.removeEventListener("seeked", s as any);
     };
-  }, [urlsQ.data, proj?.status]);
+  }, [urlsQ.data, proj?.status, playerPronto]);
 
   const palavras = useMemo(() => proj?.palavras ?? [], [proj?.palavras]);
   const repeticoes = useMemo(() => detectarRepeticoes(palavras), [palavras]);
@@ -516,7 +522,7 @@ function Editor() {
                 </div>
               ) : props ? (
                 <Preview
-                  ref={player}
+                  ref={refPlayer}
                   props={props}
                   zonasSeguras={zonas}
                   className="h-full"
