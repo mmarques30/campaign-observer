@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import type { Trecho } from "@/video/tempo";
 import { CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
 import { TrilhaSonora } from "./TrilhaSonora";
+import { ImagensSugeridas } from "./ImagensSugeridas";
 
 export function Painel({
   projeto,
@@ -45,6 +46,9 @@ export function Painel({
   selecionado,
   trechos,
   amostra,
+  temRecorte,
+  recarregarMidias,
+  agora,
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -60,6 +64,9 @@ export function Painel({
   selecionado?: string | null;
   trechos: Trecho[];
   amostra?: { url?: string; tempos: number[] };
+  temRecorte: boolean;
+  recarregarMidias: () => Promise<unknown>;
+  agora: number;
 }) {
   const [subindo, setSubindo] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -400,6 +407,17 @@ export function Painel({
       </TabsContent>
 
       <TabsContent value="midias" className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 mt-0">
+        <ImagensSugeridas
+          projetoId={projeto.id}
+          tl={tl}
+          setTl={setTl}
+          trechos={trechos}
+          temRecorte={temRecorte}
+          onMidiaNova={recarregarMidias}
+          onIr={onIr}
+          agora={agora}
+        />
+
         <input
           ref={input}
           type="file"

@@ -72,6 +72,10 @@ publicar ◄──────────────────────�
 - `timeline.musica`: `midia` ("trilha:<id>" ou áudio do projeto), `volume` (0.16 anúncio / 0.12 orgânico), `abaixarPara` (ducking suave quando há fala, padrão 0.3 ≈ −10 dB), `ganho`, `inicio`, `fade`.
 - Ao aceitar a sugestão, a v1 já vem com trilha (pelo objetivo e estilo). No chat: `/musica`, `/musica mais alta|mais baixa|outra|sem`.
 
+## Imagens sugeridas (aba Mídias)
+
+`vedit-imagens`: o Claude lê só a fala que ficou nos cortes, escolhe 4–8 momentos e uma busca para cada um; as candidatas vêm do Pexels/Unsplash (se houver chave) ou do Openverse (licenças com uso comercial, sem chave). Você escolhe a imagem e o modo de entrada (janela, tela cheia, dividida, atrás de você — com recorte, ou em moldura sem recorte —, react, celular); o efeito entra no tempo certo com som de swipe. A imagem escolhida é baixada para `vedit_midias` com o crédito na descrição.
+
 ## Fase 2 — recorte da pessoa
 
 Botão **Recortar pessoa** no editor: MediaPipe selfie segmenter no navegador, quadro a quadro, gravado como WebM VP9 com alfa (720p) em `video-edicao/<projeto>/recorte-pessoa.webm` (registrado em `vedit_midias`). Libera `/atras`, `/trocarfundo`, `/contorno`, `/moldura`, `/vertigo`, que seguem os cortes e o zoom do vídeo base. O worker usa o mesmo arquivo no render.

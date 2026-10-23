@@ -49,7 +49,7 @@ import {
   type Projeto,
 } from "@/lib/vedit";
 import { normalizarTimeline, type ReelProps, type Timeline } from "@/video/schema";
-import { duracaoSaida, paraSaida, trechosMantidos } from "@/video/tempo";
+import { duracaoSaida, paraFonte, paraSaida, trechosMantidos } from "@/video/tempo";
 import { cortarSilencios } from "@/video/automatico";
 import { detectarRepeticoes } from "@/video/repeticoes";
 import { Repeticoes } from "@/components/edicao/Repeticoes";
@@ -505,6 +505,9 @@ function Editor() {
               onComando={(t) => setRascunho(t)}
               selecionado={selecionado}
               trechos={trechos}
+              temRecorte={!!urlsQ.data?.recorte}
+              recarregarMidias={() => midiasQ.refetch()}
+              agora={paraFonte(trechos, frame / 30)}
               amostra={{
                 url: urlsQ.data?.fonte,
                 tempos: trechos.length
