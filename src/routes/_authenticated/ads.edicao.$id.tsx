@@ -20,6 +20,7 @@ import {
   Upload,
   UserRound,
   X,
+  Download,
 } from "lucide-react";
 import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
 import { listarTrilhas, urlTrilha } from "@/lib/trilhas";
@@ -54,6 +55,9 @@ import {
   type Mensagem,
   type Midia,
   type Projeto,
+  baixarRender,
+  renderDesatualizado,
+  versaoDoRender,
 } from "@/lib/vedit";
 import { normalizarTimeline, type ReelProps, type Timeline } from "@/video/schema";
 import { duracaoSaida, paraFonte, paraSaida, trechosMantidos } from "@/video/tempo";
@@ -525,10 +529,35 @@ function Editor() {
                   : "Separa você do fundo (IA no navegador, 2–4 min). Libera /atras, /trocarfundo, /contorno, /moldura e /vertigo."}
               </TooltipContent>
             </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!proj.render_path}
+                  onClick={() => baixarRender(proj).catch((e) => toast.error(e.message))}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Baixar
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {!proj.render_path
+                  ? "Renderize para gerar o MP4"
+                  : renderDesatualizado(proj)
+                    ? `MP4 da versão ${versaoDoRender(proj.render_path)}: não tem os ajustes mais recentes`
+                    : "Baixa o MP4 da versão atual (1080p)"}
+              </TooltipContent>
+            </Tooltip>
             <Button size="sm" onClick={() => setPublicar(true)} disabled={!proj.render_path}>
               <Send className="h-4 w-4 mr-2" />
               Publicar
             </Button>
+            {proj.render_path && renderDesatualizado(proj) && proj.status !== "renderizando" && (
+              <span className="text-[11px] text-amber-700 dark:text-amber-400">
+                MP4 desatualizado: renderize de novo
+              </span>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
