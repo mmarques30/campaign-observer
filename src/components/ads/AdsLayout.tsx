@@ -1,7 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Globe, Menu, PanelLeftClose, PanelLeftOpen, X,
-  Users, Webhook, Film, Sparkles, ChevronDown, Clapperboard, Wand2, Palette, Search, Bell, Sun, Moon, Monitor, Check,
+  Users, Webhook, Film, Sparkles, ChevronDown, Clapperboard, BookOpen, Wand2, Palette, Search, Bell, Sun, Moon, Monitor, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -56,6 +56,7 @@ const GROUPS: NavGroup[] = [
     id: "edicao", label: "Edição", icon: Clapperboard, items: [
       { to: "/ads/edicao", label: "Estúdio", icon: Clapperboard, exact: true, keywords: "vídeo editor reels" },
       { to: "/ads/edicao/efeitos", label: "Efeitos", icon: Wand2, keywords: "legenda animação" },
+      { to: "/ads/edicao/referencias", label: "Referências", icon: BookOpen, keywords: "reels análise técnicas benchmark" },
       { to: "/ads/edicao/marca", label: "Marca", icon: Palette, keywords: "cores fontes identidade" },
     ],
   },

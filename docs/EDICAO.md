@@ -65,6 +65,14 @@ publicar ◄──────────────────────�
 
 `src/video/repeticoes.ts` (cópia em `supabase/functions/vedit-agente/`) detecta falas repetidas sem IA: quebra a transcrição em frases por pausa, compara cada frase com as 3 seguintes (Jaccard sem stopwords + prefixo para tomadas abortadas) e marca a anterior para sair, mantendo a última. O editor mostra o painel "falas repetidas", o corte rápido já as remove e o agente recebe a lista pronta.
 
+## Referências (Edição → Referências)
+
+Biblioteca de Reels de referência. Pipeline: link + arquivo do vídeo → no navegador: áudio (WAV) e folhas de quadros (12 quadros por imagem, 1 a cada ~1,2 s, tempo carimbado) → `vedit-referencia`:
+- `transcrever`: Whisper palavra a palavra;
+- `analisar`: Claude (visão) lê as folhas + fala + `catalogoParaClaude()` e devolve gancho, estilo, ritmo, técnicas com tempo e receita, mapeamento **temos / adaptar / criar**, aprendizados, preset de estilo e um pedido pronto para o editor.
+- `metadados`: oEmbed (YouTube/TikTok; Instagram só com app com "oEmbed Read").
+O Instagram não permite baixar o vídeo pelo servidor sem login — por isso o arquivo é solto na tela. Tabela `vedit_referencias` (migração `20261023000000_vedit_referencias.sql`); arquivos em `video-edicao/referencias/<id>/`. A seção "Para criar ou adaptar" agrega as técnicas que ainda não temos → backlog de efeitos.
+
 ## Comandos do chat
 
 | Comando | O que faz |
