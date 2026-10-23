@@ -550,11 +550,22 @@ export async function salvarManual(
 }
 
 export async function desfazer(p: Projeto) {
+  // Desfazer em cadeia: se a versão atual já é um "desfazer" que restaurou a versão N,
+  // o próximo passo volta para N-1 (senão ficaria pulando entre as duas últimas).
+  const { data: atual } = await db()
+    .from("vedit_versoes")
+    .select("origem, resumo")
+    .eq("projeto_id", p.id)
+    .eq("versao", p.versao)
+    .maybeSingle();
+  let alvo = p.versao;
+  const m = atual?.origem === "desfazer" ? String(atual.resumo ?? "").match(/versão (\d+)/) : null;
+  if (m) alvo = Number(m[1]);
   const { data } = await db()
     .from("vedit_versoes")
     .select("timeline, versao")
     .eq("projeto_id", p.id)
-    .lt("versao", p.versao)
+    .lt("versao", alvo)
     .order("versao", { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -158,27 +158,35 @@ function Editor() {
   // Edição local (preview instantâneo); salva com atraso quando é ajuste manual.
   const [tl, setTlLocal] = useState<Timeline | null>(null);
   const versaoCarregada = useRef<number>(-1);
+  // Só recarrega do servidor quando chega uma versão MAIS NOVA (Claude, desfazer, outra aba).
+  // Uma resposta atrasada com versão antiga não pode desfazer o que a pessoa acabou de mudar aqui.
   useEffect(() => {
-    if (proj && proj.versao !== versaoCarregada.current) {
+    if (proj && proj.versao > versaoCarregada.current) {
       versaoCarregada.current = proj.versao;
       setTlLocal(normalizarTimeline(proj.timeline ?? {}).timeline);
     }
   }, [proj]);
   const salvando = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendente = useRef<{ novo: Timeline; resumo: string } | null>(null);
+  async function gravarPendente() {
+    const item = pendente.current;
+    if (!item) return;
+    pendente.current = null;
+    try {
+      const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
+      if (!p) return;
+      const v = await salvarManual({ ...p, versao: Math.max(p.versao, versaoCarregada.current) }, item.novo, item.resumo);
+      versaoCarregada.current = v;
+      qc.setQueryData(["vedit", "projeto", id], { ...p, timeline: item.novo, versao: v });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
   function setTl(novo: Timeline, resumo: string) {
     setTlLocal(novo);
+    pendente.current = { novo, resumo };
     if (salvando.current) clearTimeout(salvando.current);
-    salvando.current = setTimeout(async () => {
-      try {
-        const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
-        if (!p) return;
-        const v = await salvarManual(p, novo, resumo);
-        versaoCarregada.current = v;
-        qc.setQueryData(["vedit", "projeto", id], { ...p, timeline: novo, versao: v });
-      } catch (e) {
-        toast.error((e as Error).message);
-      }
-    }, 700);
+    salvando.current = setTimeout(gravarPendente, 500);
   }
 
   // Posição do preview.
@@ -219,9 +227,14 @@ function Editor() {
 
   async function mandar(texto: string) {
     if (!proj) return;
+    if (salvando.current) {
+      clearTimeout(salvando.current);
+      salvando.current = null;
+    }
+    await gravarPendente();
     if (/^\/desfazer\b/.test(texto)) {
       try {
-        await desfazer(proj);
+        await desfazer(qc.getQueryData<Projeto>(["vedit", "projeto", id]) ?? proj);
         await Promise.all([projQ.refetch(), msgsQ.refetch()]);
       } catch (e) {
         toast.error((e as Error).message);

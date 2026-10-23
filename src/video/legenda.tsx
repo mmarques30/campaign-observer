@@ -53,8 +53,8 @@ export function montarBlocos(
   return blocos;
 }
 
-// "inferior" fica acima da faixa de 35% que a interface do Instagram cobre.
-const TOPO: Record<string, string> = { inferior: "57%", centro: "47%", superior: "24%" };
+// Três alturas bem distintas; "inferior" fica logo acima da faixa que o Instagram cobre (35% de baixo).
+const TOPO: Record<string, string> = { inferior: "63%", centro: "45%", superior: "20%" };
 
 export function Legenda({
   tl,
