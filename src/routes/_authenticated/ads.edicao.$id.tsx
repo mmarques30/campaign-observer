@@ -20,6 +20,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
+import { listarTrilhas, urlTrilha } from "@/lib/trilhas";
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
@@ -151,6 +152,7 @@ function Editor() {
       proj?.fonte_path,
       proj?.fonte_proxy_path,
       proj?.audio_path,
+      (proj?.timeline as any)?.musica?.midia,
       (midiasQ.data ?? []).map((m) => m.id).join(","),
     ],
     enabled: !!proj?.fonte_path,
@@ -165,6 +167,13 @@ function Editor() {
         const u = await assinar(m.path);
         if (m.nome === NOME_RECORTE) recorte = u;
         else midias[m.id] = u;
+      }
+      // Trilha da biblioteca da marca (as de base vêm do próprio app).
+      const chave = (proj?.timeline as any)?.musica?.midia as string | undefined;
+      if (chave?.startsWith("trilha:") && !chave.startsWith("trilha:base-")) {
+        const t = (await listarTrilhas()).find((x) => `trilha:${x.id}` === chave);
+        const u = t ? await urlTrilha(t) : undefined;
+        if (u) midias[chave] = u;
       }
       return { fonte, audio, midias, recorte };
     },

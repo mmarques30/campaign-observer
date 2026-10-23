@@ -493,6 +493,11 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
       repeticoes: reps,
     });
     const final = tl.cortes.reduce((acc, c) => acc + c.ate - c.de, 0);
+    // Anúncio sempre com música de fundo (orgânico também, mais baixa): trilha de base pelo estilo.
+    if (!tl.musica.midia) {
+      const pref = s.objetivo === "anuncio" ? (s.estilo === "viral" ? "base-pulso" : "base-corporativo") : s.estilo === "editorial" ? "base-corporativo" : "base-lofi";
+      tl.musica = { ...tl.musica, midia: `trilha:${pref}`, volume: s.objetivo === "anuncio" ? 0.16 : 0.12, ganho: 1, abaixarNaVoz: true };
+    }
     resumoCorte = ` Corte automático: ${reps.length} fala(s) repetida(s) fora (ficou a última de cada) e silêncios removidos — ${fmtTempo(duracao)} → ${fmtTempo(final)}. Ajuste em "Na edição" ou peça no chat.`;
   }
   const { error } = await db()
@@ -595,6 +600,14 @@ export async function pedirRender(p: Projeto, midias: Midia[]) {
     midiasPaths: Object.fromEntries(midias.map((m) => [m.id, m.path])),
     recortePath: midias.find((m) => m.nome === "recorte-pessoa.webm")?.path ?? null,
   };
+  // Trilha da biblioteca da marca: o worker assina pelo caminho no bucket.
+  const chave = (p.timeline as any)?.musica?.midia as string | undefined;
+  if (chave?.startsWith("trilha:") && !chave.startsWith("trilha:base-")) {
+    const { data } = await supabase.storage.from(BUCKET).download("trilhas/biblioteca.json");
+    const lista = data ? (JSON.parse(await data.text()) as { id: string; path?: string }[]) : [];
+    const t = lista.find((x) => `trilha:${x.id}` === chave);
+    if (t?.path) props.midiasPaths[chave] = t.path;
+  }
   const { error } = await db()
     .from("vedit_renders")
     .insert({ projeto_id: p.id, versao: p.versao, props });
