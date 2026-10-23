@@ -116,6 +116,26 @@ O Instagram não permite baixar o vídeo pelo servidor sem login — por isso o 
 - O modelo marcado com ★ é aplicado sozinho em todo vídeo novo (ao aceitar a sugestão). Também dá para aplicar um modelo em qualquer vídeo.
 - Manifesto em `video-edicao/modelos/biblioteca.json` (sem tabela). A timeline guarda `modelo` e o editor IA segue esse padrão ao fazer /editar.
 
+## Voz limpa
+
+- Job `voz` no worker (ffmpeg do sistema + RNNoise `render-worker/modelos/voz-rnnoise.rnnn`): redução de ruído, EQ de voz, compressor e loudnorm (-15 LUFS), em 3 intensidades (`<projeto>/voz-{leve,media,forte}.m4a`). Atraso dos filtros compensado.
+- Todo vídeo novo já pede o job; projetos antigos: botão "Limpar a voz" (Na edição → Voz). `timeline.audio` liga/desliga, escolhe a intensidade e o volume. Vale no preview e no render.
+
+## Ícones
+
+- Efeito `icones` (/icone): logos e ícones que saltam na tela na palavra exata. SVGs da lista ficam em `public/vedit/icones` (render não depende de rede); ids fora da lista vêm da Iconify.
+
+## Pesquisa internacional e referência por link
+
+- "Onde buscar" (Brasil / internacional / ambos). "Sugerir perfis" tenta em rodadas e só cadastra contas profissionais com 10 mil+ seguidores que a API valida.
+- Busca por hashtag depende do recurso "Instagram Public Content Access" aprovado pelo Meta (App Review). Sem ele, só perfis.
+- Referências: colar o link do Reel + @ da conta → `vedit-pesquisa` (`reel_por_link`) acha o reel via business_discovery e baixa o arquivo (quando o Instagram libera `media_url`). "Usar num vídeo" aplica o estilo e manda o pedido ao editor.
+
+## Imagens e músicas sem chave
+
+- Imagens: Pexels/Unsplash com chave; sem chave, Wikimedia + Openverse (limite de 5 s). A sugestão fica guardada em `<projeto>/imagens-sugeridas.json` e é gerada sozinha depois da sugestão do projeto.
+- Músicas: busca no Openverse feita no navegador (o Openverse recusa servidores de nuvem); `vedit-musicas` baixa a faixa para `trilhas/`. Upload em lote com energia/clima pelo andamento.
+
 ## Comandos do chat
 
 | Comando | O que faz |
