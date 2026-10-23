@@ -10,6 +10,7 @@ const [url, palavrasPath, dir, so] = process.argv.slice(2);
 const palavras = JSON.parse(fs.readFileSync(palavrasPath, "utf8"));
 const lista = EFEITOS.filter((e) => e.disponivel && (!so || so.split(",").includes(e.tipo)));
 const props: Record<string, any> = {
+  icones: { icones: ["whatsapp", "email", "planilha"], rotulos: ["WhatsApp", "E-mail", "Planilha"], posicao: "topo" },
   vidro: { titulo: "Retenção do Reel", valores: [40, 52, 61, 70, 84, 92] },
   grafico: {
     titulo: "Leads por mês",

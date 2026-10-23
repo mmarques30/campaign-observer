@@ -16,7 +16,7 @@ export type Modelo = {
   config: {
     legenda: Pick<
       Timeline["legenda"],
-      "ativa" | "estilo" | "posicao" | "palavrasPorBloco" | "caixaAlta" | "altura"
+      "ativa" | "estilo" | "posicao" | "palavrasPorBloco" | "caixaAlta" | "altura" | "tamanho"
     >;
     visual: Partial<Timeline["visual"]>;
     zoom: Pick<Timeline["zoom"], "alternar">;
@@ -83,6 +83,7 @@ export function extrairModelo(
         palavrasPorBloco: tl.legenda.palavrasPorBloco,
         caixaAlta: tl.legenda.caixaAlta,
         altura: tl.legenda.altura,
+        tamanho: tl.legenda.tamanho,
       },
       visual: opts.luz ? tl.visual : visual,
       zoom: { alternar: tl.zoom.alternar },

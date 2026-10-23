@@ -27,6 +27,7 @@ import { AntesDepois, Broll, Colagem, Particulas, Rabisco } from "./efeitos/midi
 import { Azulejos, Cracha, FraseCaixa, ListaEditorial, NumeroCapitulo } from "./efeitos/editorial";
 import { Dividir, FundoImagem, Reagir } from "./efeitos/formatos";
 import { Contorno, MolduraQuebrada, TextoAtras, TrocaFundo, Vertigo } from "./efeitos/recorte";
+import { ICONES, Icones } from "./efeitos/icones";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -49,6 +50,21 @@ export type EfeitoDef = {
 };
 
 export const EFEITOS: EfeitoDef[] = [
+  {
+    tipo: "icones",
+    comando: "/icone",
+    nome: "Ícones que aparecem",
+    categoria: "interface",
+    descricao:
+      "Logos e ícones (WhatsApp, e-mail, planilha, dinheiro, relógio…) saltam na tela no instante em que a pessoa fala deles, com rótulo opcional. Não cobre a pessoa.",
+    quandoUsar:
+      'Sempre que a fala cita um app, canal, ferramenta ou objeto concreto ("registra no WhatsApp, por e-mail e na planilha" → 3 ícones entrando um a um). Ótimo para ritmo; entre exatamente na palavra.',
+    params: `icones: string[] (até 4; nomes: ${Object.keys(ICONES).join(", ")}; ou qualquer id Iconify "prefixo:nome"), rotulos?: string[], posicao: 'topo'|'centro'|'direita'|'esquerda', tamanho?: 0.6–1.5, fundo?: false (sem o quadrado branco)`,
+    duracaoPadrao: 2.2,
+    somPadrao: "pop",
+    disponivel: true,
+    componente: Icones,
+  },
   {
     tipo: "titulo",
     comando: "/titulo",

@@ -134,12 +134,13 @@ FORMATO DA TIMELINE
   "cortes": [{"de": s, "ate": s}],            // trechos que FICAM, em ordem. [] = vídeo inteiro
   "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
   "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
-  "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
+  "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "tamanho": 0.5–1.8 (1 = padrão; "legenda maior/menor" → ±0.15), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
   "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
   "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
   "musica": {"midia": "trilha:<id>" (lista TRILHAS DISPONÍVEIS) | "<id de áudio enviado>" | null, "volume": 0.08–0.3, "abaixarNaVoz": true, "abaixarPara": 0.2–0.5, "fade": true},
   "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|suave|escurecer|desfoque|zoom-suave|flash|chicote|glitch|zoom" (suave = dissolve curto entre os cortes; escurecer = passa rápido pelo preto; desfoque = desfoca e volta; zoom-suave = aproximação leve; "transição suave/sem ser só zoom" → "suave"),
              "brilho": 0.5–1.6 (1 = original), "contraste": 0.5–1.6, "saturacao": 0–2, "temperatura": -1 (frio) … 1 (quente), "sombras": 0–1 (clareia rosto escuro), "nitidez": 0–1},   // /luz mexe só nestes; ajustes sutis (±0.05–0.2) ficam naturais
+  "audio": {"limpar": true, "intensidade": "leve"|"media"|"forte", "volumeVoz": 0.3–1},  // voz limpa (ruído de fundo fora); "barulho"/"ruído" → intensidade mais forte
   "modelo": {…} | null,  // modelo de edição salvo (veja MODELO DE EDIÇÃO); devolva como recebeu
   "marca": ${JSON.stringify(marca)}
 }
@@ -155,7 +156,7 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 6. Som: todo efeito ganha o som sugerido no instante em que entra; todo corte para efeito de tela cheia ganha whoosh/swipe. Volume de sfx 0,35–0,6.
 7. Efeitos usam o conteúdo real do que a pessoa fala (números, nomes, listas ditas). Textos curtos: título ≤ 7 palavras, itens ≤ 4 palavras.
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
-8b. Imagens e vídeos da internet: quando a pessoa pedir ("/imagem", "coloca uma foto de…", "busca um vídeo de…") ou quando um b-roll real deixaria a edição melhor e não há mídia enviada, chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Nunca invente ids. Até 3 buscas por pedido.
+8b. Imagens: quando a fala cita um app, canal ou ferramenta (WhatsApp, e-mail, planilha, Instagram, Google…) ou um objeto simples (dinheiro, relógio, gráfico), prefira o efeito "icones" (logos/ícones que saltam na tela, entrando na palavra exata) — não precisa buscar nada. Para FOTOS ou VÍDEOS reais da internet (cenário, pessoas, escritório), chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Uma busca por vez. Nunca invente ids. Até 3 buscas por pedido.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
 ${
@@ -195,7 +196,7 @@ COMO RESPONDER
 const FERRAMENTA_BUSCA = {
   name: "buscar_midia",
   description:
-    "Busca fotos ou vídeos gratuitos e liberados para uso comercial (Pexels/Unsplash), salva os melhores no projeto e devolve os ids para usar em broll, fundo-imagem, dividir, reagir ou celular. Use antes de aplicar_edicao quando a pessoa pedir imagem/vídeo 'da internet' ou quando um b-roll real deixaria a edição melhor e não há mídia enviada que sirva.",
+    "Busca fotos ou vídeos liberados para uso comercial (Pexels/Unsplash com chave; Wikimedia Commons para fotos sem chave), salva os melhores no projeto e devolve os ids para usar em broll, fundo-imagem, dividir, reagir ou celular. Para logos de apps/ferramentas use o efeito icones, não esta busca.",
   input_schema: {
     type: "object",
     properties: {
@@ -216,12 +217,52 @@ const FERRAMENTA_BUSCA = {
   },
 };
 
-/** Busca no Pexels (e Unsplash para fotos, se houver chave) e salva no bucket do projeto. */
+/** Wikimedia Commons: rápido (<1 s), sem chave. Prefere domínio público/CC0/CC BY; completa com CC BY-SA. */
+async function wikimedia(consulta: string, n: number) {
+  const u = new URL("https://commons.wikimedia.org/w/api.php");
+  for (const [k, v] of Object.entries({
+    action: "query",
+    format: "json",
+    generator: "search",
+    gsrnamespace: "6",
+    gsrsearch: `${consulta} filetype:bitmap`,
+    gsrlimit: String(Math.min(30, n * 3)),
+    prop: "imageinfo",
+    iiprop: "url|extmetadata|size",
+    iiurlwidth: "1600",
+  }))
+    u.searchParams.set(k, v);
+  const r = await fetch(u, {
+    headers: { "User-Agent": "IAplicada-editor/1.0 (contato@iaplicada.com.br)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  const j = await r.json();
+  const limpa = (h: string) => String(h ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const itens = Object.values(j?.query?.pages ?? {})
+    .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
+    .map((p: any) => {
+      const ii = p.imageinfo?.[0] ?? {};
+      const m = ii.extmetadata ?? {};
+      const lic = String(m.License?.value ?? "").toLowerCase();
+      return {
+        url: ii.thumburl ?? ii.url,
+        thumb: ii.thumburl ?? ii.url,
+        largura: ii.thumbwidth ?? ii.width,
+        altura: ii.thumbheight ?? ii.height,
+        lic,
+        credito: `${limpa(p.title).replace(/^File:/, "").replace(/\.[a-z]+$/i, "")} — ${limpa(m.Artist?.value) || "autor"} (${m.LicenseShortName?.value ?? lic}, Wikimedia Commons)`,
+      };
+    })
+    .filter((x: any) => x.url && (x.largura ?? 0) >= 600 && /^(pd|cc0|cc-by)/.test(x.lic));
+  const livres = itens.filter((x: any) => !x.lic.includes("sa"));
+  const sa = itens.filter((x: any) => x.lic.includes("sa"));
+  return [...livres, ...sa].slice(0, n);
+}
+
+/** Busca no Pexels/Unsplash (com chave) ou Wikimedia Commons (sem chave) e salva no bucket do projeto. */
 async function buscarMidia(sb: any, projetoId: string, args: any) {
   const pexels = Deno.env.get("PEXELS_API_KEY");
   const unsplash = Deno.env.get("UNSPLASH_ACCESS_KEY");
-  if (!pexels && !unsplash)
-    return { erro: "Nenhuma chave de banco de imagens configurada (PEXELS_API_KEY)." };
   const n = Math.min(3, Math.max(1, Number(args.quantidade ?? 2)));
   const orient =
     args.orientacao === "vertical"
@@ -240,7 +281,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     if (args.tipo === "video" && pexels) {
       const r = await fetch(
         `https://api.pexels.com/videos/search?query=${encodeURIComponent(args.consulta)}&per_page=${n}${orient ? `&orientation=${orient}` : ""}&size=medium`,
-        { headers: { Authorization: pexels } },
+        { headers: { Authorization: pexels }, signal: AbortSignal.timeout(10000) },
       );
       const j = await r.json();
       for (const v of j.videos ?? []) {
@@ -259,7 +300,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     } else if (pexels) {
       const r = await fetch(
         `https://api.pexels.com/v1/search?query=${encodeURIComponent(args.consulta)}&per_page=${n}${orient ? `&orientation=${orient}` : ""}`,
-        { headers: { Authorization: pexels } },
+        { headers: { Authorization: pexels }, signal: AbortSignal.timeout(10000) },
       );
       const j = await r.json();
       for (const ph of j.photos ?? [])
@@ -273,7 +314,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     if (achados.length < n && unsplash && args.tipo !== "video") {
       const r = await fetch(
         `https://api.unsplash.com/search/photos?query=${encodeURIComponent(args.consulta)}&per_page=${n - achados.length}${orient ? `&orientation=${orient === "portrait" ? "portrait" : "landscape"}` : ""}`,
-        { headers: { Authorization: `Client-ID ${unsplash}` } },
+        { headers: { Authorization: `Client-ID ${unsplash}` }, signal: AbortSignal.timeout(10000) },
       );
       const j = await r.json();
       for (const ph of j.results ?? [])
@@ -284,18 +325,35 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
           tipo: "imagem",
         });
     }
+    // Sem chave (ou nada achado): Wikimedia Commons, rápido e liberado (só imagens).
+    if (achados.length < n && args.tipo !== "video") {
+      const extra = await wikimedia(args.consulta, n - achados.length).catch(() => []);
+      for (const w of extra)
+        achados.push({ url: w.url, nome: `commons-${Date.now()}-${achados.length}.jpg`, credito: w.credito, tipo: "imagem" });
+    }
   } catch (e) {
     return { erro: `Busca falhou: ${e instanceof Error ? e.message : String(e)}` };
   }
-  if (!achados.length) return { erro: "Nada encontrado. Tente termos mais simples em inglês." };
+  if (!achados.length)
+    return {
+      erro:
+        args.tipo === "video" && !pexels
+          ? "Vídeos de banco precisam da chave PEXELS_API_KEY. Busque uma imagem (tipo imagem) ou use o efeito icones."
+          : "Nada encontrado. Tente termos mais simples em inglês, ou use o efeito icones.",
+    };
   const salvas: { id: string; nome: string; tipo: string; duracao?: number; credito: string }[] =
     [];
   for (const a of achados) {
     try {
-      const blob = await (await fetch(a.url)).blob();
+      const dl = await fetch(a.url, {
+        headers: { "User-Agent": "IAplicada-editor/1.0 (contato@iaplicada.com.br)" },
+        signal: AbortSignal.timeout(20000),
+      });
+      if (!dl.ok) continue;
+      const blob = await dl.blob();
       const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
       const up = await sb.storage.from("video-edicao").upload(path, blob, {
-        contentType: a.tipo === "video" ? "video/mp4" : "image/jpeg",
+        contentType: blob.type || (a.tipo === "video" ? "video/mp4" : "image/jpeg"),
         upsert: true,
       });
       if (up.error) continue;
@@ -323,6 +381,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       /* pula */
     }
   }
+  if (!salvas.length) return { erro: "Não consegui baixar as imagens encontradas. Use o efeito icones." };
   return { midias: salvas };
 }
 
@@ -546,9 +605,10 @@ Deno.serve(async (req) => {
   const historico = (hist ?? [])
     .reverse()
     .slice(0, -1)
+    .filter((h) => h.papel !== "sistema" || !String(h.conteudo).startsWith("Erro do Claude"))
     .map((h) => ({ role: h.papel === "claude" ? "assistant" : "user", content: h.conteudo }));
   // A API exige alternância começando por user: junta mensagens seguidas do mesmo papel.
-  const msgs: { role: string; content: string }[] = [];
+  const msgs: { role: string; content: any }[] = [];
   for (const m of [...historico, { role: "user", content: `${contexto}\n\nPEDIDO: ${mensagem}` }]) {
     const u = msgs[msgs.length - 1];
     if (u && u.role === m.role) u.content += `\n\n${m.content}`;
@@ -620,15 +680,19 @@ Deno.serve(async (req) => {
       uso = aplicar.input ?? {};
       break;
     }
-    const busca = chamadas.find((c: any) => c.name === "buscar_midia");
-    if (!busca) break;
-    buscas++;
-    const resultado = await buscarMidia(sb, projeto_id, busca.input ?? {});
+    if (!chamadas.length) break;
+    // Toda chamada de ferramenta precisa de resposta (o Claude às vezes pede várias buscas de uma vez).
+    const respostas = [];
+    for (const c of chamadas) {
+      let resultado: unknown;
+      if (c.name === "buscar_midia" && buscas < 3) {
+        buscas++;
+        resultado = await buscarMidia(sb, projeto_id, c.input ?? {});
+      } else resultado = { erro: "Limite de buscas atingido. Use as mídias que já tem e aplique a edição." };
+      respostas.push({ type: "tool_result", tool_use_id: c.id, content: JSON.stringify(resultado) });
+    }
     conversa.push({ role: "assistant", content: resp.content });
-    conversa.push({
-      role: "user",
-      content: [{ type: "tool_result", tool_use_id: busca.id, content: JSON.stringify(resultado) }],
-    });
+    conversa.push({ role: "user", content: respostas });
   }
   const resposta = String(uso.resposta ?? "Pronto.");
 
@@ -646,6 +710,7 @@ Deno.serve(async (req) => {
     tl.formato = mFormato ? mFormato[1] : (tl.formato ?? proj.formato);
     // O modelo salvo não se perde se o Claude esquecer de devolver.
     if (tl.modelo === undefined && proj.timeline?.modelo) tl.modelo = proj.timeline.modelo;
+    if (tl.audio === undefined && proj.timeline?.audio) tl.audio = proj.timeline.audio;
     // Nivelamento da trilha escolhida (ganho medido no upload).
     const chave = tl.musica?.midia as string | undefined;
     if (chave?.startsWith("trilha:")) {

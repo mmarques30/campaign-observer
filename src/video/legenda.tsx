@@ -80,7 +80,7 @@ export function Legenda({
     fps,
     config: { damping: 16, stiffness: 340, mass: 0.4 },
   });
-  const u = width / 1080; // escala p/ formatos
+  const u = (width / 1080) * (tl.legenda.tamanho ?? 1); // escala p/ formatos e tamanho escolhido
 
   const base: React.CSSProperties = {
     position: "absolute",
