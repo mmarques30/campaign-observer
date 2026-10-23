@@ -37,6 +37,7 @@ export type PropsFila = {
   fontePath: string;
   midiasPaths: Record<string, string>;
   recortePath?: string | null;
+  vozPaths?: Record<string, string> | null;
 };
 
 async function assinar(p: string) {
@@ -70,7 +71,12 @@ export async function renderizar(
     crf: 18,
     audioBitrate: "192k",
     pixelFormat: "yuv420p",
-    concurrency: Number(process.env.CONCORRENCIA) || Math.max(1, Math.floor(os.cpus().length / 2)),
+    // O container enxerga a CPU e a memória da máquina inteira (não o limite do Railway):
+    // padrões conservadores evitam o "Compositor exited with signal SIGKILL" (falta de memória).
+    concurrency: Number(process.env.CONCORRENCIA) || 2,
+    offthreadVideoCacheSizeInBytes: (Number(process.env.CACHE_VIDEO_MB) || 256) * 1024 * 1024,
+    offthreadVideoThreads: 2,
+    mediaCacheSizeInBytes: 256 * 1024 * 1024,
     outputLocation: saida,
     timeoutInMilliseconds: 120_000,
     onProgress: ({ progress }) => onProgresso?.(progress),
@@ -100,7 +106,10 @@ export async function gerarProxy(projetoId: string) {
     .eq("id", projetoId)
     .single();
   if (error || !proj?.fonte_path) throw new Error("projeto sem vídeo");
-  const entrada = path.join(os.tmpdir(), `${projetoId}-fonte${path.extname(proj.fonte_path) || ".mp4"}`);
+  const entrada = path.join(
+    os.tmpdir(),
+    `${projetoId}-fonte${path.extname(proj.fonte_path) || ".mp4"}`,
+  );
   const saida = path.join(os.tmpdir(), `${projetoId}-1080p.mp4`);
   try {
     await baixar(proj.fonte_path, entrada);
@@ -146,6 +155,79 @@ export async function gerarProxy(projetoId: string) {
   }
 }
 
+/**
+ * Voz limpa: o ffmpeg do Remotion não tem filtros de áudio, então usa o ffmpeg do sistema
+ * (instalado no Dockerfile). RNNoise (rede neural de fala) + redução espectral + EQ de voz +
+ * compressor + loudnorm (-15 LUFS). Gera as 3 intensidades de uma vez: trocar é instantâneo.
+ * Atraso dos filtros (arnndn 10 ms, afftdn 25 ms) é descontado para o som bater com a boca.
+ */
+const MODELO_VOZ = path.join(raiz, "render-worker/modelos/voz-rnnoise.rnnn");
+export function cadeiaVoz(nivel: "leve" | "media" | "forte", modelo = MODELO_VOZ) {
+  const m = modelo.replace(/\\/g, "/").replace(/:/g, "\\:");
+  const atraso = (s: number) => `atrim=start=${s},asetpts=PTS-STARTPTS,apad=pad_dur=${s}`;
+  const eq = "equalizer=f=220:t=q:w=1.2:g=-2,equalizer=f=3200:t=q:w=1:g=2.5,treble=g=1.5:f=8000";
+  const comp = "acompressor=threshold=0.1:ratio=3:attack=8:release=120:makeup=1.5";
+  const norm = "loudnorm=I=-15:TP=-1.5:LRA=9,aresample=48000";
+  if (nivel === "leve")
+    return `aresample=48000,highpass=f=70,arnndn=m=${m}:mix=0.85,${atraso(0.01)},${eq},${comp},${norm}`;
+  if (nivel === "media")
+    return `aresample=48000,highpass=f=80,arnndn=m=${m},afftdn=nr=8:nf=-45:tn=1,${atraso(0.035)},${eq},deesser=i=0.4,${comp},${norm}`;
+  return `aresample=48000,highpass=f=90,arnndn=m=${m},afftdn=nr=14:nf=-40:tn=1,${atraso(0.035)},agate=threshold=0.015:ratio=3:range=0.1:attack=5:release=120,${eq},deesser=i=0.4,${comp},${norm}`;
+}
+export const NIVEIS_VOZ = ["leve", "media", "forte"] as const;
+
+export async function gerarVoz(projetoId: string) {
+  const { data: proj, error } = await sbc()
+    .from("vedit_projetos")
+    .select("id, fonte_path")
+    .eq("id", projetoId)
+    .single();
+  if (error || !proj?.fonte_path) throw new Error("projeto sem vídeo");
+  const entrada = path.join(
+    os.tmpdir(),
+    `${projetoId}-voz${path.extname(proj.fonte_path) || ".mp4"}`,
+  );
+  const saidas: string[] = [];
+  try {
+    await baixar(proj.fonte_path, entrada);
+    for (const nivel of NIVEIS_VOZ) {
+      const saida = path.join(os.tmpdir(), `${projetoId}-voz-${nivel}.m4a`);
+      saidas.push(saida);
+      await execFileP(
+        process.env.FFMPEG_SISTEMA ?? "ffmpeg",
+        [
+          "-y",
+          "-loglevel",
+          "error",
+          "-i",
+          entrada,
+          "-vn",
+          "-af",
+          cadeiaVoz(nivel),
+          "-ac",
+          "1",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "192k",
+          saida,
+        ],
+        { maxBuffer: 1 << 24 },
+      );
+      const up = await sbc()
+        .storage.from(BUCKET)
+        .upload(`${projetoId}/voz-${nivel}.m4a`, await fs.readFile(saida), {
+          contentType: "audio/mp4",
+          upsert: true,
+        });
+      if (up.error) throw new Error(up.error.message);
+    }
+  } finally {
+    await fs.rm(entrada, { force: true });
+    for (const s of saidas) await fs.rm(s, { force: true });
+  }
+}
+
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
 async function rodarJobs(): Promise<boolean> {
   const { data, error } = await sbc().rpc("vedit_pegar_job", { p_worker: NOME });
@@ -158,6 +240,7 @@ async function rodarJobs(): Promise<boolean> {
   console.log(`[job] ${job.tipo} ${job.id} projeto ${job.projeto_id}`);
   try {
     if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
+    else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
     else throw new Error(`tipo desconhecido: ${job.tipo}`);
     await sbc()
       .from("vedit_jobs")
@@ -198,6 +281,13 @@ async function loop(serveUrl: string) {
         duracaoFonte: p.duracaoFonte,
         fonteUrl: await assinar(p.fontePath),
         recorteUrl: p.recortePath ? await assinar(p.recortePath) : undefined,
+        vozUrls: p.vozPaths
+          ? Object.fromEntries(
+              await Promise.all(
+                Object.entries(p.vozPaths).map(async ([k, v]) => [k, await assinar(v)]),
+              ),
+            )
+          : undefined,
         midias,
       };
       let ultimo = 0;
@@ -253,7 +343,10 @@ async function loop(serveUrl: string) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const serveUrl = await prepararBundle();
   // Um deploy novo mata o container no meio do trabalho: o que ficou "rodando" com este nome volta pra fila.
-  for (const [t, rodando] of [["vedit_jobs", "rodando"], ["vedit_renders", "renderizando"]] as const) {
+  for (const [t, rodando] of [
+    ["vedit_jobs", "rodando"],
+    ["vedit_renders", "renderizando"],
+  ] as const) {
     const { data } = await sbc()
       .from(t)
       .update({ status: "fila", worker: null, iniciado_em: null })

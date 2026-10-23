@@ -43,6 +43,7 @@ import { TrilhaSonora } from "./TrilhaSonora";
 import { ImagensSugeridas } from "./ImagensSugeridas";
 import { Roteiro } from "./Roteiro";
 import { ModeloEdicao } from "./ModeloEdicao";
+import { VozLimpa, type VozProps } from "./VozLimpa";
 
 export function Painel({
   projeto,
@@ -62,6 +63,7 @@ export function Painel({
   agora,
   palavras,
   duracaoFonte,
+  voz,
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -82,6 +84,7 @@ export function Painel({
   agora: number;
   palavras: Palavra[];
   duracaoFonte: number;
+  voz: VozProps;
 }) {
   const [subindo, setSubindo] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -262,6 +265,8 @@ export function Painel({
           })}
         </section>
 
+        <VozLimpa tl={tl} setTl={setTl} agora={agora} {...voz} />
+
         <TrilhaSonora
           tl={tl}
           setTl={setTl}
@@ -371,6 +376,18 @@ export function Painel({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">
+              Tamanho da legenda: {Math.round(tl.legenda.tamanho * 100)}%
+            </Label>
+            <Slider
+              min={0.5}
+              max={1.8}
+              step={0.05}
+              value={[tl.legenda.tamanho]}
+              onValueChange={([v]) => set("legenda", { tamanho: v }, "Tamanho da legenda")}
+            />
           </div>
           <div className="space-y-1">
             <Label className="text-xs flex justify-between">

@@ -209,6 +209,10 @@ export function Reel(bruto: ReelProps) {
   }, [falando, durationInFrames, fps, tl.musica.abaixarNaVoz, tl.musica.abaixarPara]);
   // Preview: áudio do WAV (leve, exato com a legenda) e vídeo mudo. Render: áudio do vídeo.
   const audioSeparado = !!props.audioUrl && !getRemotionEnvironment().isRendering;
+  // Voz limpa (quando já foi gerada) manda no som, no preview e no render.
+  const vozLimpa = tl.audio.limpar ? props.vozUrls?.[tl.audio.intensidade] : undefined;
+  const somExterno = vozLimpa ?? (audioSeparado ? props.audioUrl : undefined);
+  const volumeVoz = tl.audio.volumeVoz;
 
   // Efeito de transição no início de cada trecho (menos o primeiro).
   const inicioTrechoAtual = [...trechos]
@@ -364,8 +368,9 @@ export function Reel(bruto: ReelProps) {
               <OffthreadVideo
                 src={props.fonteUrl}
                 trimBefore={Math.round(t.de * fps)}
-                // No preview o som vem do WAV leve (abaixo); no render, do próprio vídeo.
-                muted={audioSeparado}
+                // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
+                muted={!!somExterno}
+                volume={somExterno ? undefined : volumeVoz}
                 pauseWhenBuffering
                 onError={
                   getRemotionEnvironment().isRendering
@@ -379,7 +384,9 @@ export function Reel(bruto: ReelProps) {
                   objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
                 }}
               />
-              {audioSeparado && <Audio src={props.audioUrl!} trimBefore={Math.round(t.de * fps)} />}
+              {somExterno && (
+                <Audio src={somExterno} trimBefore={Math.round(t.de * fps)} volume={volumeVoz} />
+              )}
             </Sequence>
           ))
         )}

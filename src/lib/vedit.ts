@@ -428,6 +428,8 @@ async function enviarEmSegundoPlano(
     // o worker gera a versão 720p; o render final continua usando o arquivo enviado.
     if (Math.min(dims.largura, dims.altura) > 1080 || envio.size > 40 * 1024 * 1024)
       await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "proxy" });
+    // Voz limpa (ruído fora, volume nivelado) já sai pronta para a edição.
+    await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "voz" });
     setEnvio(id, { video: 100 });
   })();
 
@@ -617,6 +619,38 @@ export async function desfazer(p: Projeto) {
     });
 }
 
+// ---------- Voz limpa ----------
+export const NIVEIS_VOZ = ["leve", "media", "forte"] as const;
+export const caminhosVoz = (projetoId: string) =>
+  Object.fromEntries(NIVEIS_VOZ.map((n) => [n, `${projetoId}/voz-${n}.m4a`])) as Record<
+    (typeof NIVEIS_VOZ)[number],
+    string
+  >;
+
+export type JobVoz = {
+  id: string;
+  status: "fila" | "rodando" | "pronto" | "erro";
+  erro: string | null;
+};
+
+/** Último pedido de voz limpa do projeto (null = nunca pedido). */
+export async function jobVoz(projetoId: string): Promise<JobVoz | null> {
+  const { data } = await db()
+    .from("vedit_jobs")
+    .select("id, status, erro")
+    .eq("projeto_id", projetoId)
+    .eq("tipo", "voz")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as JobVoz) ?? null;
+}
+
+export async function pedirVozLimpa(projetoId: string) {
+  const { error } = await db().from("vedit_jobs").insert({ projeto_id: projetoId, tipo: "voz" });
+  if (error) throw new Error(error.message);
+}
+
 export async function pedirRender(p: Projeto, midias: Midia[]) {
   if (!p.fonte_path || !p.timeline) throw new Error("Projeto sem vídeo ou sem edição.");
   const props = {
@@ -635,6 +669,8 @@ export async function pedirRender(p: Projeto, midias: Midia[]) {
     const t = lista.find((x) => `trilha:${x.id}` === chave);
     if (t?.path) props.midiasPaths[chave] = t.path;
   }
+  if ((await jobVoz(p.id))?.status === "pronto")
+    (props as Record<string, unknown>).vozPaths = caminhosVoz(p.id);
   const { error } = await db()
     .from("vedit_renders")
     .insert({ projeto_id: p.id, versao: p.versao, props });

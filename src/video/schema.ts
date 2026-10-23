@@ -104,6 +104,8 @@ export const timelineSchema = z.object({
       caixaAlta: z.boolean().default(false),
       // Ajuste fino da altura (0 = topo, 1 = rodapé). null = usa a posição escolhida.
       altura: z.number().min(0.1).max(0.9).nullable().default(null),
+      // Tamanho da letra (1 = padrão do estilo).
+      tamanho: z.number().min(0.5).max(1.8).default(1),
     })
     .default({}),
   efeitos: z.array(efeitoSchema).default([]),
@@ -139,6 +141,14 @@ export const timelineSchema = z.object({
       temperatura: z.number().min(-1).max(1).default(0), // -1 frio … +1 quente
       sombras: z.number().min(0).max(1).default(0), // levanta as sombras (rosto escuro)
       nitidez: z.number().min(0).max(1).default(0),
+    })
+    .default({}),
+  // Voz: versão limpa gerada no servidor (ruído fora, EQ, volume nivelado). Usada quando existe.
+  audio: z
+    .object({
+      limpar: z.boolean().default(true),
+      intensidade: z.enum(["leve", "media", "forte"]).default("media"),
+      volumeVoz: z.number().min(0.1).max(2).default(1),
     })
     .default({}),
   // Modelo de edição aplicado (salvo de outro vídeo). O editor IA segue esse padrão.
@@ -178,6 +188,8 @@ export type ReelProps = {
   // Áudio leve (WAV da transcrição). No preview, o som vem daqui e o vídeo fica mudo:
   // nunca engasga e bate exatamente com a legenda. No render, o som é o do vídeo original.
   audioUrl?: string;
+  // Voz limpa (leve/media/forte), quando o servidor já gerou. Vale para preview e render.
+  vozUrls?: Partial<Record<"leve" | "media" | "forte", string>>;
   duracaoFonte: number;
   // id de mídia (upload do projeto) → URL assinada
   midias: Record<string, string>;

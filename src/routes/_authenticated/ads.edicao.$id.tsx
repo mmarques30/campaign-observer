@@ -32,6 +32,10 @@ import { callEdgeFunction } from "@/lib/ads-mutations";
 import {
   assinar,
   assinarEnvios,
+  caminhosVoz,
+  jobVoz,
+  NIVEIS_VOZ,
+  pedirVozLimpa,
   atualizarProjeto,
   lerEnvio,
   db,
@@ -152,6 +156,13 @@ function Editor() {
       ((await db().from("vedit_midias").select("*").eq("projeto_id", id).order("created_at"))
         .data ?? []) as Midia[],
   });
+  const vozQ = useQuery({
+    queryKey: ["vedit", "voz", id],
+    enabled: !!proj?.fonte_path,
+    queryFn: () => jobVoz(id),
+    refetchInterval: (q) =>
+      q.state.data && ["fila", "rodando"].includes(q.state.data.status) ? 5000 : false,
+  });
   const urlsQ = useQuery({
     queryKey: [
       "vedit",
@@ -162,6 +173,7 @@ function Editor() {
       proj?.audio_path,
       (proj?.timeline as any)?.musica?.midia,
       (midiasQ.data ?? []).map((m) => m.id).join(","),
+      vozQ.data?.status,
     ],
     enabled: !!proj?.fonte_path,
     staleTime: 5 * 3600 * 1000,
@@ -183,7 +195,14 @@ function Editor() {
         const u = t ? await urlTrilha(t) : undefined;
         if (u) midias[chave] = u;
       }
-      return { fonte, audio, midias, recorte };
+      // Voz limpa (3 intensidades), quando o servidor já gerou.
+      let voz: Partial<Record<(typeof NIVEIS_VOZ)[number], string>> | undefined;
+      if (vozQ.data?.status === "pronto") {
+        voz = {};
+        for (const [n, c] of Object.entries(caminhosVoz(id)))
+          voz[n as (typeof NIVEIS_VOZ)[number]] = await assinar(c);
+      }
+      return { fonte, audio, midias, recorte, voz };
     },
   });
   const renderQ = useQuery({
@@ -270,6 +289,7 @@ function Editor() {
             palavras,
             fonteUrl: urlsQ.data.fonte,
             audioUrl: urlsQ.data.audio,
+            vozUrls: urlsQ.data.voz,
             recorteUrl: urlsQ.data.recorte,
             duracaoFonte,
             midias: urlsQ.data.midias,
@@ -528,6 +548,15 @@ function Editor() {
               agora={paraFonte(trechos, frame / 30)}
               palavras={palavras}
               duracaoFonte={duracaoFonte}
+              voz={{
+                job: vozQ.data ?? null,
+                urls: urlsQ.data?.voz,
+                original: urlsQ.data?.audio,
+                pedir: async () => {
+                  await pedirVozLimpa(id);
+                  await vozQ.refetch();
+                },
+              }}
               amostra={{
                 url: urlsQ.data?.fonte,
                 tempos: trechos.length
