@@ -252,6 +252,16 @@ async function loop(serveUrl: string) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const serveUrl = await prepararBundle();
+  // Um deploy novo mata o container no meio do trabalho: o que ficou "rodando" com este nome volta pra fila.
+  for (const [t, rodando] of [["vedit_jobs", "rodando"], ["vedit_renders", "renderizando"]] as const) {
+    const { data } = await sbc()
+      .from(t)
+      .update({ status: "fila", worker: null, iniciado_em: null })
+      .eq("status", rodando)
+      .eq("worker", NOME)
+      .select("id");
+    if (data?.length) console.log(`[worker] ${data.length} item(ns) de ${t} devolvido(s) à fila`);
+  }
   console.log(`[worker] ${NOME} pronto, bundle em ${serveUrl}`);
   await loop(serveUrl);
 }
