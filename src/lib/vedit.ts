@@ -682,7 +682,8 @@ export async function pedirVozLimpa(projetoId: string) {
 export async function pedirRender(p: Projeto, midias: Midia[]) {
   if (!p.fonte_path || !p.timeline) throw new Error("Projeto sem vídeo ou sem edição.");
   const props = {
-    timeline: p.timeline,
+    // O rosto fica numa coluna própria (o Claude reescreve a timeline e não o perderia).
+    timeline: { ...(p.timeline as object), rosto: (p as any).rosto ?? null },
     palavras: p.palavras,
     duracaoFonte: Number(p.fonte_duracao ?? 0),
     fontePath: p.fonte_path,

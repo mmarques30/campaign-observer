@@ -65,6 +65,8 @@ export const timelineSchema = z.object({
   fps: z.number().default(30),
   // Trechos do original que ficam no vídeo final, em ordem. Vazio = vídeo inteiro.
   cortes: z.array(intervalo).default([]),
+  // Onde está o rosto da pessoa no quadro (0–1), detectado no navegador. Grafismos desviam dele.
+  rosto: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).nullish(),
   // Enquadramento do original dentro do quadro (reenquadrar 16:9 → 9:16).
   enquadramento: z
     .object({

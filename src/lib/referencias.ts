@@ -40,7 +40,17 @@ export type Analise = {
     transicao?: string;
     efeitos_preferidos?: string[];
     estilo_base?: string;
+    fonte_titulo?: string;
+    fonte_texto?: string;
+    cor_destaque?: string;
+    cor_fundo_ui?: string;
   };
+  layouts?: {
+    nome: string;
+    quando?: string;
+    fundo?: string;
+    elementos: Record<string, unknown>[];
+  }[];
   prompt_para_editor: string;
 };
 export type Referencia = {

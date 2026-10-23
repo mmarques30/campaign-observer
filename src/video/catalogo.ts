@@ -29,6 +29,7 @@ import { Dividir, FundoImagem, Reagir } from "./efeitos/formatos";
 import { Contorno, MolduraQuebrada, TextoAtras, TrocaFundo, Vertigo } from "./efeitos/recorte";
 import { ICONES, Icones } from "./efeitos/icones";
 import { CardsFlutuantes, Mockup } from "./efeitos/mockup";
+import { Composicao } from "./efeitos/composicao";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -266,6 +267,22 @@ export const EFEITOS: EfeitoDef[] = [
     somPadrao: "ding",
     disponivel: true,
     componente: Notificacao,
+  },
+  {
+    tipo: "composicao",
+    comando: "/composicao",
+    nome: "Composição livre",
+    categoria: "interface",
+    descricao:
+      "Layout desenhado sob medida para o momento: textos com qualquer fonte/cor/tamanho, cards, molduras de UI, brilhos, linhas, ícones e mídia, cada um com posição, inclinação 3D e animação próprias. Nunca fica em cima do rosto (o sistema desvia sozinho).",
+    quandoUsar:
+      "Reproduzir o visual de uma referência que os efeitos prontos não cobrem (tipografia própria, layout editorial, UI moderna, títulos grandes com fonte específica, cards e telas com cara de produto). Prefira quando seguir referência.",
+    params:
+      "elementos: [{tipo: 'texto'|'caixa'|'icone'|'midia'|'brilho'|'linha', x,y,w,h (fração 0–1 do quadro; texto só precisa x,y,w), texto (aceita *destaque*, **negrito**, [cor]x[/]), fonte (Anton, Archivo, Archivo Black, Bebas Neue, Bricolage Grotesque, DM Serif Display, Fraunces, Inter, Instrument Serif, Manrope, Montserrat, Oswald, Outfit, Playfair Display, Plus Jakarta Sans, Poppins, Sora, Space Grotesk, Syne, Unbounded, DM Mono, Caveat), peso (400–900), tamanho (px num quadro de 1080), cor, destaque, maiusculas, espacamento, alinhar, fundo (cor ou gradiente CSS), borda, raio, sombra, vidro, brilho (cor do glow), giro, giroY/giroX (3D), opacidade, icone, midia, entrada: 'sobe'|'desce'|'esquerda'|'direita'|'zoom'|'pop'|'fade'|'desfoque'|'digita'|'nenhuma', atraso (s), flutuar}] (até 14), fundo?: 'escurecer'|'desfocar'|cor, atras?: bool (pessoa na frente; precisa do recorte)",
+    duracaoPadrao: 3,
+    somPadrao: "whoosh",
+    disponivel: true,
+    componente: Composicao,
   },
   {
     tipo: "mockup",

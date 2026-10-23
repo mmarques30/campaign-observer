@@ -1,6 +1,7 @@
 // Aplica o estilo de uma referência analisada num vídeo do Estúdio e pede a edição ao editor IA.
 import { db, enviarAoClaude, salvarManual, type Projeto } from "@/lib/vedit";
 import { EFEITO_POR_TIPO } from "@/video/catalogo";
+import { FONTES } from "@/video/fontes";
 import { ESTILOS_LEGENDA, LOOKS, TRANSICOES, normalizarTimeline } from "@/video/schema";
 import type { Analise, Referencia } from "@/lib/referencias";
 
@@ -32,6 +33,19 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
         : {}),
     },
     visual: { ...tl.visual, ...(look ? { look } : {}), ...(transicao ? { transicao } : {}) },
+    // Tipografia e cor de destaque da referência (a marca segue nas outras cores).
+    marca: {
+      ...tl.marca,
+      ...(pr.fonte_titulo && FONTES.includes(pr.fonte_titulo)
+        ? { fonteTitulo: pr.fonte_titulo }
+        : {}),
+      ...(pr.fonte_texto && FONTES.includes(pr.fonte_texto)
+        ? { fonteLegenda: pr.fonte_texto }
+        : {}),
+      ...(pr.cor_destaque && /^#[0-9a-f]{6}$/i.test(pr.cor_destaque)
+        ? { destaque: pr.cor_destaque }
+        : {}),
+    },
     modelo: {
       id: `ref-${r.id}`,
       nome: `Referência ${r.autor ? `@${r.autor}` : (r.titulo ?? "")}`.trim(),
@@ -57,10 +71,19 @@ ${a.prompt_para_editor}
 TÉCNICAS DA REFERÊNCIA (reproduza a forma de cada uma no que fizer sentido para este vídeo):
 ${tecnicas}
 
+DESIGN DA REFERÊNCIA: títulos em ${pr.fonte_titulo ?? "fonte da marca"}, texto em ${pr.fonte_texto ?? "fonte da marca"}, destaque ${pr.cor_destaque ?? "da marca"}, cards/telas ${pr.cor_fundo_ui ?? "escuros"}.
+${
+  a.layouts?.length
+    ? `LAYOUTS-CHAVE DA REFERÊNCIA (use como base de /composicao, trocando os textos entre chaves pelo conteúdo da fala deste vídeo e ajustando ao que é dito; adapte tamanho e quantidade de itens livremente):
+${JSON.stringify(a.layouts).slice(0, 6000)}`
+    : ""
+}
+
 REGRAS AO SEGUIR A REFERÊNCIA:
 1. Copie só a FORMA: layout, grafismos, tipografia, cores, ritmo, transições e posição da legenda. NUNCA copie textos, marcas, nomes de produto, @, assunto ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo e da nossa marca.
 2. Não encurte o vídeo para ficar do tamanho da referência. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas, sem perder nenhuma ideia da fala.
-3. Telas, apps, mockups, cards ou UI flutuante da referência → use /mockup e /cards com o conteúdo montado pela fala (títulos, itens, números). Não use colagem/broll com imagens aleatórias; mídia só entra se mostrar exatamente o que está sendo dito.
+3. Para reproduzir o visual, prefira /composicao (layout sob medida, com as fontes e cores da referência); /mockup e /cards servem para telas e cards rápidos. Não use colagem/broll com imagens aleatórias; mídia só entra se mostrar exatamente o que está sendo dito. Substitua os efeitos que o vídeo já tinha pelos desta referência (não empilhe estilos).
+5. Nada em cima do rosto: o sistema desvia sozinho, mas planeje os grafismos no espaço livre (acima da cabeça, laterais ou terço inferior, sem cobrir a legenda).
 4. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
   );
   return { nome: novo.modelo.nome, pedido };

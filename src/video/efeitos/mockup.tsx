@@ -8,6 +8,7 @@ import { Marcado } from "../marcacao";
 import { lista, Midia, u, useEntradaSaida, type EfeitoProps } from "./base";
 import { urlIcone } from "./icones";
 import { Pessoa } from "./recorte";
+import { desviarDoRosto } from "./composicao";
 
 type Tema = "escuro" | "claro" | "vidro";
 
@@ -117,7 +118,13 @@ export function CardsFlutuantes({ p, ctx, dur }: EfeitoProps) {
       {cards.map((c, i) => {
         const s = spring({ frame: frame - i * 6, fps, config: { damping: 15, stiffness: 160 } });
         const flutua = Math.sin((frame + i * 17) / (fps * 0.9)) * 10 * k;
-        const { x, y, rot } = pos[i];
+        const { x, rot } = pos[i];
+        const y = atras
+          ? pos[i].y
+          : desviarDoRosto(
+              { x: x / width, y: pos[i].y / height, w: cw / width, h: (110 * k) / height },
+              ctx.tl.rosto,
+            ).y * height;
         return (
           <div
             key={i}
@@ -216,8 +223,14 @@ export function Mockup({ p, ctx, dur }: EfeitoProps) {
     if (!temMidia)
       H = Math.min(H, (40 + 56 + (p.app ? 40 : 0) + (p.titulo ? 70 : 0) + linhas.length * 82) * k);
   }
-  const topoY =
+  const topoPedido =
     posicao === "topo" ? height * 0.1 : posicao === "baixo" ? height * 0.9 - H : (height - H) / 2.2;
+  // Não cobre o rosto: se cair em cima dele, vai para cima ou para baixo.
+  const topoY =
+    desviarDoRosto(
+      { x: (width - W) / 2 / width, y: topoPedido / height, w: W / width, h: H / height },
+      p.atras ? null : ctx.tl.rosto,
+    ).y * height;
   const flutua = Math.sin(frame / (fps * 1.1)) * 12 * k;
   const giro = inclina * interpolate(entrada, [0, 1], [28, 10]);
   const escuro = p.fundo === "escurecer";

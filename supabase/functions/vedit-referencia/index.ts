@@ -19,7 +19,7 @@ const json = (d: unknown, s = 200) =>
 const norm = (s: string) =>
   s
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9%$]/g, "");
 
@@ -155,6 +155,31 @@ async function transcrever(sb: any, id: string) {
 }
 
 // ─── análise visual ─────────────────────────────────────────────────────────
+const FONTES_NOSSAS = [
+  "Anton",
+  "Archivo",
+  "Archivo Black",
+  "Bebas Neue",
+  "Bricolage Grotesque",
+  "DM Serif Display",
+  "Fraunces",
+  "Inter",
+  "Instrument Serif",
+  "Manrope",
+  "Montserrat",
+  "Oswald",
+  "Outfit",
+  "Playfair Display",
+  "Plus Jakarta Sans",
+  "Poppins",
+  "Sora",
+  "Space Grotesk",
+  "Syne",
+  "Unbounded",
+  "DM Mono",
+  "Caveat",
+];
+
 const FERRAMENTA = {
   name: "registrar_analise",
   description: "Registra a análise estruturada do vídeo de referência.",
@@ -248,6 +273,42 @@ const FERRAMENTA = {
           transicao: { type: "string" },
           efeitos_preferidos: { type: "array", items: { type: "string" } },
           estilo_base: { type: "string", enum: ["viral", "editorial", "limpo"] },
+          fonte_titulo: {
+            type: "string",
+            enum: FONTES_NOSSAS,
+            description: "Das nossas fontes, a mais parecida com a dos títulos da referência.",
+          },
+          fonte_texto: { type: "string", enum: FONTES_NOSSAS },
+          cor_destaque: { type: "string", description: "Cor de destaque da referência em hex." },
+          cor_fundo_ui: {
+            type: "string",
+            description: "Cor dos cards/telas da referência em hex.",
+          },
+        },
+      },
+      layouts: {
+        type: "array",
+        description:
+          "Até 4 telas-chave da referência redesenhadas como composição livre (posições em fração 0–1 do quadro vertical, medindo nas folhas). Use os textos como MOLDE entre chaves, ex.: {TITULO}, {ITEM1}, {NUMERO} — quem aplicar troca pelo conteúdo do outro vídeo.",
+        items: {
+          type: "object",
+          properties: {
+            nome: { type: "string" },
+            quando: {
+              type: "string",
+              description: "Em que momento da fala usar (ex.: gancho, lista, prova, CTA).",
+            },
+            fundo: { type: "string" },
+            elementos: {
+              type: "array",
+              items: {
+                type: "object",
+                description:
+                  "tipo texto|caixa|icone|brilho|linha, x,y,w,h, texto, fonte, peso, tamanho (px num quadro de 1080), cor, fundo, borda, raio, sombra, vidro, brilho, giroY, entrada, atraso, flutuar",
+              },
+            },
+          },
+          required: ["nome", "elementos"],
         },
       },
       prompt_para_editor: {
@@ -323,7 +384,7 @@ ${JSON.stringify(FERRAMENTA.input_schema)}`;
       body: JSON.stringify({
         model: MODELO,
         max_tokens: 16000,
-        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Seja enxuto: no máximo 12 técnicas (agrupe as repetidas), descricao e como_reproduzir com até 30 palavras cada. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
+        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Seja enxuto: no máximo 12 técnicas (agrupe as repetidas), descricao e como_reproduzir com até 30 palavras cada. Capte o DESIGN com precisão: tipografia (escolha a fonte nossa mais parecida), cores exatas, onde cada grafismo fica no quadro e como entra; em layouts, redesenhe as telas-chave como composição (é isso que permite reproduzir o visual em outro vídeo). Nunca ponha grafismo em cima do rosto da pessoa. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
         messages: [{ role: "user", content: [...imagens, { type: "text", text: texto }] }],
       }),
     });
