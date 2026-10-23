@@ -25,7 +25,7 @@ import { Download, Instagram, Loader2, Megaphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { adPayload, CTAS, novoAnuncio } from "@/components/ads/AnuncioFields";
-import { assinar, db, type Projeto } from "@/lib/vedit";
+import { baixarRender, db, renderDesatualizado, versaoDoRender, type Projeto } from "@/lib/vedit";
 
 export function Publicar({
   projeto,
@@ -57,13 +57,14 @@ export function Publicar({
   });
 
   async function baixar() {
-    if (!projeto.render_path) return;
-    const url = await assinar(projeto.render_path, 600);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${projeto.nome}.mp4`;
-    a.click();
+    try {
+      await baixarRender(projeto);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
   }
+  const versaoMp4 = versaoDoRender(projeto.render_path);
+  const velho = renderDesatualizado(projeto);
 
   async function virarAnuncio() {
     if (!adsetId) return toast.error("Escolha o conjunto de anúncios.");
@@ -136,8 +137,17 @@ export function Publicar({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Publicar "{projeto.nome}"</DialogTitle>
-          <DialogDescription>Versão {projeto.versao} renderizada.</DialogDescription>
+          <DialogDescription>
+            MP4 da versão {versaoMp4 ?? "?"} da edição
+            {velho ? "" : " (a atual)"}.
+          </DialogDescription>
         </DialogHeader>
+        {velho && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+            Este MP4 é de uma versão anterior: os ajustes feitos depois (versão {projeto.versao})
+            não estão nele. Feche e clique em Renderizar para publicar o vídeo atualizado.
+          </div>
+        )}
         <Tabs defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}>
           <TabsList className="grid grid-cols-3">
             <TabsTrigger value="anuncio">

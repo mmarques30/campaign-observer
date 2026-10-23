@@ -112,6 +112,32 @@ export async function assinar(path: string, segundos = 60 * 60 * 6) {
   return data.signedUrl;
 }
 
+/** Versão da edição que gerou o MP4 (o caminho é ".../render-v<versao>-<data>.mp4"). */
+export const versaoDoRender = (path?: string | null) => {
+  const m = path?.match(/render-v(\d+)-/);
+  return m ? Number(m[1]) : null;
+};
+
+/** O MP4 existe mas é de uma edição anterior à atual? */
+export const renderDesatualizado = (p: Pick<Projeto, "render_path" | "versao">) => {
+  const v = versaoDoRender(p.render_path);
+  return v != null && v < p.versao;
+};
+
+/** Baixa o MP4 renderizado como arquivo (o link já vem com o nome e força o download). */
+export async function baixarRender(p: Pick<Projeto, "render_path" | "nome">) {
+  if (!p.render_path) throw new Error("Renderize o vídeo antes de baixar.");
+  const nome = `${p.nome.replace(/[\\/:*?"<>|]+/g, "-").trim() || "video"}.mp4`;
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(p.render_path, 600, { download: nome });
+  if (error || !data) throw new Error(`Não consegui baixar: ${error?.message}`);
+  const a = document.createElement("a");
+  a.href = data.signedUrl;
+  a.download = nome;
+  a.click();
+}
+
 /** Lê duração e tamanho do vídeo no navegador. */
 export function metadadosVideo(
   file: File,
