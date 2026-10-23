@@ -1,36 +1,7 @@
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
 import { lista, ruido, u, useEntradaSaida, type EfeitoProps } from "./base";
-
-/** Texto com *palavra* marcada em destaque. */
-function Rico({
-  texto,
-  cor,
-  destaque,
-  style,
-}: {
-  texto: string;
-  cor: string;
-  destaque: string;
-  style?: React.CSSProperties;
-}) {
-  const partes = texto.split(/(\*[^*]+\*)/g).filter(Boolean);
-  return (
-    <span style={style}>
-      {partes.map((t, i) =>
-        t.startsWith("*") ? (
-          <span key={i} style={{ color: destaque }}>
-            {t.slice(1, -1)}
-          </span>
-        ) : (
-          <span key={i} style={{ color: cor }}>
-            {t}
-          </span>
-        ),
-      )}
-    </span>
-  );
-}
+import { cssDe, Marcado, palavrasMarcadas } from "../marcacao";
 
 // ─── Título / gancho no topo ─────────────────────────────────────────────
 export function TituloGancho({ p, ctx, dur }: EfeitoProps) {
@@ -39,7 +10,7 @@ export function TituloGancho({ p, ctx, dur }: EfeitoProps) {
   const { frame, fps, saida } = useEntradaSaida(dur);
   const m = ctx.tl.marca;
   const estilo = p.estilo ?? "bloco";
-  const palavras = String(p.texto ?? "Seu gancho aqui").split(" ");
+  const palavras = palavrasMarcadas(String(p.texto ?? "Seu gancho aqui"));
   return (
     <AbsoluteFill style={{ opacity: saida }}>
       <div
@@ -57,8 +28,12 @@ export function TituloGancho({ p, ctx, dur }: EfeitoProps) {
       >
         {palavras.map((w, i) => {
           const s = spring({ frame: frame - i * 2, fps, config: { damping: 14, stiffness: 200 } });
-          const marcada = w.startsWith("*") && w.endsWith("*");
-          const txt = marcada ? w.slice(1, -1) : w;
+          const marcada = w.destaque;
+          const txt = w.pedacos.map((pd, j) => (
+            <span key={j} style={cssDe(pd.e, k)}>
+              {pd.t}
+            </span>
+          ));
           const comum: React.CSSProperties = {
             display: "inline-block",
             opacity: s,
@@ -118,7 +93,10 @@ export function TituloGancho({ p, ctx, dur }: EfeitoProps) {
               textShadow: "0 3px 16px rgba(0,0,0,.6)",
             }}
           >
-            {p.subtitulo}
+            <Marcado
+              texto={String(p.subtitulo ?? "")}
+              destaque={{ color: ctx.tl.marca.destaque }}
+            />
           </div>
         )}
       </div>
@@ -160,7 +138,7 @@ export function PalavraGigante({ p, ctx, dur }: EfeitoProps) {
           maxWidth: "90%",
         }}
       >
-        {texto}
+        <Marcado texto={String(texto ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
       </div>
       {p.legenda && (
         <div
@@ -441,7 +419,7 @@ export function Letreiro({ p, ctx, dur }: EfeitoProps) {
           textAlign: "center",
         }}
       >
-        {texto}
+        <Marcado texto={String(texto ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
       </div>
       {p.legenda && (
         <div

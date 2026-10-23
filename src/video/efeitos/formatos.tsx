@@ -1,6 +1,7 @@
 // Formatos de tela: dividida e react (você numa janelinha sobre outro vídeo/print).
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
+import { Marcado } from "../marcacao";
 import { Midia, u, useEntradaSaida, type EfeitoProps } from "./base";
 
 // ─── Tela dividida: a mídia ocupa uma metade; você fica na outra ───────────
@@ -113,7 +114,7 @@ export function Reagir({ p, ctx, dur }: EfeitoProps) {
             opacity: entrada,
           }}
         >
-          {p.titulo}
+          <Marcado texto={String(p.titulo ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
         </div>
       )}
       <div
@@ -179,7 +180,7 @@ export function FundoImagem({ p, ctx, dur }: EfeitoProps) {
             opacity: entrada,
           }}
         >
-          {p.titulo}
+          <Marcado texto={String(p.titulo ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
         </div>
       )}
       <div

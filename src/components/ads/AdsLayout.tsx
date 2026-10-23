@@ -2,6 +2,7 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import {
   LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Globe, Menu, PanelLeftClose, PanelLeftOpen, X,
   Users, Webhook, Film, Sparkles, ChevronDown, Clapperboard, BookOpen, Music2, Wand2, Palette, Search, Bell, Sun, Moon, Monitor, Check,
+  GalleryHorizontalEnd, ImagePlus, BookMarked,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -53,13 +54,21 @@ const GROUPS: NavGroup[] = [
   },
   {
     // Editor de vídeo com IA: edita, renderiza e publica sem sair do Ads.
-    id: "edicao", label: "Edição", icon: Clapperboard, items: [
+    id: "edicao", label: "Edição de vídeos", icon: Clapperboard, items: [
       { to: "/ads/edicao", label: "Estúdio", icon: Clapperboard, exact: true, keywords: "vídeo editor reels" },
       { to: "/ads/edicao/efeitos", label: "Efeitos", icon: Wand2, keywords: "legenda animação" },
       { to: "/ads/edicao/trilhas", label: "Trilhas", icon: Music2, keywords: "música trilha sonora fundo" },
       { to: "/ads/edicao/pesquisa", label: "Pesquisa", icon: Search, keywords: "nicho reels virais roteiro concorrentes" },
       { to: "/ads/edicao/referencias", label: "Referências", icon: BookOpen, keywords: "reels análise técnicas benchmark" },
       { to: "/ads/edicao/marca", label: "Marca", icon: Palette, keywords: "cores fontes identidade" },
+    ],
+  },
+  {
+    // Carrosséis e posts únicos com as fotos da Mariana: estúdio de fotos com IA e referências.
+    id: "criativos", label: "Edição criativos", icon: GalleryHorizontalEnd, items: [
+      { to: "/ads/criar", label: "Criativos", icon: GalleryHorizontalEnd, exact: true, keywords: "carrossel post imagem instagram" },
+      { to: "/ads/criar/fotos", label: "Minhas fotos", icon: ImagePlus, keywords: "fotos estúdio ia retrato comandos" },
+      { to: "/ads/criar/referencias", label: "Referências", icon: BookMarked, keywords: "carrossel referência estilo" },
     ],
   },
 ];

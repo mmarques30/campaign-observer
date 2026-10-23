@@ -19,6 +19,7 @@ import {
   Undo2,
   Upload,
   UserRound,
+  X,
 } from "lucide-react";
 import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
 import { listarTrilhas, urlTrilha } from "@/lib/trilhas";
@@ -27,6 +28,7 @@ import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
 import { SugestaoCard } from "@/components/edicao/SugestaoCard";
 import { Trilhas } from "@/components/edicao/Trilhas";
+import { BarraFormato } from "@/components/edicao/BarraFormato";
 import { Painel } from "@/components/edicao/Painel";
 import { Publicar } from "@/components/edicao/Publicar";
 import { callEdgeFunction } from "@/lib/ads-mutations";
@@ -81,6 +83,7 @@ function Editor() {
   const [trechoSel, setTrechoSel] = useState<number | null>(null);
   const [blocoSel, setBlocoSel] = useState<number[] | null>(null);
   const [textoBloco, setTextoBloco] = useState("");
+  const campoLegenda = useRef<HTMLInputElement>(null);
   const [publicar, setPublicar] = useState(false);
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
@@ -229,38 +232,93 @@ function Editor() {
   const versaoCarregada = useRef<number>(-1);
   // Só recarrega do servidor quando chega uma versão MAIS NOVA (Claude, desfazer, outra aba).
   // Uma resposta atrasada com versão antiga não pode desfazer o que a pessoa acabou de mudar aqui.
+  const chaveRascunho = `vedit-rascunho-${id}`;
   useEffect(() => {
     if (proj && proj.versao > versaoCarregada.current) {
       versaoCarregada.current = proj.versao;
-      setTlLocal(normalizarTimeline(proj.timeline ?? {}).timeline);
+      let inicial = normalizarTimeline(proj.timeline ?? {}).timeline;
+      // Ajuste feito aqui que não chegou ao banco (saiu da tela, fechou a aba, caiu a internet):
+      // se ninguém salvou versão mais nova depois, ele volta e é gravado agora.
+      try {
+        const r = JSON.parse(localStorage.getItem(chaveRascunho) ?? "null");
+        if (r && r.base >= proj.versao && r.timeline) {
+          inicial = normalizarTimeline(r.timeline).timeline;
+          pendente.current = { novo: inicial, resumo: r.resumo ?? "Ajuste recuperado" };
+          void gravarPendente();
+        } else if (r) localStorage.removeItem(chaveRascunho);
+      } catch {
+        /* armazenamento indisponível */
+      }
+      setTlLocal(inicial);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proj]);
   const salvando = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendente = useRef<{ novo: Timeline; resumo: string } | null>(null);
-  async function gravarPendente() {
-    const item = pendente.current;
-    if (!item) return;
-    pendente.current = null;
-    try {
-      const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
-      if (!p) return;
-      const v = await salvarManual(
-        { ...p, versao: Math.max(p.versao, versaoCarregada.current) },
-        item.novo,
-        item.resumo,
-      );
-      versaoCarregada.current = v;
-      qc.setQueryData(["vedit", "projeto", id], { ...p, timeline: item.novo, versao: v });
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+  // Um salvamento por vez, na ordem: um mais antigo nunca sobrescreve um mais novo.
+  const fila = useRef<Promise<void>>(Promise.resolve());
+  function gravarPendente() {
+    fila.current = fila.current.then(async () => {
+      const item = pendente.current;
+      if (!item) return;
+      pendente.current = null;
+      try {
+        const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
+        if (!p) {
+          pendente.current ??= item;
+          return;
+        }
+        const v = await salvarManual(
+          { ...p, versao: Math.max(p.versao, versaoCarregada.current) },
+          item.novo,
+          item.resumo,
+        );
+        versaoCarregada.current = v;
+        qc.setQueryData(["vedit", "projeto", id], { ...p, timeline: item.novo, versao: v });
+        if (!pendente.current)
+          try {
+            localStorage.removeItem(chaveRascunho);
+          } catch {
+            /* ok */
+          }
+      } catch (e) {
+        pendente.current ??= item; // tenta de novo no próximo ajuste ou ao sair
+        toast.error(`Não salvou: ${(e as Error).message}`);
+      }
+    });
+    return fila.current;
   }
   function setTl(novo: Timeline, resumo: string) {
     setTlLocal(novo);
     pendente.current = { novo, resumo };
+    try {
+      localStorage.setItem(
+        chaveRascunho,
+        JSON.stringify({ base: versaoCarregada.current, timeline: novo, resumo }),
+      );
+    } catch {
+      /* sem armazenamento: segue só com o salvamento normal */
+    }
     if (salvando.current) clearTimeout(salvando.current);
     salvando.current = setTimeout(gravarPendente, 500);
   }
+  // Ao sair da tela, trocar de aba ou fechar: grava na hora o que estiver pendente.
+  useEffect(() => {
+    const agora = () => {
+      if (salvando.current) clearTimeout(salvando.current);
+      salvando.current = null;
+      if (pendente.current) void gravarPendente();
+    };
+    const vis = () => document.visibilityState === "hidden" && agora();
+    document.addEventListener("visibilitychange", vis);
+    window.addEventListener("pagehide", agora);
+    return () => {
+      document.removeEventListener("visibilitychange", vis);
+      window.removeEventListener("pagehide", agora);
+      agora();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // Posição do preview.
   useEffect(() => {
@@ -372,6 +430,7 @@ function Editor() {
   const storyboardPendente =
     proj.storyboard && ultimoStoryboard?.storyboard ? proj.storyboard : null;
   const render = renderQ.data as {
+    id: string;
     status: string;
     progresso: number;
     erro: string | null;
@@ -504,6 +563,31 @@ function Editor() {
             </span>
             <Progress value={Number(render?.progresso ?? 0)} className="h-1.5 w-48" />
             <span className="tabular-nums">{Math.round(Number(render?.progresso ?? 0))}%</span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-xs ml-auto"
+              onClick={async () => {
+                try {
+                  if (render?.id)
+                    await db()
+                      .from("vedit_renders")
+                      .update({ status: "cancelado", concluido_em: new Date().toISOString() })
+                      .eq("id", render.id)
+                      .in("status", ["fila", "renderizando"]);
+                  await db()
+                    .from("vedit_projetos")
+                    .update({ status: "editando" })
+                    .eq("id", proj.id);
+                  await Promise.all([projQ.refetch(), renderQ.refetch()]);
+                  toast.success("Renderização cancelada. Ajuste o que quiser e renderize de novo.");
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+            >
+              <X className="h-3 w-3 mr-1" /> Cancelar
+            </Button>
           </div>
         )}
         {proj.status === "erro" && (
@@ -692,7 +776,9 @@ function Editor() {
               {blocoSel?.length ? (
                 <div className="flex flex-wrap items-center gap-1.5 pb-2 text-xs">
                   <span className="font-medium">Legenda</span>
+                  <BarraFormato campo={campoLegenda} valor={textoBloco} onChange={setTextoBloco} />
                   <input
+                    ref={campoLegenda}
                     className="h-7 flex-1 min-w-[180px] rounded-md border bg-background px-2 text-xs"
                     value={textoBloco}
                     onChange={(e) => setTextoBloco(e.target.value)}

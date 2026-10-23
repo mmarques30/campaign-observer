@@ -73,7 +73,7 @@ export const EFEITOS: EfeitoDef[] = [
     descricao:
       "Frase de gancho no topo, palavras entrando em sequência; *palavra* entre asteriscos ganha destaque.",
     quandoUsar: "Primeiros 0–3s de qualquer vídeo. Obrigatório em anúncio.",
-    params: "texto (use *x* p/ destacar), subtitulo?, estilo: 'bloco'|'serif'",
+    params: "texto (*x* destaque do estilo; **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [amarelo]cor[/] ou [#hex]cor[/]), subtitulo?, estilo: 'bloco'|'serif'",
     duracaoPadrao: 3,
     somPadrao: "whoosh",
     disponivel: true,
@@ -420,7 +420,7 @@ export const EFEITOS: EfeitoDef[] = [
     descricao: "Frase em caixa verde-musgo, com a palavra entre *asteriscos* em serifa itálica.",
     quandoUsar: "Promessa ou frase de efeito no meio do vídeo.",
     params:
-      "texto (use *x* p/ a palavra em itálico), posicao: 'superior'|'centro'|'inferior', cor?",
+      "texto (*x* = serifa itálica; aceita também **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [cor]x[/]), posicao: 'superior'|'centro'|'inferior', cor?",
     duracaoPadrao: 3,
     somPadrao: "pop",
     disponivel: true,

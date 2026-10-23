@@ -21,6 +21,7 @@ import {
   Scissors,
   Trash2,
   Upload,
+  Type,
 } from "lucide-react";
 import { EFEITO_POR_TIPO, EFEITOS } from "@/video/catalogo";
 import {
@@ -43,6 +44,7 @@ import { TrilhaSonora } from "./TrilhaSonora";
 import { ImagensSugeridas } from "./ImagensSugeridas";
 import { Roteiro } from "./Roteiro";
 import { ModeloEdicao } from "./ModeloEdicao";
+import { TextoEfeito, temTexto } from "./TextoEfeito";
 import { VozLimpa, type VozProps } from "./VozLimpa";
 
 export function Painel({
@@ -87,6 +89,7 @@ export function Painel({
   voz: VozProps;
 }) {
   const [subindo, setSubindo] = useState(false);
+  const [editandoTexto, setEditandoTexto] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const efeitos = [...tl.efeitos].sort((a, b) => a.de - b.de);
   const set = <K extends keyof Timeline>(k: K, v: Partial<Timeline[K]>, resumo: string) =>
@@ -222,44 +225,73 @@ export function Painel({
           {efeitos.map((e) => {
             const def = EFEITO_POR_TIPO[e.tipo];
             return (
-              <div
-                key={e.id}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg border p-2",
-                  selecionado === e.id && "border-primary bg-primary/5",
-                )}
-              >
-                <button
-                  onClick={() => onIr(e.de)}
-                  className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0"
-                  title="Ir para o efeito"
+              <div key={e.id} className="space-y-1.5">
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg border p-2",
+                    selecionado === e.id && "border-primary bg-primary/5",
+                  )}
                 >
-                  <Play className="h-3.5 w-3.5" />
-                </button>
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{def?.nome ?? e.tipo}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">
-                    {fmtTempo(e.de)}–{fmtTempo(e.ate)} ·{" "}
-                    {String(
-                      e.props?.texto ??
-                        e.props?.palavra ??
-                        e.props?.titulo ??
-                        (Array.isArray(e.props?.itens) ? e.props.itens.join(", ") : ""),
-                    )}
+                  <button
+                    onClick={() => onIr(e.de)}
+                    className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0"
+                    title="Ir para o efeito"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{def?.nome ?? e.tipo}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {fmtTempo(e.de)}–{fmtTempo(e.ate)} ·{" "}
+                      {String(
+                        e.props?.texto ??
+                          e.props?.palavra ??
+                          e.props?.titulo ??
+                          (Array.isArray(e.props?.itens) ? e.props.itens.join(", ") : ""),
+                      )}
+                    </div>
                   </div>
+                  {temTexto(e.props) && (
+                    <button
+                      onClick={() => setEditandoTexto((v) => (v === e.id ? null : e.id))}
+                      className={cn(
+                        "h-7 w-7 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center",
+                        editandoTexto === e.id && "bg-muted text-foreground",
+                      )}
+                      title="Editar texto (negrito, itálico, cor…)"
+                    >
+                      <Type className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() =>
+                      setTl(
+                        { ...tl, efeitos: tl.efeitos.filter((x) => x.id !== e.id) },
+                        `Removeu ${def?.nome ?? e.tipo}`,
+                      )
+                    }
+                    className="h-7 w-7 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center"
+                    title="Remover"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={() =>
-                    setTl(
-                      { ...tl, efeitos: tl.efeitos.filter((x) => x.id !== e.id) },
-                      `Removeu ${def?.nome ?? e.tipo}`,
-                    )
-                  }
-                  className="h-7 w-7 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center"
-                  title="Remover"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {editandoTexto === e.id && (
+                  <TextoEfeito
+                    props={e.props ?? {}}
+                    onMudar={(campo, valor) =>
+                      setTl(
+                        {
+                          ...tl,
+                          efeitos: tl.efeitos.map((x) =>
+                            x.id === e.id ? { ...x, props: { ...x.props, [campo]: valor } } : x,
+                          ),
+                        },
+                        `${def?.nome ?? e.tipo}: texto editado`,
+                      )
+                    }
+                  />
+                )}
               </div>
             );
           })}

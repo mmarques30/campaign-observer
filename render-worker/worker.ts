@@ -10,7 +10,12 @@ import { createClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition, ensureBrowser } from "@remotion/renderer";
+import {
+  renderMedia,
+  selectComposition,
+  ensureBrowser,
+  makeCancelSignal,
+} from "@remotion/renderer";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -61,6 +66,7 @@ export async function renderizar(
   inputProps: Record<string, unknown>,
   saida: string,
   onProgresso?: (p: number) => void,
+  cancelSignal?: ReturnType<typeof makeCancelSignal>["cancelSignal"],
 ) {
   const comp = await selectComposition({ serveUrl, id: "Reel", inputProps });
   await renderMedia({
@@ -80,6 +86,7 @@ export async function renderizar(
     outputLocation: saida,
     timeoutInMilliseconds: 120_000,
     onProgress: ({ progress }) => onProgresso?.(progress),
+    cancelSignal,
   });
   return comp;
 }
@@ -270,6 +277,7 @@ async function loop(serveUrl: string) {
     }
     console.log(`[render] ${job.id} projeto ${job.projeto_id}`);
     const saida = path.join(os.tmpdir(), `${job.id}.mp4`);
+    let cancelado = false;
     try {
       const p = job.props as PropsFila;
       const midias: Record<string, string> = {};
@@ -291,15 +299,39 @@ async function loop(serveUrl: string) {
         midias,
       };
       let ultimo = 0;
-      await renderizar(serveUrl, inputProps, saida, (prog) => {
-        if (prog - ultimo >= 0.05) {
-          ultimo = prog;
-          void sbc()
-            .from("vedit_renders")
-            .update({ progresso: Math.round(prog * 100) })
-            .eq("id", job.id);
+      // Cancelar pela tela marca o render como "cancelado"; aqui conferimos a cada 3 s e paramos o Remotion.
+      const { cancelSignal, cancel } = makeCancelSignal();
+      const vigia = setInterval(async () => {
+        const { data: r } = await sbc()
+          .from("vedit_renders")
+          .select("status")
+          .eq("id", job.id)
+          .maybeSingle();
+        if (r?.status === "cancelado") {
+          cancelado = true;
+          cancel();
         }
-      });
+      }, 3000);
+      try {
+        await renderizar(
+          serveUrl,
+          inputProps,
+          saida,
+          (prog) => {
+            if (prog - ultimo >= 0.05) {
+              ultimo = prog;
+              void sbc()
+                .from("vedit_renders")
+                .update({ progresso: Math.round(prog * 100) })
+                .eq("id", job.id)
+                .neq("status", "cancelado");
+            }
+          },
+          cancelSignal,
+        );
+      } finally {
+        clearInterval(vigia);
+      }
       const destino = `${job.projeto_id}/render-v${job.versao ?? 0}-${Date.now()}.mp4`;
       const up = await sbc()
         .storage.from(BUCKET)
@@ -320,6 +352,10 @@ async function loop(serveUrl: string) {
         .eq("id", job.projeto_id);
       console.log(`[render] ok → ${destino}`);
     } catch (e) {
+      if (cancelado) {
+        console.log(`[render] ${job.id} cancelado`);
+        continue;
+      }
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[render] erro", msg);
       await sbc()
