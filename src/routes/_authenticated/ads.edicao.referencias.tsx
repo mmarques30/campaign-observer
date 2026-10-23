@@ -328,6 +328,29 @@ function CartaoRef({
   );
 }
 
+/** Pede ao servidor de render para baixar o vídeo do link e espera (até ~4 min). */
+async function baixarPorLink(url: string, etapa: (t: string) => void) {
+  const { data: job, error } = await db()
+    .from("vedit_jobs")
+    .insert({ tipo: "baixar", params: { url } })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  for (let i = 0; i < 120; i++) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    const { data: j } = await db()
+      .from("vedit_jobs")
+      .select("status, erro, resultado")
+      .eq("id", job.id)
+      .single();
+    if (j?.status === "pronto" && j.resultado?.path) return j.resultado;
+    if (j?.status === "erro") throw new Error(j.erro ?? "falhou ao baixar");
+    if (j?.status === "fila" && i === 10)
+      etapa("Na fila do servidor (ele pode estar renderizando)…");
+  }
+  throw new Error("o download demorou demais");
+}
+
 function NovaReferencia({
   aberto,
   onFechar,
@@ -345,26 +368,42 @@ function NovaReferencia({
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const ehInstagram = /instagram\.com\/(p|reel|reels|tv)\//i.test(url);
+  const ehLink = /^https?:\/\/\S+/i.test(url.trim());
   async function criar() {
-    if (!arquivo && !ehInstagram)
-      return toast.error("Cole um link de Reel do Instagram ou solte o arquivo do vídeo.");
+    if (!arquivo && !ehLink)
+      return toast.error("Cole o link do vídeo (Instagram, TikTok, YouTube) ou solte o arquivo.");
     setOcupado(true);
     try {
       let video = arquivo;
       let leg = legenda;
       if (!video) {
-        // Pela API oficial: funciona com contas comerciais/criador quando o Instagram libera o arquivo.
-        setEtapa("Buscando o reel no Instagram…");
-        const r: any = await callEdgeFunction("vedit-pesquisa", {
-          acao: "reel_por_link",
-          url: url.trim(),
-          username: conta.trim() || undefined,
-        });
-        if (r?.error) throw new Error(`${r.error}. Se preferir, solte o arquivo do vídeo.`);
-        setEtapa("Baixando o vídeo…");
+        // 1) Baixa pelo link no servidor de render (yt-dlp): não precisa do @ e funciona com a maioria dos posts públicos.
+        setEtapa("Baixando o vídeo pelo link…");
+        let r: { path: string; username?: string | null; legenda?: string | null } | null = null;
+        let falha = "";
+        try {
+          r = await baixarPorLink(url.trim(), setEtapa);
+        } catch (e) {
+          falha = (e as Error).message;
+        }
+        // 2) Instagram: tenta a API oficial (precisa do @ e de conta comercial/criador).
+        if (!r && ehInstagram && conta.trim()) {
+          setEtapa("Tentando pela API oficial do Instagram…");
+          const o: any = await callEdgeFunction("vedit-pesquisa", {
+            acao: "reel_por_link",
+            url: url.trim(),
+            username: conta.trim(),
+          });
+          if (!o?.error) r = o;
+          else falha = o.error;
+        }
+        if (!r) throw new Error(`${falha}. Se preferir, solte o arquivo do vídeo.`);
+        setEtapa("Abrindo o vídeo…");
         const { data, error } = await supabase.storage.from(BUCKET).download(r.path);
         if (error || !data) throw new Error(error?.message ?? "não consegui baixar o vídeo");
-        video = new File([data], `${r.username}-${r.path.split("/").pop()}`, { type: "video/mp4" });
+        video = new File([data], `${r.username ?? "referencia"}-${r.path.split("/").pop()}`, {
+          type: "video/mp4",
+        });
         if (!leg && r.legenda) leg = r.legenda;
       }
       await criarReferencia({ url, arquivo: video, notas, legenda: leg });
@@ -389,9 +428,9 @@ function NovaReferencia({
         <DialogHeader>
           <DialogTitle>Nova referência</DialogTitle>
           <DialogDescription>
-            Cole o link de um Reel do Instagram: o sistema puxa o vídeo pela API oficial (contas
-            comerciais ou de criador). Se o Instagram não liberar o arquivo (ex.: música licenciada)
-            ou for TikTok, solte o arquivo.
+            Cole o link do vídeo (Reel do Instagram, TikTok ou YouTube Shorts): o sistema baixa,
+            analisa a edição e você aplica num vídeo seu, mesmo já editado. Se o post for privado,
+            solte o arquivo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -400,12 +439,12 @@ function NovaReferencia({
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.instagram.com/reel/…"
+              placeholder="https://www.instagram.com/reel/… ou link do TikTok"
             />
           </div>
           {ehInstagram && !arquivo && (
             <div className="space-y-1.5">
-              <Label>@ da conta que publicou</Label>
+              <Label>@ da conta que publicou (opcional, ajuda se o download falhar)</Label>
               <Input
                 value={conta}
                 onChange={(e) => setConta(e.target.value)}
@@ -414,7 +453,7 @@ function NovaReferencia({
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>Arquivo do vídeo {ehInstagram ? "(opcional)" : ""}</Label>
+            <Label>Arquivo do vídeo {ehLink ? "(opcional)" : ""}</Label>
             <Input
               type="file"
               accept="video/*"

@@ -236,6 +236,89 @@ export async function gerarVoz(projetoId: string) {
 }
 
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
+/**
+ * Baixa um vídeo de referência pelo link (Instagram, TikTok, YouTube Shorts…) com o yt-dlp
+ * e sobe para o bucket. Usado quando a API oficial do Instagram não libera o arquivo.
+ */
+async function baixarPorLink(id: string, url: string) {
+  if (!/^https?:\/\//.test(url)) throw new Error("link inválido");
+  const base = path.join(os.tmpdir(), `ref-${id}`);
+  try {
+    await execFileP(
+      process.env.YTDLP ?? "yt-dlp",
+      [
+        "--no-warnings",
+        "--no-playlist",
+        "--no-progress",
+        "-f",
+        "bv*[height<=1920][vcodec^=avc1]+ba/bv*[height<=1920]+ba/b[height<=1920]/b",
+        "--merge-output-format",
+        "mp4",
+        "--write-info-json",
+        "-o",
+        `${base}.%(ext)s`,
+        url,
+      ],
+      { timeout: 4 * 60 * 1000, maxBuffer: 1024 * 1024 * 20 },
+    );
+  } catch (e) {
+    const msg = String((e as { stderr?: string }).stderr || (e as Error).message);
+    if (/login|private|rate-limit|not available/i.test(msg))
+      throw new Error(
+        "o Instagram/TikTok bloqueou o download deste link (post privado ou exige login). Solte o arquivo do vídeo.",
+      );
+    throw new Error(
+      `não consegui baixar o vídeo: ${msg.split("\n").filter(Boolean).pop()?.slice(0, 300)}`,
+    );
+  }
+  let arquivo = `${base}.mp4`;
+  const info = JSON.parse(await fs.readFile(`${base}.info.json`, "utf8").catch(() => "{}"));
+  // Instagram costuma entregar VP9: converte para H.264 para abrir em qualquer navegador (Safari incluso).
+  if (!/^(avc|h264)/i.test(String(info.vcodec ?? ""))) {
+    const h264 = `${base}-h264.mp4`;
+    await execFileP(
+      process.env.FFMPEG_SISTEMA ?? "ffmpeg",
+      [
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        arquivo,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        h264,
+      ],
+      { maxBuffer: 1024 * 1024 * 20 },
+    );
+    await fs.rm(arquivo, { force: true });
+    arquivo = h264;
+  }
+  const destino = `referencias/links/${id}.mp4`;
+  const up = await sbc()
+    .storage.from(BUCKET)
+    .upload(destino, await fs.readFile(arquivo), { contentType: "video/mp4", upsert: true });
+  await fs.rm(arquivo, { force: true });
+  await fs.rm(`${base}.info.json`, { force: true });
+  if (up.error) throw new Error(up.error.message);
+  return {
+    path: destino,
+    username: info.channel || info.uploader_id || info.uploader || null,
+    legenda: info.description || info.title || null,
+    curtidas: info.like_count ?? null,
+    duracao: info.duration ?? null,
+  };
+}
+
 async function rodarJobs(): Promise<boolean> {
   const { data, error } = await sbc().rpc("vedit_pegar_job", { p_worker: NOME });
   if (error) {
@@ -248,7 +331,10 @@ async function rodarJobs(): Promise<boolean> {
   try {
     if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
     else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
-    else throw new Error(`tipo desconhecido: ${job.tipo}`);
+    else if (job.tipo === "baixar") {
+      const resultado = await baixarPorLink(job.id, String(job.params?.url ?? ""));
+      await sbc().from("vedit_jobs").update({ resultado }).eq("id", job.id);
+    } else throw new Error(`tipo desconhecido: ${job.tipo}`);
     await sbc()
       .from("vedit_jobs")
       .update({ status: "pronto", concluido_em: new Date().toISOString() })

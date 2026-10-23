@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxcomposite1 libxdamage1 libatk-bridge2.0-0 libpango-1.0-0 libcairo2 libcups2 ca-certificates \
     ffmpeg \
   && rm -rf /var/lib/apt/lists/*
+# yt-dlp: baixa o vídeo de referência pelo link (Instagram, TikTok, YouTube) quando a API oficial não libera.
+ADD https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux /usr/local/bin/yt-dlp
+RUN chmod +x /usr/local/bin/yt-dlp
 WORKDIR /app
 # Dependências na raiz (/app/node_modules) para que src/video ache remotion/zod subindo diretórios.
 COPY render-worker/package.json ./package.json
