@@ -332,6 +332,39 @@ async function loop(serveUrl: string) {
       } finally {
         clearInterval(vigia);
       }
+      // Nitidez fica fora do render do navegador (lento demais) e entra aqui, no ffmpeg.
+      const nitidez = Number(p.timeline?.visual?.nitidez ?? 0);
+      if (nitidez > 0) {
+        const nitida = saida.replace(/\.mp4$/, "-nitida.mp4");
+        const forca = Math.min(1.5, nitidez * 2.5).toFixed(2);
+        await execFileP(
+          process.env.FFMPEG_SISTEMA ?? "ffmpeg",
+          [
+            "-y",
+            "-loglevel",
+            "error",
+            "-i",
+            saida,
+            "-vf",
+            `unsharp=5:5:${forca}:5:5:0`,
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-c:a",
+            "copy",
+            nitida,
+          ],
+          { maxBuffer: 1024 * 1024 * 20 },
+        );
+        await fs.rename(nitida, saida);
+      }
       const destino = `${job.projeto_id}/render-v${job.versao ?? 0}-${Date.now()}.mp4`;
       const up = await sbc()
         .storage.from(BUCKET)

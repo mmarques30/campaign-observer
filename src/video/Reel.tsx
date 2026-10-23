@@ -41,7 +41,9 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
     partes.push(
       `hue-rotate(${(v.temperatura * -14).toFixed(1)}deg) saturate(${(1 + v.temperatura * 0.08).toFixed(3)})`,
     );
-  if (v.nitidez > 0) partes.push("url(#vedit-nitidez)");
+  // A nitidez por filtro SVG triplica o tempo de render (a CPU calcula pixel a pixel):
+  // no MP4 ela é aplicada depois, pelo ffmpeg do worker (unsharp), em segundos.
+  if (v.nitidez > 0 && !getRemotionEnvironment().isRendering) partes.push("url(#vedit-nitidez)");
   return partes.join(" ");
 }
 
@@ -298,7 +300,7 @@ export function Reel(bruto: ReelProps) {
 
   return (
     <AbsoluteFill style={{ background: tl.marca.fundo, overflow: "hidden" }}>
-      {tl.visual.nitidez > 0 && (
+      {tl.visual.nitidez > 0 && !getRemotionEnvironment().isRendering && (
         <svg width="0" height="0" style={{ position: "absolute" }}>
           <filter id="vedit-nitidez">
             <feConvolveMatrix
