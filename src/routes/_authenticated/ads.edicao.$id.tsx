@@ -387,21 +387,58 @@ function Editor() {
   }, [proj?.id, urlsQ.data?.fonte]);
   const rostoProj = (proj as any)?.rosto ?? null;
 
+  // Preview: baixa o vídeo leve e os áudios UMA vez para a memória. Cada corte do vídeo é um salto;
+  // pela rede, cada salto vira um novo pedido ao servidor e o preview trava em cortes curtos.
+  const [locais, setLocais] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const d = urlsQ.data;
+    if (!d) return;
+    const lista = [d.fonte, d.audio, ...Object.values(d.voz ?? {})].filter(
+      (u): u is string => !!u && !locais[u],
+    );
+    if (!lista.length) return;
+    let vivo = true;
+    void (async () => {
+      for (const u of lista) {
+        try {
+          const r = await fetch(u);
+          if (!r.ok) continue;
+          const tam = Number(r.headers.get("content-length") ?? 0);
+          if (tam > 200 * 1024 * 1024) continue; // grande demais: segue pela rede
+          const blob = await r.blob();
+          if (!vivo) return;
+          const local = URL.createObjectURL(blob);
+          setLocais((x) => ({ ...x, [u]: local }));
+        } catch {
+          /* sem cópia local: o preview segue pela rede */
+        }
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlsQ.data]);
+  const local = (u?: string) => (u ? (locais[u] ?? u) : u);
+
   const props: ReelProps | null = useMemo(
     () =>
       tl && urlsQ.data
         ? {
             timeline: { ...tl, rosto: rostoProj },
             palavras,
-            fonteUrl: urlsQ.data.fonte,
-            audioUrl: urlsQ.data.audio,
-            vozUrls: urlsQ.data.voz,
+            fonteUrl: local(urlsQ.data.fonte)!,
+            audioUrl: local(urlsQ.data.audio),
+            vozUrls: urlsQ.data.voz
+              ? Object.fromEntries(Object.entries(urlsQ.data.voz).map(([k, v]) => [k, local(v)]))
+              : urlsQ.data.voz,
             recorteUrl: urlsQ.data.recorte,
             duracaoFonte,
             midias: urlsQ.data.midias,
           }
         : null,
-    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj, locais],
   );
 
   async function mandar(texto: string) {
