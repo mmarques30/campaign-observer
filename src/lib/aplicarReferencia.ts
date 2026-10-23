@@ -42,9 +42,26 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
   };
   await salvarManual(p, novo, `Estilo da referência ${novo.modelo.nome}`);
   // A edição em si roda no servidor; o resultado aparece no chat do vídeo.
+  const tecnicas = (a.tecnicas ?? [])
+    .slice(0, 14)
+    .map(
+      (t) =>
+        `- ${t.nome} (${t.de}s–${t.ate}s, ${t.categoria}): ${t.como_reproduzir}${t.efeito_nosso ? ` → nosso: ${t.efeito_nosso}` : ""}`,
+    )
+    .join("\n");
   const pedido = enviarAoClaude(
     p.id,
-    `/editar seguindo a referência ${novo.modelo.nome}. ${a.prompt_para_editor}`,
+    `/editar seguindo a referência ${novo.modelo.nome} (${a.estilo?.nome ?? "estilo"}).
+${a.prompt_para_editor}
+
+TÉCNICAS DA REFERÊNCIA (reproduza a forma de cada uma no que fizer sentido para este vídeo):
+${tecnicas}
+
+REGRAS AO SEGUIR A REFERÊNCIA:
+1. Copie só a FORMA: layout, grafismos, tipografia, cores, ritmo, transições e posição da legenda. NUNCA copie textos, marcas, nomes de produto, @, assunto ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo e da nossa marca.
+2. Não encurte o vídeo para ficar do tamanho da referência. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas, sem perder nenhuma ideia da fala.
+3. Telas, apps, mockups, cards ou UI flutuante da referência → use /mockup e /cards com o conteúdo montado pela fala (títulos, itens, números). Não use colagem/broll com imagens aleatórias; mídia só entra se mostrar exatamente o que está sendo dito.
+4. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
   );
   return { nome: novo.modelo.nome, pedido };
 }

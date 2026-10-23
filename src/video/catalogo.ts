@@ -28,6 +28,7 @@ import { Azulejos, Cracha, FraseCaixa, ListaEditorial, NumeroCapitulo } from "./
 import { Dividir, FundoImagem, Reagir } from "./efeitos/formatos";
 import { Contorno, MolduraQuebrada, TextoAtras, TrocaFundo, Vertigo } from "./efeitos/recorte";
 import { ICONES, Icones } from "./efeitos/icones";
+import { CardsFlutuantes, Mockup } from "./efeitos/mockup";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -73,7 +74,8 @@ export const EFEITOS: EfeitoDef[] = [
     descricao:
       "Frase de gancho no topo, palavras entrando em sequência; *palavra* entre asteriscos ganha destaque.",
     quandoUsar: "Primeiros 0–3s de qualquer vídeo. Obrigatório em anúncio.",
-    params: "texto (*x* destaque do estilo; **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [amarelo]cor[/] ou [#hex]cor[/]), subtitulo?, estilo: 'bloco'|'serif'",
+    params:
+      "texto (*x* destaque do estilo; **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [amarelo]cor[/] ou [#hex]cor[/]), subtitulo?, estilo: 'bloco'|'serif'",
     duracaoPadrao: 3,
     somPadrao: "whoosh",
     disponivel: true,
@@ -264,6 +266,38 @@ export const EFEITOS: EfeitoDef[] = [
     somPadrao: "ding",
     disponivel: true,
     componente: Notificacao,
+  },
+  {
+    tipo: "mockup",
+    comando: "/mockup",
+    nome: "Mockup flutuante",
+    categoria: "interface",
+    descricao:
+      "Janela de app, notebook ou celular flutuando em 3D com brilho, mostrando uma tela (mídia) ou uma interface montada com o texto da fala (título + itens que vão sendo marcados).",
+    quandoUsar:
+      "Mostrar um sistema, painel, ferramenta ou resultado na tela; reproduzir referências com UI/mockup flutuante, desktop escuro ou print de app.",
+    params:
+      "dispositivo: 'janela'|'notebook'|'celular', titulo?, linhas?: string[] (até 5), app?, url?, midia? (id de print/vídeo da tela; sem midia monta a interface), tema: 'escuro'|'claro'|'vidro', posicao: 'centro'|'topo'|'baixo', inclinacao: '3d'|'reto', fundo?: 'escurecer', atras?: bool (pessoa na frente, precisa do recorte)",
+    duracaoPadrao: 3.5,
+    somPadrao: "whoosh",
+    disponivel: true,
+    componente: Mockup,
+  },
+  {
+    tipo: "cards-flutuantes",
+    comando: "/cards",
+    nome: "Cards flutuantes",
+    categoria: "interface",
+    descricao:
+      "Cards de interface (ícone, título, subtítulo, valor) flutuando em 3D em volta da pessoa, entrando um a um.",
+    quandoUsar:
+      "Listar etapas, ferramentas, números ou benefícios com cara de app; reproduzir referências com UI/cards flutuantes ao redor de quem fala.",
+    params:
+      "cards: [{titulo, sub?, icone? (whatsapp, email, planilha…), valor?}] (até 4), disposicao: 'lados'|'topo'|'empilhado', tema: 'escuro'|'claro'|'vidro', atras?: bool (cards atrás da pessoa, precisa do recorte)",
+    duracaoPadrao: 3.5,
+    somPadrao: "pop",
+    disponivel: true,
+    componente: CardsFlutuantes,
   },
   {
     tipo: "orbita",
