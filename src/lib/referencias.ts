@@ -317,6 +317,19 @@ export async function criarReferenciaPorLink(dados: {
   legenda?: string;
 }): Promise<string> {
   const url = dados.url.trim();
+  // Mesmo vídeo já analisado: reaproveita na hora (não baixa nem analisa de novo).
+  const codigo = url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1];
+  const { data: ja } = await db()
+    .from("vedit_referencias")
+    .select("id, analise")
+    .eq("status", "pronta")
+    .or(codigo ? `codigo.eq.${codigo},url.eq.${url}` : `url.eq.${url}`)
+    .order("created_at", { ascending: false })
+    .limit(5);
+  const pronta = ((ja ?? []) as { id: string; analise: unknown }[]).find((r) =>
+    analiseOk(r.analise),
+  );
+  if (pronta) return pronta.id;
   const { data, error } = await db()
     .from("vedit_referencias")
     .insert({
