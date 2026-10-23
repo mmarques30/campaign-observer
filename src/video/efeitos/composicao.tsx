@@ -134,6 +134,8 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
   let fundo = p.fundo as string | undefined;
   const fundoSolido = !!fundo && !["nenhum", "escurecer", "desfocar"].includes(fundo);
   if (fundoSolido && !temPessoa) fundo = "escurecer";
+  // Com card da pessoa, o fundo e o card são desenhados pelo Reel (o vídeo base encolhe para o card).
+  if (temPessoa) fundo = "nenhum";
   // Com fundo sólido + card da pessoa, não há rosto no quadro para desviar.
   const rostoAtivo = fundoSolido && temPessoa ? null : rosto;
   const camadaFundo =
@@ -219,12 +221,7 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
               }}
             />
           );
-        if (tipo === "pessoa")
-          return (
-            <div key={i} style={{ ...base, overflow: "hidden", background: "#000" }}>
-              <Midia ctx={ctx} />
-            </div>
-          );
+        if (tipo === "pessoa") return null; // o Reel encaixa o vídeo base neste card
         if (tipo === "midia" && (!el.midia || !(ctx.midias[el.midia] || /^https?:/.test(el.midia))))
           return null;
         if (tipo === "midia")

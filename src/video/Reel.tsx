@@ -172,7 +172,7 @@ function Transicao({ tipo }: { tipo: string }) {
 export function Reel(bruto: ReelProps) {
   garantirFontes();
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width: W, height: H } = useVideoConfig();
   // O JSON vem do Claude: sempre normaliza (completa defaults) antes de usar.
   const tl = useMemo(() => normalizarTimeline(bruto.timeline).timeline, [bruto.timeline]);
   const props = { ...bruto, timeline: tl };
@@ -298,8 +298,56 @@ export function Reel(bruto: ReelProps) {
         );
       });
 
+  // Composição com "você num card": o próprio vídeo base encolhe para o card (sem segundo vídeo,
+  // sempre em sincronia com os cortes) e a cor de fundo da composição fica atrás.
+  const card = (() => {
+    for (const e of efeitos) {
+      if (e.tipo !== "composicao") continue;
+      const els = Array.isArray(e.props?.elementos) ? (e.props.elementos as any[]) : [];
+      const el = els.find((x) => x?.tipo === "pessoa");
+      if (!el) continue;
+      const [ini, dur] = janelaFrames(trechos, e.de, e.ate > e.de ? e.ate : e.de + 3, fps);
+      if (frame < ini || frame >= ini + dur) continue;
+      const f = frame - ini;
+      const entra = spring({ frame: f, fps, config: { damping: 18, stiffness: 140, mass: 0.7 } });
+      const sai = interpolate(f, [dur - 8, dur], [1, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+      const fundo = String(e.props?.fundo ?? "");
+      return {
+        p: Math.min(entra, sai),
+        x: Number(el.x ?? 0.04),
+        y: Number(el.y ?? 0.44),
+        w: Number(el.w ?? 0.92),
+        h: Number(el.h ?? 0.53),
+        raio: Number(el.raio ?? 36),
+        fundo: ["", "nenhum", "escurecer", "desfocar"].includes(fundo) ? "#1C1C1E" : fundo,
+      };
+    }
+    return null;
+  })();
+  const kc = W / 1080;
+  const caixaBase = card
+    ? (() => {
+        const lerp = (a: number, b: number) => a + (b - a) * card.p;
+        const cw = card.w * W,
+          ch = card.h * H;
+        const esc = Math.max(cw / W, ch / H);
+        return {
+          left: lerp(0, card.x * W),
+          top: lerp(0, card.y * H),
+          width: lerp(W, cw),
+          height: lerp(H, ch),
+          escala: lerp(1, esc),
+          raio: lerp(0, card.raio * kc),
+        };
+      })()
+    : null;
+
   return (
     <AbsoluteFill style={{ background: tl.marca.fundo, overflow: "hidden" }}>
+      {card && <AbsoluteFill style={{ background: card.fundo, opacity: card.p }} />}
       {tl.visual.nitidez > 0 && !getRemotionEnvironment().isRendering && (
         <svg width="0" height="0" style={{ position: "absolute" }}>
           <filter id="vedit-nitidez">
@@ -314,112 +362,150 @@ export function Reel(bruto: ReelProps) {
           </filter>
         </svg>
       )}
-      {/* Vídeo base, já cortado */}
-      <AbsoluteFill
-        style={{
-          transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
-          transformOrigin: `${ox * 100}% ${oy * 100}%`,
-          filter:
-            [
-              filtroCorrecao(tl.visual),
-              FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look],
-              blur ? `blur(${blur.toFixed(2)}px)` : "",
-              brilho !== 1 ? `brightness(${brilho.toFixed(3)})` : "",
-            ]
-              .filter(Boolean)
-              .join(" ") || "none",
-        }}
+      {/* Vídeo base, já cortado (dentro do card quando a composição pede) */}
+      <div
+        style={
+          caixaBase
+            ? {
+                position: "absolute",
+                left: caixaBase.left,
+                top: caixaBase.top,
+                width: caixaBase.width,
+                height: caixaBase.height,
+                overflow: "hidden",
+                borderRadius: caixaBase.raio,
+                boxShadow: `0 ${30 * kc}px ${90 * kc}px rgba(0,0,0,${0.5 * (card?.p ?? 0)})`,
+              }
+            : { position: "absolute", inset: 0 }
+        }
       >
-        {props.modoGaleria || !props.fonteUrl ? (
-          <AbsoluteFill
-            style={{ background: "radial-gradient(ellipse at 50% 35%, #3a3a48 0%, #15151c 70%)" }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                left: "30%",
-                right: "30%",
-                top: "24%",
-                height: "22%",
-                borderRadius: "50%",
-                background: "#4a4a5a",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: "16%",
-                right: "16%",
-                top: "47%",
-                bottom: "-10%",
-                borderRadius: "45% 45% 0 0",
-                background: "#40404e",
-              }}
-            />
-          </AbsoluteFill>
-        ) : (
-          trechos.map((t, i) => (
-            <Sequence
-              key={i}
-              from={Math.round(t.saidaDe * fps)}
-              durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
-              name={`Trecho ${i + 1}`}
-              // Pré-monta o próximo trecho 1s antes: o <video> já chega carregado no corte.
-              premountFor={fps}
-            >
-              <OffthreadVideo
-                src={props.fonteUrl}
-                trimBefore={Math.round(t.de * fps)}
-                // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
-                muted={!!somExterno}
-                volume={somExterno ? undefined : volumeVoz}
-                pauseWhenBuffering
-                onError={
-                  getRemotionEnvironment().isRendering
-                    ? undefined
-                    : (e) => console.warn("[vedit] vídeo", e)
+        <div
+          style={
+            caixaBase
+              ? {
+                  position: "absolute",
+                  width: W,
+                  height: H,
+                  left: (caixaBase.width - W) / 2,
+                  top: (caixaBase.height - H) / 2,
+                  transform: `scale(${caixaBase.escala})`,
                 }
+              : { position: "absolute", inset: 0 }
+          }
+        >
+          <AbsoluteFill
+            style={{
+              transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
+              transformOrigin: `${ox * 100}% ${oy * 100}%`,
+              filter:
+                [
+                  filtroCorrecao(tl.visual),
+                  FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look],
+                  blur ? `blur(${blur.toFixed(2)}px)` : "",
+                  brilho !== 1 ? `brightness(${brilho.toFixed(3)})` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ") || "none",
+            }}
+          >
+            {props.modoGaleria || !props.fonteUrl ? (
+              <AbsoluteFill
                 style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+                  background: "radial-gradient(ellipse at 50% 35%, #3a3a48 0%, #15151c 70%)",
                 }}
-              />
-              {somExterno && (
-                <Audio src={somExterno} trimBefore={Math.round(t.de * fps)} volume={volumeVoz} />
-              )}
-            </Sequence>
-          ))
-        )}
-        {/* Dissolve: a imagem do trecho anterior continua alguns quadros por cima e some aos poucos. */}
-        {trans === "suave" &&
-          !props.modoGaleria &&
-          props.fonteUrl &&
-          trechos.slice(1).map((t, k) => {
-            const ant = trechos[k];
-            const d = Math.min(8, Math.round((t.ate - t.de) * fps) - 1);
-            if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
-              return null;
-            return (
-              <Sequence
-                key={`d${k}`}
-                from={Math.round(t.saidaDe * fps)}
-                durationInFrames={d}
-                premountFor={fps}
-                name={`Dissolve ${k + 2}`}
               >
-                <Dissolve
-                  src={props.fonteUrl}
-                  trimBefore={Math.round(ant.ate * fps)}
-                  dur={d}
-                  objectPosition={`${enq.x * 100}% ${enq.y * 100}%`}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "30%",
+                    right: "30%",
+                    top: "24%",
+                    height: "22%",
+                    borderRadius: "50%",
+                    background: "#4a4a5a",
+                  }}
                 />
-              </Sequence>
-            );
-          })}
-        {escuro > 0 && <AbsoluteFill style={{ background: "#000", opacity: escuro }} />}
-      </AbsoluteFill>
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "16%",
+                    right: "16%",
+                    top: "47%",
+                    bottom: "-10%",
+                    borderRadius: "45% 45% 0 0",
+                    background: "#40404e",
+                  }}
+                />
+              </AbsoluteFill>
+            ) : (
+              trechos.map((t, i) => (
+                <Sequence
+                  key={i}
+                  from={Math.round(t.saidaDe * fps)}
+                  durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
+                  name={`Trecho ${i + 1}`}
+                  // Pré-monta o próximo trecho 1s antes: o <video> já chega carregado no corte.
+                  premountFor={fps}
+                >
+                  <OffthreadVideo
+                    src={props.fonteUrl}
+                    trimBefore={Math.round(t.de * fps)}
+                    // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
+                    muted={!!somExterno}
+                    volume={somExterno ? undefined : volumeVoz}
+                    pauseWhenBuffering
+                    onError={
+                      getRemotionEnvironment().isRendering
+                        ? undefined
+                        : (e) => console.warn("[vedit] vídeo", e)
+                    }
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+                    }}
+                  />
+                  {somExterno && (
+                    <Audio
+                      src={somExterno}
+                      trimBefore={Math.round(t.de * fps)}
+                      volume={volumeVoz}
+                    />
+                  )}
+                </Sequence>
+              ))
+            )}
+            {/* Dissolve: a imagem do trecho anterior continua alguns quadros por cima e some aos poucos. */}
+            {trans === "suave" &&
+              !props.modoGaleria &&
+              props.fonteUrl &&
+              trechos.slice(1).map((t, k) => {
+                const ant = trechos[k];
+                const d = Math.min(8, Math.round((t.ate - t.de) * fps) - 1);
+                if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
+                  return null;
+                return (
+                  <Sequence
+                    key={`d${k}`}
+                    from={Math.round(t.saidaDe * fps)}
+                    durationInFrames={d}
+                    premountFor={fps}
+                    name={`Dissolve ${k + 2}`}
+                  >
+                    <Dissolve
+                      src={props.fonteUrl}
+                      trimBefore={Math.round(ant.ate * fps)}
+                      dur={d}
+                      objectPosition={`${enq.x * 100}% ${enq.y * 100}%`}
+                    />
+                  </Sequence>
+                );
+              })}
+            {escuro > 0 && <AbsoluteFill style={{ background: "#000", opacity: escuro }} />}
+          </AbsoluteFill>
+        </div>
+      </div>
 
       {tl.visual.vinheta > 0 && (
         <AbsoluteFill
