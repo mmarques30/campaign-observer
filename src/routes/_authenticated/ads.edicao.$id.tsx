@@ -21,6 +21,7 @@ import {
   UserRound,
   X,
   Download,
+  Sparkles,
 } from "lucide-react";
 import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
 import { listarTrilhas, urlTrilha } from "@/lib/trilhas";
@@ -30,6 +31,7 @@ import { Chat } from "@/components/edicao/Chat";
 import { SugestaoCard } from "@/components/edicao/SugestaoCard";
 import { Trilhas } from "@/components/edicao/Trilhas";
 import { BarraFormato } from "@/components/edicao/BarraFormato";
+import { ReferenciaRapida } from "@/components/edicao/ReferenciaRapida";
 import { Painel } from "@/components/edicao/Painel";
 import { Publicar } from "@/components/edicao/Publicar";
 import { callEdgeFunction } from "@/lib/ads-mutations";
@@ -89,6 +91,7 @@ function Editor() {
   const [textoBloco, setTextoBloco] = useState("");
   const campoLegenda = useRef<HTMLInputElement>(null);
   const [publicar, setPublicar] = useState(false);
+  const [refRapida, setRefRapida] = useState(false);
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
   async function recortarPessoa() {
@@ -488,6 +491,17 @@ function Editor() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Desfazer (volta uma versão)</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => setRefRapida(true)}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Usar referência
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Cole o link de um vídeo e aplique o estilo de edição dele aqui
+              </TooltipContent>
             </Tooltip>
             <Button
               variant="outline"
@@ -1036,6 +1050,16 @@ function Editor() {
       {publicar && (
         <Publicar projeto={proj} aberto={publicar} onFechar={() => setPublicar(false)} />
       )}
+      {/* Sempre montado: se fechar a janela no meio, a análise termina e aplica mesmo assim. */}
+      <ReferenciaRapida
+        projetoId={proj.id}
+        aberto={refRapida}
+        onFechar={() => setRefRapida(false)}
+        onAplicado={() => {
+          void projQ.refetch();
+          void msgsQ.refetch();
+        }}
+      />
       <ConfirmarExclusao
         projeto={excluir ? proj : null}
         ocupado={excluindo}

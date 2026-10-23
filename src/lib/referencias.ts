@@ -104,7 +104,8 @@ export async function extrairFolhas(
   v.playsInline = true;
   v.preload = "auto";
   v.src = URL.createObjectURL(file);
-  v.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none";
+  v.style.cssText =
+    "position:fixed;left:0;top:0;width:2px;height:2px;opacity:.01;pointer-events:none";
   document.body.appendChild(v);
   try {
     await new Promise<void>((res, rej) => {
@@ -199,7 +200,8 @@ export async function criarReferencia(dados: {
 
 async function processar(id: string, arquivo: File, url: string | null) {
   const st = supabase.storage.from(BUCKET);
-  const patch = (p: Record<string, unknown>) => db().from("vedit_referencias").update(p).eq("id", id);
+  const patch = (p: Record<string, unknown>) =>
+    db().from("vedit_referencias").update(p).eq("id", id);
   try {
     // Metadados por oEmbed (não bloqueia).
     if (url)
@@ -225,7 +227,8 @@ async function processar(id: string, arquivo: File, url: string | null) {
     // 2) Quadros
     setEtapa(id, { etapa: "Extraindo quadros", pct: 15 });
     const folhas = await extrairFolhas(arquivo, {
-      onProgresso: (p) => setEtapa(id, { etapa: "Extraindo quadros", pct: 15 + Math.round(p * 40) }),
+      onProgresso: (p) =>
+        setEtapa(id, { etapa: "Extraindo quadros", pct: 15 + Math.round(p * 40) }),
     });
     const caminhos: string[] = [];
     for (let i = 0; i < folhas.length; i++) {
@@ -233,14 +236,20 @@ async function processar(id: string, arquivo: File, url: string | null) {
       up = await st.upload(p, folhas[i], { contentType: "image/jpeg", upsert: true });
       if (up.error) throw new Error(up.error.message);
       caminhos.push(p);
-      setEtapa(id, { etapa: "Enviando quadros", pct: 55 + Math.round(((i + 1) / folhas.length) * 10) });
+      setEtapa(id, {
+        etapa: "Enviando quadros",
+        pct: 55 + Math.round(((i + 1) / folhas.length) * 10),
+      });
     }
     await patch({ folhas: caminhos });
 
     // 3) Vídeo (para rever depois) — referências costumam ser leves (720p).
     setEtapa(id, { etapa: "Enviando o vídeo", pct: 66 });
     const videoPath = `referencias/${id}/video.${(arquivo.name.split(".").pop() || "mp4").toLowerCase()}`;
-    up = await st.upload(videoPath, arquivo, { contentType: arquivo.type || "video/mp4", upsert: true });
+    up = await st.upload(videoPath, arquivo, {
+      contentType: arquivo.type || "video/mp4",
+      upsert: true,
+    });
     if (!up.error) await patch({ video_path: videoPath });
 
     const tr: any = await transcricao;
@@ -284,4 +293,70 @@ export async function excluirReferencia(id: string) {
 export async function urlAssinada(path: string) {
   const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
   return data?.signedUrl ?? null;
+}
+
+const plataformaDe = (url: string | null): Referencia["plataforma"] =>
+  !url
+    ? "arquivo"
+    : /instagram\.com/i.test(url)
+      ? "instagram"
+      : /tiktok\.com/i.test(url)
+        ? "tiktok"
+        : /youtube\.com|youtu\.be/i.test(url)
+          ? "youtube"
+          : "arquivo";
+
+/**
+ * Referência só pelo link: o servidor baixa, separa áudio e quadros, transcreve e analisa.
+ * Não depende desta aba ficar aberta. Devolve o id na hora.
+ */
+export async function criarReferenciaPorLink(dados: {
+  url: string;
+  notas?: string;
+  legenda?: string;
+}): Promise<string> {
+  const url = dados.url.trim();
+  const { data, error } = await db()
+    .from("vedit_referencias")
+    .insert({
+      url,
+      plataforma: plataformaDe(url),
+      codigo: url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1] ?? null,
+      notas: dados.notas?.trim() || null,
+      legenda: dados.legenda?.trim() || null,
+      status: "enviando",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  const job = await db()
+    .from("vedit_jobs")
+    .insert({ tipo: "referencia", params: { referencia_id: data.id, url } });
+  if (job.error) {
+    await db().from("vedit_referencias").delete().eq("id", data.id);
+    throw new Error(job.error.message);
+  }
+  return data.id as string;
+}
+
+/** Espera a referência ficar pronta (ou dar erro), avisando cada mudança de status. */
+export async function aguardarReferencia(
+  id: string,
+  onStatus?: (s: Referencia["status"]) => void,
+  limiteMs = 8 * 60 * 1000,
+): Promise<Referencia> {
+  const fim = Date.now() + limiteMs;
+  let ultimo = "";
+  while (Date.now() < fim) {
+    const { data } = await db().from("vedit_referencias").select("*").eq("id", id).single();
+    const r = data as Referencia | null;
+    if (r && r.status !== ultimo) {
+      ultimo = r.status;
+      onStatus?.(r.status);
+    }
+    if (r?.status === "pronta" && r.analise) return r;
+    if (r?.status === "erro") throw new Error(r.erro ?? "a análise falhou");
+    await new Promise((ok) => setTimeout(ok, 2500));
+  }
+  throw new Error("a análise está demorando; ela continua no servidor e aparece em Referências");
 }
