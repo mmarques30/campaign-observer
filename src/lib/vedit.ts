@@ -564,6 +564,8 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
       .from("vedit_projetos")
       .update({ versao: (p.versao ?? 0) + 1, status: "editando" })
       .eq("id", p.id);
+  // Imagens sugeridas já ficam prontas na aba Mídias (roda no servidor, não trava nada).
+  void callEdgeFunction("vedit-imagens", { acao: "sugerir", projeto_id: p.id }).catch(() => {});
 }
 
 /** Salva uma edição feita à mão (controles rápidos, corte rápido, apagar efeito). */

@@ -1,6 +1,8 @@
 // vedit-imagens — imagens sugeridas por tema para o vídeo.
 //   sugerir { projeto_id }          → Claude lê a fala (só o que ficou nos cortes) e escolhe os momentos que
-//                                     pedem imagem; para cada um busca candidatas (Pexels → Unsplash → Openverse)
+//                                     pedem imagem; para cada um busca candidatas (Pexels → Unsplash → Wikimedia/Openverse).
+//                                     Guarda o resultado em <projeto>/imagens-sugeridas.json (abre na hora depois).
+//   cache { projeto_id }            → devolve a última sugestão guardada (ou null)
 //   buscar  { consulta, tipo? }     → busca livre
 //   salvar  { projeto_id, url, nome, credito, consulta, tipo } → baixa a escolhida e registra como mídia do projeto
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -18,12 +20,72 @@ type Candidata = {
   url: string; // arquivo para usar (≤ 1920 px)
   thumb: string;
   credito: string;
-  fonte: "pexels" | "unsplash" | "openverse";
+  fonte: "pexels" | "unsplash" | "openverse" | "wikimedia";
   tipo: "imagem" | "video";
   largura?: number;
   altura?: number;
   duracao?: number;
 };
+
+/** Wikimedia Commons: rápido (<1 s), sem chave. Prefere domínio público/CC0/CC BY; completa com CC BY-SA. */
+async function wikimedia(consulta: string, n: number) {
+  const u = new URL("https://commons.wikimedia.org/w/api.php");
+  for (const [k, v] of Object.entries({
+    action: "query",
+    format: "json",
+    generator: "search",
+    gsrnamespace: "6",
+    gsrsearch: `${consulta} filetype:bitmap`,
+    gsrlimit: String(Math.min(30, n * 3)),
+    prop: "imageinfo",
+    iiprop: "url|extmetadata|size",
+    iiurlwidth: "1600",
+  }))
+    u.searchParams.set(k, v);
+  const r = await fetch(u, {
+    headers: { "User-Agent": "IAplicada-editor/1.0 (contato@iaplicada.com.br)" },
+    signal: AbortSignal.timeout(8000),
+  });
+  const j = await r.json();
+  const limpa = (h: string) => String(h ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const itens = Object.values(j?.query?.pages ?? {})
+    .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
+    .map((p: any) => {
+      const ii = p.imageinfo?.[0] ?? {};
+      const m = ii.extmetadata ?? {};
+      const lic = String(m.License?.value ?? "").toLowerCase();
+      return {
+        url: ii.thumburl ?? ii.url,
+        thumb: ii.thumburl ?? ii.url,
+        largura: ii.thumbwidth ?? ii.width,
+        altura: ii.thumbheight ?? ii.height,
+        lic,
+        credito: `${limpa(p.title).replace(/^File:/, "").replace(/\.[a-z]+$/i, "")} — ${limpa(m.Artist?.value) || "autor"} (${m.LicenseShortName?.value ?? lic}, Wikimedia Commons)`,
+      };
+    })
+    .filter((x: any) => x.url && (x.largura ?? 0) >= 600 && /^(pd|cc0|cc-by)/.test(x.lic));
+  const livres = itens.filter((x: any) => !x.lic.includes("sa"));
+  const sa = itens.filter((x: any) => x.lic.includes("sa"));
+  return [...livres, ...sa].slice(0, n);
+}
+
+async function openverse(consulta: string, n: number): Promise<Candidata[]> {
+  const j = await (
+    await fetch(
+      `https://api.openverse.org/v1/images/?q=${encodeURIComponent(consulta)}&license_type=commercial,modification&page_size=${n}&mature=false`,
+      { headers: { "User-Agent": "IAplicada-editor/1.0" }, signal: AbortSignal.timeout(5000) },
+    )
+  ).json();
+  return (j.results ?? []).map((im: any) => ({
+    url: im.url,
+    thumb: im.thumbnail ?? im.url,
+    credito: `${im.title ?? "Imagem"} — ${im.creator ?? "autor"} (${String(im.license ?? "").toUpperCase()} ${im.license_version ?? ""}, ${im.source})`,
+    fonte: "openverse" as const,
+    tipo: "imagem" as const,
+    largura: im.width,
+    altura: im.height,
+  }));
+}
 
 async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n = 6): Promise<Candidata[]> {
   const pexels = Deno.env.get("PEXELS_API_KEY");
@@ -35,6 +97,7 @@ async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n =
       const j = await (
         await fetch(`https://api.pexels.com/videos/search?query=${q}&per_page=${n}&orientation=portrait&size=medium`, {
           headers: { Authorization: pexels },
+          signal: AbortSignal.timeout(8000),
         })
       ).json();
       for (const v of j.videos ?? []) {
@@ -56,7 +119,10 @@ async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n =
     }
     if (pexels && tipo === "imagem") {
       const j = await (
-        await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=${n}`, { headers: { Authorization: pexels } })
+        await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=${n}`, {
+          headers: { Authorization: pexels },
+          signal: AbortSignal.timeout(8000),
+        })
       ).json();
       for (const ph of j.photos ?? [])
         out.push({
@@ -73,6 +139,7 @@ async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n =
       const j = await (
         await fetch(`https://api.unsplash.com/search/photos?query=${q}&per_page=${n - out.length}`, {
           headers: { Authorization: `Client-ID ${unsplash}` },
+          signal: AbortSignal.timeout(8000),
         })
       ).json();
       for (const ph of j.results ?? [])
@@ -86,24 +153,22 @@ async function buscar(consulta: string, tipo: "imagem" | "video" = "imagem", n =
           altura: ph.height,
         });
     }
-    // Sem chave (ou poucos resultados): Openverse, só licenças que permitem uso comercial.
+    // Sem chave (ou poucos resultados): Wikimedia (rápido) e Openverse (às vezes lento: 5 s no máximo), juntos.
     if (tipo === "imagem" && out.length < n) {
-      const j = await (
-        await fetch(
-          `https://api.openverse.org/v1/images/?q=${q}&license_type=commercial,modification&page_size=${n - out.length}&mature=false`,
-          { headers: { "User-Agent": "IAplicada-editor/1.0" } },
-        )
-      ).json();
-      for (const im of j.results ?? [])
-        out.push({
-          url: im.url,
-          thumb: im.thumbnail ?? im.url,
-          credito: `${im.title ?? "Imagem"} — ${im.creator ?? "autor"} (${String(im.license ?? "").toUpperCase()} ${im.license_version ?? ""}, ${im.source})`,
-          fonte: "openverse",
-          tipo: "imagem",
-          largura: im.width,
-          altura: im.height,
-        });
+      const falta = n - out.length;
+      const [w, o] = await Promise.allSettled([wikimedia(consulta, falta), openverse(consulta, falta)]);
+      const wiki = w.status === "fulfilled" ? w.value : [];
+      const ov = o.status === "fulfilled" ? o.value : [];
+      for (let k = 0; out.length < n && (k < wiki.length || k < ov.length); k++) {
+        if (wiki[k])
+          out.push({
+            ...wiki[k],
+            thumb: String(wiki[k].thumb).replace("/1600px-", "/400px-"),
+            fonte: "wikimedia",
+            tipo: "imagem",
+          } as Candidata);
+        if (ov[k] && out.length < n) out.push(ov[k]);
+      }
     }
   } catch (_) {
     /* devolve o que conseguiu */
@@ -154,7 +219,10 @@ Deno.serve(async (req) => {
 
     if (body.acao === "salvar") {
       const { projeto_id, url, nome, credito, consulta, tipo } = body;
-      const r = await fetch(url);
+      const r = await fetch(url, {
+        headers: { "User-Agent": "IAplicada-editor/1.0 (contato@iaplicada.com.br)" },
+        signal: AbortSignal.timeout(30000),
+      });
       if (!r.ok) return json({ error: `download ${r.status}` }, 502);
       const blob = await r.blob();
       const ext = tipo === "video" ? "mp4" : (blob.type.split("/")[1] ?? "jpg").replace("jpeg", "jpg");
@@ -176,6 +244,11 @@ Deno.serve(async (req) => {
         .single();
       if (error) return json({ error: error.message }, 500);
       return json({ id: data.id, path });
+    }
+
+    if (body.acao === "cache") {
+      const { data } = await sb.storage.from("video-edicao").download(`${body.projeto_id}/imagens-sugeridas.json`);
+      return json(data ? JSON.parse(await data.text()) : null);
     }
 
     if (body.acao === "sugerir") {
@@ -209,10 +282,34 @@ Deno.serve(async (req) => {
       const txt = await r.text();
       if (!r.ok) return json({ error: `Claude ${r.status}: ${txt.slice(0, 300)}` }, 502);
       const itens = JSON.parse(txt).content?.find((c: any) => c.type === "tool_use")?.input?.itens ?? [];
-      const momentos = await Promise.all(
-        itens.map(async (m: any) => ({ ...m, candidatas: await buscar(m.consulta, m.tipo, 6) })),
-      );
-      return json({ momentos, temChave: !!(Deno.env.get("PEXELS_API_KEY") || Deno.env.get("UNSPLASH_ACCESS_KEY")) });
+      // Em lotes de 3 (o Wikimedia limita rajadas); sem chave de vídeo, o momento vira imagem.
+      const momentos: any[] = [];
+      for (let k = 0; k < itens.length; k += 3)
+        momentos.push(
+          ...(await Promise.all(
+            itens.slice(k, k + 3).map(async (m: any) => {
+              let candidatas = await buscar(m.consulta, m.tipo, 6);
+              if (!candidatas.length && m.tipo === "video") {
+                candidatas = await buscar(m.consulta, "imagem", 6);
+                m.tipo = "imagem";
+              }
+              return { ...m, candidatas };
+            }),
+          )),
+        );
+      const res = {
+        momentos,
+        temChave: !!(Deno.env.get("PEXELS_API_KEY") || Deno.env.get("UNSPLASH_ACCESS_KEY")),
+        gerado_em: new Date().toISOString(),
+        cortes: cortes.length,
+      };
+      await sb.storage
+        .from("video-edicao")
+        .upload(`${body.projeto_id}/imagens-sugeridas.json`, new Blob([JSON.stringify(res)], { type: "application/json" }), {
+          contentType: "application/json",
+          upsert: true,
+        });
+      return json(res);
     }
     return json({ error: "ação desconhecida" }, 400);
   } catch (e) {

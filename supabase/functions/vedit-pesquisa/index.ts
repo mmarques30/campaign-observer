@@ -7,6 +7,8 @@
 //   coletar {}                   → business_discovery dos perfis ativos + top_media das hashtags
 //   analisar { ids: [] }         → por que funcionou + roteiro original (até 8 por chamada)
 //   enviar_marketing { id }      → cria o roteiro em content_items (página de Marketing)
+//   reel_por_link { url, username } → acha o reel na conta (business_discovery), baixa o vídeo para o
+//                                     bucket e devolve o caminho (para Referências analisarem a edição)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5";
@@ -99,8 +101,17 @@ async function descobrir(username: string, ig: string, tk: string, limite = 40) 
   return j.business_discovery as any;
 }
 
-async function cadastrarPerfil(sb: any, username: string, origem: "manual" | "sugerido", ig: string, tk: string) {
+async function cadastrarPerfil(
+  sb: any,
+  username: string,
+  origem: "manual" | "sugerido",
+  ig: string,
+  tk: string,
+  regiao?: "br" | "intl" | null,
+) {
   const d = await descobrir(username, ig, tk, 1);
+  // Sugestão com poucos seguidores quase sempre é o username errado (homônimo): descarta.
+  if (origem === "sugerido" && (d.followers_count ?? 0) < 10000) throw new Error("poucos seguidores");
   const { data, error } = await sb
     .from("vedit_nicho_perfis")
     .upsert(
@@ -111,6 +122,7 @@ async function cadastrarPerfil(sb: any, username: string, origem: "manual" | "su
         followers: d.followers_count ?? null,
         media_count: d.media_count ?? null,
         origem,
+        regiao: regiao ?? null,
         ativo: true,
         erro: null,
       },
@@ -125,47 +137,74 @@ async function cadastrarPerfil(sb: any, username: string, origem: "manual" | "su
 async function sugerirPerfis(sb: any, key: string, ig: string, tk: string) {
   const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
   const { data: atuais } = await sb.from("vedit_nicho_perfis").select("username");
-  const j = await claude(
-    sb,
-    key,
-    {
-      max_tokens: 1500,
-      system:
-        "Você conhece criadores de conteúdo brasileiros do Instagram. Sugira perfis (usernames exatos, sem @) de criadores com conteúdo no nicho descrito, com Reels frequentes e boa tração. Prefira contas business/creator conhecidas. Não invente: se não tem certeza do username, não inclua.",
-      tools: [
-        {
-          name: "sugerir",
-          input_schema: {
-            type: "object",
-            properties: { usernames: { type: "array", items: { type: "string" }, maxItems: 20 } },
-            required: ["usernames"],
-          },
-        },
-      ],
-      tool_choice: { type: "tool", name: "sugerir" },
-      messages: [
-        {
-          role: "user",
-          content: `NICHO: ${cfg?.nicho ?? "IA aplicada a negócios no Brasil"}\nPÚBLICO: ${cfg?.publico ?? "donos de empresas"}\nJÁ MONITORADOS (não repetir): ${(atuais ?? []).map((p: any) => p.username).join(", ") || "(nenhum)"}\nSugira até 15 usernames.`,
-        },
-      ],
-    },
-    "vedit-pesquisa:sugerir",
-  );
-  const lista: string[] = j.content?.find((c: any) => c.type === "tool_use")?.input?.usernames ?? [];
+  const alcance = cfg?.alcance ?? "ambos";
+  const quem =
+    alcance === "brasil"
+      ? "criadores BRASILEIROS"
+      : alcance === "internacional"
+        ? "criadores INTERNACIONAIS (EUA, Reino Unido, Canadá, Austrália, Índia, Europa; conteúdo em inglês ou espanhol)"
+        : "criadores INTERNACIONAIS (conteúdo em inglês) e BRASILEIROS, metade de cada";
+  const ja = new Set((atuais ?? []).map((p: any) => String(p.username).toLowerCase()));
   const validos: any[] = [],
     invalidos: string[] = [];
-  for (const u of lista.slice(0, 15)) {
-    try {
-      validos.push(await cadastrarPerfil(sb, u, "sugerido", ig, tk));
-    } catch (_) {
-      invalidos.push(u);
+  // A API só enxerga contas business/creator e o Claude erra alguns usernames: tenta em rodadas,
+  // contando o que não existiu, até juntar ~10 perfis válidos.
+  for (let rodada = 0; rodada < 3 && validos.length < 10; rodada++) {
+    const j = await claude(
+      sb,
+      key,
+      {
+        max_tokens: 2500,
+        system: `Você conhece bem os criadores de conteúdo do Instagram no mundo todo. Sugira ${quem} com Reels frequentes e ALTO engajamento sobre o nicho descrito. Siga o nicho ao pé da letra (ex.: "novidades de IA" = quem cobre lançamentos e ferramentas de IA, não gurus de marketing genérico). Só contas que são PROFISSIONAIS no Instagram (business ou creator: marcas de mídia, páginas de notícias de tecnologia, criadores grandes), com 50 mil+ seguidores e ativas. Usernames exatos do Instagram, sem @. Não invente: se não tem certeza do username exato, não inclua.`,
+        tools: [
+          {
+            name: "sugerir",
+            input_schema: {
+              type: "object",
+              properties: {
+                perfis: {
+                  type: "array",
+                  maxItems: 30,
+                  items: {
+                    type: "object",
+                    properties: {
+                      username: { type: "string" },
+                      regiao: { type: "string", enum: ["br", "intl"] },
+                    },
+                    required: ["username", "regiao"],
+                  },
+                },
+              },
+              required: ["perfis"],
+            },
+          },
+        ],
+        tool_choice: { type: "tool", name: "sugerir" },
+        messages: [
+          {
+            role: "user",
+            content: `NICHO: ${cfg?.nicho ?? "IA aplicada a negócios"}\nPÚBLICO: ${cfg?.publico ?? "donos de empresas"}\nALCANCE: ${alcance}\nJÁ MONITORADOS (não repetir): ${[...ja].join(", ") || "(nenhum)"}\n${invalidos.length ? `NÃO EXISTEM ou não são contas profissionais (não repita, pense em outros): ${invalidos.join(", ")}\n` : ""}Sugira até 25 perfis.`,
+          },
+        ],
+      },
+      "vedit-pesquisa:sugerir",
+    );
+    const lista: { username: string; regiao: "br" | "intl" }[] =
+      j.content?.find((c: any) => c.type === "tool_use")?.input?.perfis ?? [];
+    for (const p of lista.slice(0, 25)) {
+      const u = String(p.username ?? "").replace(/^@/, "").trim();
+      if (!u || ja.has(u.toLowerCase()) || invalidos.includes(u)) continue;
+      ja.add(u.toLowerCase());
+      try {
+        validos.push(await cadastrarPerfil(sb, u, "sugerido", ig, tk, p.regiao));
+      } catch (_) {
+        invalidos.push(u);
+      }
     }
   }
   return { validos, invalidos };
 }
 
-// ─── coleta ────────────────────────────────────────────────────────────────
 const mediana = (xs: number[]) => {
   if (!xs.length) return 0;
   const s = [...xs].sort((a, b) => a - b);
@@ -233,16 +272,34 @@ async function coletar(sb: any, ig: string, tk: string) {
     }
   }
   // Hashtags: top_media (limite do Meta: 30 hashtags distintas por 7 dias).
-  for (const h of (cfg?.hashtags ?? []).slice(0, 10)) {
+  // Sem hashtags cadastradas: padrões pelo alcance (as internacionais trazem os virais de fora).
+  const padrao =
+    cfg?.alcance === "brasil"
+      ? ["inteligenciaartificial"]
+      : cfg?.alcance === "internacional"
+        ? ["artificialintelligence", "ainews", "aitools"]
+        : ["artificialintelligence", "aitools", "inteligenciaartificial"];
+  const tags: string[] = cfg?.hashtags?.length ? cfg.hashtags : padrao;
+  for (const h of tags.slice(0, 10)) {
     try {
       const tag = String(h).replace(/^#/, "").trim();
       if (!tag) continue;
       const s = await graph("ig_hashtag_search", { user_id: ig, q: tag }, tk);
       const hid = s.data?.[0]?.id;
       if (!hid) continue;
-      const top = await graph(`${hid}/top_media`, { user_id: ig, fields: CAMPOS_MEDIA + ",username", limit: "30" }, tk);
+      // Mídia de hashtag tem menos campos (sem username/thumbnail/media_product_type): pedir campo
+      // inexistente derruba a chamada inteira.
+      const top = await graph(
+        `${hid}/top_media`,
+        {
+          user_id: ig,
+          fields: "id,caption,like_count,comments_count,media_type,media_url,permalink,timestamp",
+          limit: "50",
+        },
+        tk,
+      );
       const linhas = (top.data ?? [])
-        .filter((m: any) => m.media_product_type === "REELS" || m.media_type === "VIDEO")
+        .filter((m: any) => m.media_type === "VIDEO")
         .map((m: any) => ({
           origem: "hashtag",
           hashtag: tag,
@@ -251,8 +308,8 @@ async function coletar(sb: any, ig: string, tk: string) {
           permalink: m.permalink,
           caption: m.caption ?? null,
           media_type: m.media_type,
-          media_product_type: m.media_product_type,
-          thumbnail_url: m.thumbnail_url ?? m.media_url ?? null,
+          media_product_type: "REELS",
+          thumbnail_url: null,
           media_url: m.media_url ?? null,
           like_count: m.like_count ?? 0,
           comments_count: m.comments_count ?? 0,
@@ -359,7 +416,7 @@ async function analisar(sb: any, key: string, ids: string[]) {
     key,
     {
       max_tokens: 8000,
-      system: `Você é estrategista de conteúdo da IAplicada (IA aplicada a negócios, para donos de empresas no Brasil). Recebe Reels que viralizaram no nicho, com legenda e métricas, e faz duas coisas por reel: (1) explica POR QUE funcionou (gancho, mecanismo psicológico, estrutura, CTA) e o que é transferível; (2) escreve um ROTEIRO ORIGINAL para a Mariana gravar — nunca cópia: mesma mecânica, tema e exemplo nossos (IA no dia a dia de empresa: WhatsApp, CRM, vendas, atendimento, automação, Claude). Regras de voz: português do Brasil, direto, sem jargão, sem emojis, nunca a palavra "PME" (use "empresa"), nunca "teu/tua". Orgânico termina pedindo comentário com palavra-chave; anúncio termina chamando para agendar um diagnóstico com a IAplicada. Fale como a Mariana: experiência de executiva, exemplos concretos, números quando houver.
+      system: `Você é estrategista de conteúdo da IAplicada (IA aplicada a negócios, para donos de empresas no Brasil). Recebe Reels que viralizaram no nicho, com legenda e métricas, e faz duas coisas por reel: (1) explica POR QUE funcionou (gancho, mecanismo psicológico, estrutura, CTA) e o que é transferível; (2) escreve um ROTEIRO ORIGINAL para a Mariana gravar — nunca cópia: mesma mecânica, tema e exemplo nossos (IA no dia a dia de empresa: WhatsApp, CRM, vendas, atendimento, automação, Claude). Reels de fora (em inglês ou espanhol): traduza a ideia, adapte exemplos e referências para o Brasil e diga no "por que funcionou" o que muda para o público brasileiro. Regras de voz: português do Brasil, direto, sem jargão, sem emojis, nunca a palavra "PME" (use "empresa"), nunca "teu/tua". Orgânico termina pedindo comentário com palavra-chave; anúncio termina chamando para agendar um diagnóstico com a IAplicada. Fale como a Mariana: experiência de executiva, exemplos concretos, números quando houver.
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
 NICHO: ${cfg?.nicho ?? "IA aplicada a negócios"} · PÚBLICO: ${cfg?.publico ?? "donos de empresa"}
 EXEMPLOS DE ROTEIROS NOSSOS (para o tom):\n${exemplos || "(nenhum)"}`,
@@ -380,6 +437,55 @@ EXEMPLOS DE ROTEIROS NOSSOS (para o tom):\n${exemplos || "(nenhum)"}`,
     if (!error) n++;
   }
   return json({ ok: true, analisados: n });
+}
+
+/** Reel de uma conta business/creator a partir do link: a API oficial dá o arquivo de vídeo. */
+async function reelPorLink(sb: any, url: string, username: string | undefined, ig: string, tk: string) {
+  const codigo = url.match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1];
+  if (!codigo) throw new Error("link de reel inválido");
+  // 1) Já coletado na Pesquisa? (dá o @ da conta)
+  const { data: ja } = await sb
+    .from("vedit_nicho_reels")
+    .select("username, permalink, media_url, caption, like_count, comments_count")
+    .ilike("permalink", `%${codigo}%`)
+    .limit(1)
+    .maybeSingle();
+  // O link do arquivo expira em poucos dias: busca sempre de novo na conta (o coletado só dá o @).
+  let alvo: any = null;
+  const user = (username || ja?.username || "").replace(/^@/, "").trim();
+  // 2) Procura nas últimas publicações da conta (até ~300).
+  {
+    if (!user) throw new Error("informe o @ da conta que publicou o reel");
+    let after = "";
+    for (let pag = 0; pag < 6 && !alvo; pag++) {
+      const j = await graph(
+        ig,
+        {
+          fields: `business_discovery.username(${user}){username,media.limit(50)${after ? `.after(${after})` : ""}{${CAMPOS_MEDIA}}}`,
+        },
+        tk,
+      );
+      const media = j.business_discovery?.media;
+      alvo = (media?.data ?? []).find((m: any) => String(m.permalink ?? "").includes(codigo));
+      if (alvo) alvo.username = j.business_discovery?.username;
+      after = media?.paging?.cursors?.after ?? "";
+      if (!after) break;
+    }
+  }
+  if (!alvo) throw new Error(`não achei esse reel nas publicações recentes de @${user}`);
+  if (!alvo.media_url) throw new Error("o Instagram não liberou o arquivo deste reel (pode ter música licenciada ou ser de outra conta)");
+  const r = await fetch(alvo.media_url, { signal: AbortSignal.timeout(60000) });
+  if (!r.ok) throw new Error(`download do vídeo falhou (${r.status})`);
+  const path = `referencias/links/${codigo}.mp4`;
+  const up = await sb.storage.from("video-edicao").upload(path, await r.blob(), { contentType: "video/mp4", upsert: true });
+  if (up.error) throw new Error(up.error.message);
+  return {
+    path,
+    username: alvo.username ?? user,
+    legenda: alvo.caption ?? null,
+    curtidas: alvo.like_count ?? null,
+    comentarios: alvo.comments_count ?? null,
+  };
 }
 
 async function enviarMarketing(sb: any, id: string) {
@@ -427,6 +533,7 @@ Deno.serve(async (req) => {
     if (acao === "perfil") return json(await cadastrarPerfil(sb, body.username, "manual", ig, tk));
     if (acao === "sugerir_perfis") return json(await sugerirPerfis(sb, key, ig, tk));
     if (acao === "coletar") return json(await coletar(sb, ig, tk));
+    if (acao === "reel_por_link") return json(await reelPorLink(sb, body.url, body.username, ig, tk));
     return json({ error: "ação desconhecida" }, 400);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);

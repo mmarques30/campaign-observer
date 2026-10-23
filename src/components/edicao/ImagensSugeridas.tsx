@@ -1,10 +1,16 @@
 // Imagens sugeridas por tema: o editor lê a fala, escolhe os momentos e traz candidatas.
 // Você escolhe a imagem e COMO ela entra (janela, tela cheia, dividida, fundo, react, celular).
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Check, ImagePlus, Loader2, Search, Sparkles } from "lucide-react";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { fmtTempo } from "@/lib/vedit";
@@ -88,15 +94,55 @@ export function ImagensSugeridas({
   const [aplicados, setAplicados] = useState<Set<number>>(new Set());
   const [busca, setBusca] = useState("");
   const [livres, setLivres] = useState<Candidata[] | null>(null);
+  const pediu = useRef(false);
+
+  function mostrar(r: any) {
+    setMomentos(r.momentos);
+    setSemChave(!r.temChave);
+    setSel(
+      Object.fromEntries(
+        (r.momentos as Momento[]).map((m, i) => [
+          i,
+          { cand: m.candidatas.length ? 0 : undefined, modo: m.modo },
+        ]),
+      ),
+    );
+  }
+
+  // Abre com a última sugestão guardada; se não houver, já pede uma (o vídeo tem cortes e transcrição).
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const r: any = await callEdgeFunction("vedit-imagens", {
+          acao: "cache",
+          projeto_id: projetoId,
+        });
+        if (!vivo) return;
+        if (r?.momentos) return mostrar(r);
+        if (!pediu.current && tl.cortes.length) {
+          pediu.current = true;
+          await sugerir();
+        }
+      } catch {
+        /* sem cache */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projetoId]);
 
   async function sugerir() {
     setCarregando(true);
     try {
-      const r: any = await callEdgeFunction("vedit-imagens", { acao: "sugerir", projeto_id: projetoId });
+      const r: any = await callEdgeFunction("vedit-imagens", {
+        acao: "sugerir",
+        projeto_id: projetoId,
+      });
       if (r?.error) throw new Error(r.error);
-      setMomentos(r.momentos);
-      setSemChave(!r.temChave);
-      setSel(Object.fromEntries((r.momentos as Momento[]).map((m, i) => [i, { cand: m.candidatas.length ? 0 : undefined, modo: m.modo }])));
+      mostrar(r);
       setAplicados(new Set());
     } catch (e) {
       toast.error((e as Error).message);
@@ -105,7 +151,12 @@ export function ImagensSugeridas({
     }
   }
 
-  async function usar(i: number, m: Pick<Momento, "de" | "ate" | "consulta" | "tema">, c: Candidata, modo: Modo) {
+  async function usar(
+    i: number,
+    m: Pick<Momento, "de" | "ate" | "consulta" | "tema">,
+    c: Candidata,
+    modo: Modo,
+  ) {
     setAplicando(i);
     try {
       const r: any = await callEdgeFunction("vedit-imagens", {
@@ -124,7 +175,10 @@ export function ImagensSugeridas({
       setTl(
         {
           ...tl,
-          efeitos: [...tl.efeitos, { id, tipo: ef.tipo, de: m.de, ate: Math.max(m.ate, m.de + 2), props: ef.props }],
+          efeitos: [
+            ...tl.efeitos,
+            { id, tipo: ef.tipo, de: m.de, ate: Math.max(m.ate, m.de + 2), props: ef.props },
+          ],
           sfx: [...tl.sfx, { em: m.de, som: "swipe", volume: 0.4 }],
         },
         `Imagem "${m.tema}" (${MODOS.find((x) => x.v === modo)?.nome})`,
@@ -142,7 +196,10 @@ export function ImagensSugeridas({
     if (!busca.trim()) return;
     setCarregando(true);
     try {
-      const r: any = await callEdgeFunction("vedit-imagens", { acao: "buscar", consulta: busca.trim() });
+      const r: any = await callEdgeFunction("vedit-imagens", {
+        acao: "buscar",
+        consulta: busca.trim(),
+      });
       if (r?.error) throw new Error(r.error);
       setLivres(r.candidatas);
     } catch (e) {
@@ -156,16 +213,29 @@ export function ImagensSugeridas({
     <section className="space-y-3">
       <div className="flex items-center gap-2">
         <ImagePlus className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Imagens para o vídeo</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Imagens para o vídeo
+        </span>
       </div>
       <Button size="sm" className="w-full" onClick={sugerir} disabled={carregando}>
-        {carregando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+        {carregando ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Sparkles className="h-4 w-4 mr-2" />
+        )}
         {momentos ? "Sugerir de novo" : "Sugerir imagens pela fala"}
       </Button>
+      {carregando && !momentos && (
+        <p className="text-[11px] text-muted-foreground">
+          O editor está lendo a fala, escolhendo os momentos e buscando imagens (uns 30 s). Pode
+          continuar editando.
+        </p>
+      )}
       {semChave && momentos && (
         <p className="text-[11px] text-amber-700">
-          Usando o Openverse (imagens livres para uso comercial). Com a chave do Pexels as opções ficam muito melhores e
-          incluem vídeos.
+          Usando bancos livres (Wikimedia/Openverse). Com a chave gratuita do Pexels as opções ficam
+          muito melhores e incluem vídeos. Para logos de apps (WhatsApp, e-mail, planilha), use o
+          efeito Ícones.
         </p>
       )}
 
@@ -173,7 +243,13 @@ export function ImagensSugeridas({
         const s = sel[i] ?? { modo: m.modo };
         const feito = aplicados.has(i);
         return (
-          <div key={i} className={cn("rounded-lg border p-2 space-y-2", feito && "border-emerald-500/50 bg-emerald-500/5")}>
+          <div
+            key={i}
+            className={cn(
+              "rounded-lg border p-2 space-y-2",
+              feito && "border-emerald-500/50 bg-emerald-500/5",
+            )}
+          >
             <button className="text-left w-full" onClick={() => onIr(m.de)}>
               <div className="text-[11px] text-muted-foreground font-mono">
                 {fmtTempo(paraSaida(trechos, m.de))} · {m.tema}
@@ -192,18 +268,30 @@ export function ImagensSugeridas({
                       s.cand === k ? "border-primary" : "border-transparent",
                     )}
                   >
-                    <img src={c.thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <img
+                      src={c.thumb}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
                     {c.tipo === "video" && (
-                      <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white px-1 rounded">vídeo</span>
+                      <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white px-1 rounded">
+                        vídeo
+                      </span>
                     )}
                   </button>
                 ))}
               </div>
             ) : (
-              <div className="text-[11px] text-muted-foreground">Nada encontrado para "{m.consulta}".</div>
+              <div className="text-[11px] text-muted-foreground">
+                Nada encontrado para "{m.consulta}".
+              </div>
             )}
             <div className="flex gap-1.5">
-              <Select value={s.modo} onValueChange={(v) => setSel((x) => ({ ...x, [i]: { ...s, modo: v as Modo } }))}>
+              <Select
+                value={s.modo}
+                onValueChange={(v) => setSel((x) => ({ ...x, [i]: { ...s, modo: v as Modo } }))}
+              >
                 <SelectTrigger className="h-7 text-xs flex-1">
                   <SelectValue />
                 </SelectTrigger>
@@ -222,7 +310,13 @@ export function ImagensSugeridas({
                 disabled={s.cand === undefined || aplicando === i}
                 onClick={() => s.cand !== undefined && usar(i, m, m.candidatas[s.cand], s.modo)}
               >
-                {aplicando === i ? <Loader2 className="h-3 w-3 animate-spin" /> : feito ? <Check className="h-3 w-3" /> : "Usar"}
+                {aplicando === i ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : feito ? (
+                  <Check className="h-3 w-3" />
+                ) : (
+                  "Usar"
+                )}
               </Button>
             </div>
           </div>
@@ -237,7 +331,13 @@ export function ImagensSugeridas({
           onKeyDown={(e) => e.key === "Enter" && buscarLivre()}
           placeholder="Buscar outra (em inglês: office, whatsapp…)"
         />
-        <Button size="icon" variant="outline" className="h-8 w-8" onClick={buscarLivre} disabled={carregando}>
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8"
+          onClick={buscarLivre}
+          disabled={carregando}
+        >
           <Search className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -249,7 +349,12 @@ export function ImagensSugeridas({
               title={`${c.credito} — clique para colocar no ponto atual`}
               className="aspect-[3/4] rounded overflow-hidden border hover:border-primary"
               onClick={() => {
-                void usar(1000 + k, { de: agora, ate: agora + 3, consulta: busca, tema: busca }, c, "janela");
+                void usar(
+                  1000 + k,
+                  { de: agora, ate: agora + 3, consulta: busca, tema: busca },
+                  c,
+                  "janela",
+                );
               }}
             >
               <img src={c.thumb} alt="" className="w-full h-full object-cover" loading="lazy" />
