@@ -31,6 +31,7 @@ import { Chat } from "@/components/edicao/Chat";
 import { SugestaoCard } from "@/components/edicao/SugestaoCard";
 import { Trilhas } from "@/components/edicao/Trilhas";
 import { BarraFormato } from "@/components/edicao/BarraFormato";
+import { detectarRosto } from "@/lib/rosto";
 import { ReferenciaRapida } from "@/components/edicao/ReferenciaRapida";
 import { Painel } from "@/components/edicao/Painel";
 import { Publicar } from "@/components/edicao/Publicar";
@@ -349,11 +350,34 @@ function Editor() {
   const duracaoFonte = Number(proj?.fonte_duracao ?? 0);
   const trechos = useMemo(() => (tl ? trechosMantidos(tl, duracaoFonte) : []), [tl, duracaoFonte]);
   const pausas = useMemo(() => pausasLongas(palavras, trechos, 0.7), [palavras, trechos]);
+  // Localiza o rosto uma vez por vídeo (grafismos desviam dele no preview e no render).
+  const rostoTentado = useRef(false);
+  useEffect(() => {
+    const url = urlsQ.data?.fonte;
+    if (
+      !proj ||
+      !url ||
+      rostoTentado.current ||
+      ((proj as any).rosto !== undefined && (proj as any).rosto !== null)
+    )
+      return;
+    rostoTentado.current = true;
+    void detectarRosto(url, duracaoFonte)
+      .then(async (rosto) => {
+        if (!rosto) return;
+        await db().from("vedit_projetos").update({ rosto }).eq("id", proj.id);
+        qc.setQueryData(["vedit", "projeto", id], (p: any) => (p ? { ...p, rosto } : p));
+      })
+      .catch((e) => console.warn("[vedit] rosto", e));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proj?.id, urlsQ.data?.fonte]);
+  const rostoProj = (proj as any)?.rosto ?? null;
+
   const props: ReelProps | null = useMemo(
     () =>
       tl && urlsQ.data
         ? {
-            timeline: tl,
+            timeline: { ...tl, rosto: rostoProj },
             palavras,
             fonteUrl: urlsQ.data.fonte,
             audioUrl: urlsQ.data.audio,
@@ -363,7 +387,7 @@ function Editor() {
             midias: urlsQ.data.midias,
           }
         : null,
-    [tl, palavras, urlsQ.data, duracaoFonte],
+    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj],
   );
 
   async function mandar(texto: string) {
