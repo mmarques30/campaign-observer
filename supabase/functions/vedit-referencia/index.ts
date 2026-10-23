@@ -321,8 +321,8 @@ Analise e chame registrar_analise.`;
       },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 8000,
-        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
+        max_tokens: 16000,
+        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Seja enxuto: no máximo 12 técnicas (agrupe as repetidas), descricao e como_reproduzir com até 30 palavras cada. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
         tools: [FERRAMENTA],
         tool_choice: { type: "tool", name: "registrar_analise" },
         messages: [{ role: "user", content: [...imagens, { type: "text", text: texto }] }],
