@@ -181,3 +181,22 @@ Os efeitos também são comandos: `/titulo /gigante /capa /trava /letreiro /reco
 cd render-worker && npm install
 npx tsx teste-efeitos.ts <url-de-um-mp4> <palavras.json> /tmp/saida [vidro,trava,...]
 ```
+
+## Edição criativos (carrosséis e posts únicos)
+
+Menu "Edição criativos", abaixo de "Edição de vídeos":
+
+- **Criativos** (`/ads/criar`): lista e "Novo criativo" (carrossel ou post único, briefing, formato, objetivo, referência e fotos). O `cria-agente` (Claude) escreve os textos, escolhe as fotos e grava o design (JSON de slides, `src/criativos/design.ts`). Pode criar fotos novas dela com `gerar_foto` (até 3 por pedido).
+- **Editor** (`/ads/criar/$id`): prévia, miniaturas, chat com o Claude, edição à mão de cada slide (layout, textos, fotos, enquadramento), tema (cores, fontes, avatar) e legenda do post. Desfazer volta versões (`cria_versoes`). Exporta PNG 1080px (zip no carrossel) no navegador com `html-to-image`.
+- Layouts (`src/components/criativos/SlideView.tsx`): capa (impacto/elegante), tweet, comando (antes/depois), tópico, texto, lista, foto, cta. `**palavra**` destaca.
+- **Minhas fotos** (`/ads/criar/fotos`): biblioteca (`cria_fotos`, bucket `video-edicao/criativos/fotos`), descrição automática de cada foto, estúdio com comandos (/identitylock, /upscale, /cleanup, /studioquality, /bokeh, /palco…, `src/criativos/comandos.ts`) via `cria-imagem` (OpenAI, prefere `gpt-image-2`).
+- **Referências** (`/ads/criar/referencias`): link do post + @ (busca as imagens do carrossel pela API) ou prints; o Claude analisa estrutura, tipografia, cores e gancho.
+
+## Formatação de texto no vídeo
+
+Títulos, frases dos efeitos e a legenda aceitam (`src/video/marcacao.tsx`): `*destaque do estilo*`, `**negrito**`, `_itálico_`, `__sublinhado__`, `~~riscado~~`, `[amarelo]cor[/]` ou `[#hex]cor[/]`. No painel "Na edição", o botão T de cada efeito abre o texto com a barra de formatação; a barra também aparece ao editar uma legenda na timeline.
+
+## Salvamento e render
+
+- Ajustes à mão são salvos em fila (um por vez, na ordem) e gravados na hora ao sair da tela; um rascunho local recupera o último ajuste se a aba fechar antes de salvar.
+- "Cancelar" na faixa de renderização marca o render como `cancelado`; o worker confere a cada 3 s e interrompe o Remotion.

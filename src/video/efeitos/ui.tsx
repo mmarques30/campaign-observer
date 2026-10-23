@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
+import { Marcado } from "../marcacao";
 import { lista, Midia, u, useEntradaSaida, type EfeitoProps } from "./base";
 
 const vidro = (k: number): React.CSSProperties => ({
@@ -47,7 +48,7 @@ export function Checklist({ p, ctx, dur }: EfeitoProps) {
               marginBottom: 16 * k,
             }}
           >
-            {p.titulo}
+            <Marcado texto={String(p.titulo ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
           </div>
         )}
         {itens.map((it, i) => {

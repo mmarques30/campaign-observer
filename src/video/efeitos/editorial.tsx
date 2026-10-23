@@ -2,6 +2,7 @@
 // números de capítulo, crachá, letras de azulejo e frase em caixa.
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
+import { Marcado } from "../marcacao";
 import { lista, u, useEntradaSaida, type EfeitoProps } from "./base";
 
 const VERDE = "#2F4A3A";
@@ -48,7 +49,7 @@ export function NumeroCapitulo({ p, ctx, dur }: EfeitoProps) {
             letterSpacing: 1 * k,
           }}
         >
-          {p.texto}
+          <Marcado texto={String(p.texto ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
         </div>
       )}
     </AbsoluteFill>
@@ -190,7 +191,6 @@ export function FraseCaixa({ p, ctx, dur }: EfeitoProps) {
   const { frame, fps, saida } = useEntradaSaida(dur);
   const s = spring({ frame, fps, config: { damping: 16, stiffness: 150 } });
   const texto = String(p.texto ?? "que até sua *avó* consegue");
-  const partes = texto.split(/(\*[^*]+\*)/g).filter(Boolean);
   return (
     <AbsoluteFill style={{ opacity: saida }}>
       <div
@@ -217,24 +217,17 @@ export function FraseCaixa({ p, ctx, dur }: EfeitoProps) {
             color: CREME,
           }}
         >
-          {partes.map((t, i) =>
-            t.startsWith("*") ? (
-              <span
-                key={i}
-                style={{
-                  fontFamily: f("Instrument Serif", "serif"),
-                  fontStyle: "italic",
-                  fontWeight: 400,
-                  fontSize: 64 * k,
-                  color: ctx.tl.marca.destaque,
-                }}
-              >
-                {t.slice(1, -1)}
-              </span>
-            ) : (
-              <span key={i}>{t}</span>
-            ),
-          )}
+          <Marcado
+            texto={texto}
+            escala={k}
+            destaque={{
+              fontFamily: f("Instrument Serif", "serif"),
+              fontStyle: "italic",
+              fontWeight: 400,
+              fontSize: 64 * k,
+              color: ctx.tl.marca.destaque,
+            }}
+          />
         </div>
       </div>
     </AbsoluteFill>
@@ -265,7 +258,7 @@ export function ListaEditorial({ p, ctx, dur }: EfeitoProps) {
               textShadow: "0 4px 20px rgba(0,0,0,.5)",
             }}
           >
-            {p.titulo}
+            <Marcado texto={String(p.titulo ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
           </div>
         )}
         {itens.slice(0, 5).map((t, i) => {

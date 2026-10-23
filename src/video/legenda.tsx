@@ -2,6 +2,7 @@ import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } fr
 import type { Palavra, Timeline } from "./schema";
 import { paraSaida, type Trecho } from "./tempo";
 import { f } from "./fontes";
+import { Marcado, semMarcas } from "./marcacao";
 
 type Bloco = {
   palavras: { texto: string; idx: number; ini: number; fim: number }[];
@@ -41,7 +42,7 @@ export function montarBlocos(
     if (anterior && ini - anterior.fim > fps * 0.6) fechar();
     atual.push({ texto: leg.caixaAlta ? texto.toUpperCase() : texto, idx, ini, fim });
     const prox = visiveis[k + 1];
-    if (atual.length >= porBloco || /[.!?…,;:]$/.test(texto) || !prox) fechar();
+    if (atual.length >= porBloco || /[.!?…,;:]$/.test(semMarcas(texto)) || !prox) fechar();
   });
   // Cada bloco fica na tela até o próximo começar (sem piscar), no máx +0,7s.
   for (let i = 0; i < blocos.length; i++) {
@@ -126,7 +127,7 @@ export function Legenda({
                   transition: "none",
                 }}
               >
-                {w.texto}
+                <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
               </span>
             ))}
           </div>
@@ -152,7 +153,7 @@ export function Legenda({
                 textShadow: "0 4px 30px rgba(0,0,0,.45)",
               }}
             >
-              {w.texto}
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
             </span>
           ))}
         </div>
@@ -161,7 +162,7 @@ export function Legenda({
   }
 
   if (estilo === "maquina") {
-    const texto = bloco.palavras.map((w) => w.texto).join(" ");
+    const texto = semMarcas(bloco.palavras.map((w) => w.texto).join(" "));
     const total = bloco.fim - bloco.ini;
     const n = Math.round(
       interpolate(frame - bloco.ini, [0, Math.max(4, total * 0.6)], [0, texto.length], {
@@ -215,7 +216,7 @@ export function Legenda({
             textAlign: "center",
           }}
         >
-          {w.texto}
+          <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
         </div>
       </AbsoluteFill>
     );
@@ -242,7 +243,7 @@ export function Legenda({
                   textShadow: on ? "none" : "0 3px 18px rgba(0,0,0,.6)",
                 }}
               >
-                {w.texto}
+                <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
               </span>
             );
           })}
@@ -280,7 +281,7 @@ export function Legenda({
                 textShadow: `0 ${2 * u}px ${10 * u}px rgba(0,0,0,.55)`,
               }}
             >
-              {w.texto}
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
             </span>
           ))}
         </div>
@@ -321,7 +322,7 @@ export function Legenda({
                 textShadow: on ? "none" : "0 6px 24px rgba(0,0,0,.55)",
               }}
             >
-              {w.texto}
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
             </span>
           );
         })}

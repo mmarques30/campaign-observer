@@ -1,5 +1,6 @@
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
+import { Marcado } from "../marcacao";
 import { lista, Midia, ruido, u, useEntradaSaida, type EfeitoProps } from "./base";
 
 // ─── B-roll (corte para outra imagem/vídeo) ──────────────────────────────
@@ -223,7 +224,7 @@ export function AntesDepois({ p, ctx, dur }: EfeitoProps) {
           letterSpacing: -2 * k,
         }}
       >
-        {titulo}
+        <Marcado texto={String(titulo ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
       </div>
     </AbsoluteFill>
   );
@@ -416,7 +417,7 @@ export function Rabisco({ p, ctx, dur }: EfeitoProps) {
             opacity: desenho,
           }}
         >
-          {p.texto}
+          <Marcado texto={String(p.texto ?? "")} destaque={{ color: ctx.tl.marca.destaque }} />
         </div>
       )}
     </AbsoluteFill>
