@@ -14,6 +14,7 @@ import { garantirFontes } from "./fontes";
 import { Legenda } from "./legenda";
 import { EFEITO_POR_TIPO } from "./catalogo";
 import { urlSom } from "./sons";
+import { urlTrilhaBase } from "./trilhas";
 import { normalizarTimeline, type ReelProps } from "./schema";
 import { janelaFrames, paraSaida, trechosMantidos, type Trecho } from "./tempo";
 
@@ -151,6 +152,23 @@ export function Reel(bruto: ReelProps) {
   }, [props.palavras, trechos, fps, durationInFrames]);
 
   const { escala, ox, oy } = zoomNoFrame(frame, fps, props, trechos);
+  // Música: biblioteca/trilhas de base ("trilha:...") ou mídia do projeto.
+  const urlMusica = tl.musica.midia ? (props.midias[tl.musica.midia] ?? urlTrilhaBase(tl.musica.midia)) : undefined;
+  // Ducking suave: média móvel de ~0,3 s sobre "está falando" (sem degrau no volume).
+  const duck = useMemo(() => {
+    const alvo = tl.musica.abaixarNaVoz ? tl.musica.abaixarPara : 1;
+    const n = durationInFrames;
+    const acum = new Float64Array(n + 1); // soma prefixada de "volume alvo" por quadro
+    for (let i = 0; i < n; i++) acum[i + 1] = acum[i] + (falando[i] ? alvo : 1);
+    const r = Math.round(fps * 0.15);
+    const out = new Array<number>(n);
+    for (let i = 0; i < n; i++) {
+      const a = Math.max(0, i - r),
+        b = Math.min(n, i + r + 1);
+      out[i] = (acum[b] - acum[a]) / (b - a);
+    }
+    return out;
+  }, [falando, durationInFrames, fps, tl.musica.abaixarNaVoz, tl.musica.abaixarPara]);
   // Preview: áudio do WAV (leve, exato com a legenda) e vídeo mudo. Render: áudio do vídeo.
   const audioSeparado = !!props.audioUrl && !getRemotionEnvironment().isRendering;
 
@@ -345,11 +363,16 @@ export function Reel(bruto: ReelProps) {
       )}
 
       {/* Áudio: música com ducking + efeitos sonoros */}
-      {tl.musica.midia && props.midias[tl.musica.midia] && (
+      {urlMusica && (
         <Audio
-          src={props.midias[tl.musica.midia]}
+          src={urlMusica}
           loop
-          volume={(f) => tl.musica.volume * (tl.musica.abaixarNaVoz && falando[f] ? 0.35 : 1)}
+          trimBefore={Math.round(tl.musica.inicio * fps)}
+          volume={(f) => {
+            const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
+            const fadeOut = tl.musica.fade ? Math.min(1, (durationInFrames - f) / (fps * 1.5)) : 1;
+            return tl.musica.volume * tl.musica.ganho * duck[f] * Math.max(0, Math.min(fadeIn, fadeOut));
+          }}
         />
       )}
       {tl.sfx.map((s, i) => (

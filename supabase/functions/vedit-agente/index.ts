@@ -5,6 +5,24 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
 
+// Trilhas que vêm com o editor (espelho de src/video/trilhas.ts) + biblioteca da marca no bucket.
+const TRILHAS_BASE = [
+  { id: "base-pulso", nome: "Pulso", humor: ["energetico", "moderno", "confiante"], energia: "alta", bpm: 118, uso: "Anúncio direto (dor → solução → CTA), listas rápidas, estilo viral.", ganho: 1 },
+  { id: "base-corporativo", nome: "Corporativo leve", humor: ["inspirador", "corporativo", "positivo"], energia: "media", bpm: 100, uso: "Método, autoridade, institucional, estilo editorial ou limpo.", ganho: 1 },
+  { id: "base-tensao", nome: "Tensão", humor: ["tenso", "dramatico", "urgente"], energia: "media", bpm: 92, uso: "Abrir com dor/problema/prejuízo; virada antes da solução.", ganho: 1 },
+  { id: "base-lofi", nome: "Lo-fi", humor: ["calmo", "intimo", "bastidor"], energia: "baixa", bpm: 84, uso: "Orgânico conversado, bastidor, história pessoal.", ganho: 1 },
+];
+async function listarTrilhas(sb: any) {
+  let marca: any[] = [];
+  try {
+    const { data } = await sb.storage.from("video-edicao").download("trilhas/biblioteca.json");
+    if (data) marca = JSON.parse(await data.text());
+  } catch (_) {
+    /* sem biblioteca ainda */
+  }
+  return [...TRILHAS_BASE, ...marca];
+}
+
 // Mesmo modelo das outras funções do projeto (centenas de chamadas ok com esta chave).
 const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5";
 
@@ -119,7 +137,7 @@ FORMATO DA TIMELINE
   "legenda": {"ativa": true, "estilo": "karaoke"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "palavrasPorBloco": 1–5, "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
   "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
   "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
-  "musica": {"midia": "<id de mídia de áudio enviada>"|null, "volume": 0.08–0.2, "abaixarNaVoz": true},
+  "musica": {"midia": "trilha:<id>" (lista TRILHAS DISPONÍVEIS) | "<id de áudio enviado>" | null, "volume": 0.08–0.3, "abaixarNaVoz": true, "abaixarPara": 0.2–0.5, "fade": true},
   "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|flash|chicote|glitch|zoom",
              "brilho": 0.5–1.6 (1 = original), "contraste": 0.5–1.6, "saturacao": 0–2, "temperatura": -1 (frio) … 1 (quente), "sombras": 0–1 (clareia rosto escuro), "nitidez": 0–1},   // /luz mexe só nestes; ajustes sutis (±0.05–0.2) ficam naturais
   "marca": ${JSON.stringify(marca)}
@@ -138,6 +156,7 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
 8b. Imagens e vídeos da internet: quando a pessoa pedir ("/imagem", "coloca uma foto de…", "busca um vídeo de…") ou quando um b-roll real deixaria a edição melhor e não há mídia enviada, chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Nunca invente ids. Até 3 buscas por pedido.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
+10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
 ${
   objetivo === "anuncio"
     ? `
@@ -513,7 +532,11 @@ Deno.serve(async (req) => {
     .map((w, i) => `[${i}] ${w.i.toFixed(2)}-${w.f.toFixed(2)} ${w.p}`)
     .join("\n");
   const reps = detectarRepeticoes(palavras);
-  const contexto = `TRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
+  const trilhas = await listarTrilhas(sb);
+  const listaTrilhas = trilhas
+    .map((t: any) => `- id "trilha:${t.id}" — ${t.nome} (${t.base === undefined && t.id.startsWith("base-") ? "vem com o editor" : "marca"}; energia ${t.energia}; ${(t.humor ?? []).join(", ")}${t.bpm ? `; ${t.bpm} bpm` : ""}): ${t.uso}`)
+    .join("\n");
+  const contexto = `TRILHAS DISPONÍVEIS:\n${listaTrilhas}\n\nTRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
 
   const historico = (hist ?? [])
     .reverse()
@@ -616,6 +639,14 @@ Deno.serve(async (req) => {
   if (uso.timeline && typeof uso.timeline === "object") {
     const tl = uso.timeline;
     tl.formato = mFormato ? mFormato[1] : (tl.formato ?? proj.formato);
+    // Nivelamento da trilha escolhida (ganho medido no upload).
+    const chave = tl.musica?.midia as string | undefined;
+    if (chave?.startsWith("trilha:")) {
+      const t = trilhas.find((x: any) => `trilha:${x.id}` === chave);
+      if (t) tl.musica.ganho = t.ganho ?? 1;
+      else tl.musica.midia = null;
+      if (typeof tl.musica.volume === "number") tl.musica.volume = Math.min(0.3, tl.musica.volume);
+    }
     (tl.efeitos ?? []).forEach((e: any, i: number) => {
       if (!e.id) e.id = `e${Date.now().toString(36)}${i}`;
     });

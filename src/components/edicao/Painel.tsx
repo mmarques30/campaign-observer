@@ -30,6 +30,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Trecho } from "@/video/tempo";
 import { CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
+import { TrilhaSonora } from "./TrilhaSonora";
 
 export function Painel({
   projeto,
@@ -236,6 +237,8 @@ export function Painel({
           })}
         </section>
 
+        <TrilhaSonora tl={tl} setTl={setTl} objetivo={projeto.objetivo} estilo={projeto.estilo ?? "viral"} />
+
         <SonsAplicados tl={tl} setTl={setTl} trechos={trechos} onIr={onIr} />
 
         <CorrecaoImagem tl={tl} setTl={setTl} amostra={amostra} />
@@ -368,18 +371,6 @@ export function Painel({
               onCheckedChange={(v) => set("visual", { barraProgresso: v }, "Barra de progresso")}
             />
           </div>
-          {tl.musica.midia && (
-            <div className="space-y-1">
-              <Label className="text-xs">Volume da música</Label>
-              <Slider
-                min={0}
-                max={0.5}
-                step={0.01}
-                value={[tl.musica.volume]}
-                onValueChange={([v]) => set("musica", { volume: v }, "Volume da música")}
-              />
-            </div>
-          )}
         </section>
       </TabsContent>
 

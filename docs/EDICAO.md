@@ -65,6 +65,17 @@ publicar ◄──────────────────────�
 
 `src/video/repeticoes.ts` (cópia em `supabase/functions/vedit-agente/`) detecta falas repetidas sem IA: quebra a transcrição em frases por pausa, compara cada frase com as 3 seguintes (Jaccard sem stopwords + prefixo para tomadas abortadas) e marca a anterior para sair, mantendo a última. O editor mostra o painel "falas repetidas", o corte rápido já as remove e o agente recebe a lista pronta.
 
+## Música (Edição → Trilhas)
+
+- 4 trilhas de base vêm com o editor (`public/vedit/trilhas/`, sintetizadas por `scripts/trilhas-sintese.py`, sem direitos de terceiros): Pulso (anúncio viral), Corporativo leve (editorial/limpo), Tensão (abrir com dor), Lo-fi (orgânico).
+- A biblioteca da marca fica no bucket (`video-edicao/trilhas/` + `trilhas/biblioteca.json`, sem tabela). No upload a faixa é medida e ganha um `ganho` para tocar no mesmo volume percebido das outras.
+- `timeline.musica`: `midia` ("trilha:<id>" ou áudio do projeto), `volume` (0.16 anúncio / 0.12 orgânico), `abaixarPara` (ducking suave quando há fala, padrão 0.3 ≈ −10 dB), `ganho`, `inicio`, `fade`.
+- Ao aceitar a sugestão, a v1 já vem com trilha (pelo objetivo e estilo). No chat: `/musica`, `/musica mais alta|mais baixa|outra|sem`.
+
+## Fase 2 — recorte da pessoa
+
+Botão **Recortar pessoa** no editor: MediaPipe selfie segmenter no navegador, quadro a quadro, gravado como WebM VP9 com alfa (720p) em `video-edicao/<projeto>/recorte-pessoa.webm` (registrado em `vedit_midias`). Libera `/atras`, `/trocarfundo`, `/contorno`, `/moldura`, `/vertigo`, que seguem os cortes e o zoom do vídeo base. O worker usa o mesmo arquivo no render.
+
 ## Pesquisa de nicho (Edição → Pesquisa)
 
 O que o Igão mostra no reel: achar os Reels que mais viralizaram no nicho, explicar por que funcionaram e virar roteiro original. Tudo pela **API oficial do Instagram** (Graph API) com o `META_ADS_TOKEN` que já publica os Reels (`instagram_basic` + `instagram_manage_insights`):

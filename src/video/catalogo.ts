@@ -629,6 +629,12 @@ export const COMANDOS: ComandoDef[] = [
     descricao: "Cor e textura: natural, quente, frio, cinema, pb, vivo; grão; vinheta.",
   },
   {
+    comando: "/musica",
+    titulo: "Música de fundo",
+    descricao:
+      "Escolhe e aplica a trilha pelo clima do vídeo, volume equilibrado e baixando na voz. Ex.: /musica, /musica mais alta, /musica outra, /musica sem.",
+  },
+  {
     comando: "/luz",
     titulo: "Correção de luz",
     descricao:

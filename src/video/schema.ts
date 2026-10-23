@@ -87,9 +87,15 @@ export const timelineSchema = z.object({
     .default([]),
   musica: z
     .object({
+      // id de mídia do projeto, ou "trilha:<id>" (biblioteca/trilhas de base)
       midia: z.string().nullable().default(null),
       volume: z.number().min(0).max(1).default(0.12),
       abaixarNaVoz: z.boolean().default(true),
+      // Quanto a música baixa enquanto alguém fala (0.3 ≈ -10 dB).
+      abaixarPara: z.number().min(0.05).max(1).default(0.3),
+      ganho: z.number().min(0.1).max(4).default(1), // normalização da faixa
+      inicio: z.number().min(0).default(0), // segundo da faixa onde começa
+      fade: z.boolean().default(true),
     })
     .default({}),
   visual: z
