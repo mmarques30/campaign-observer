@@ -34,12 +34,30 @@ function NotFoundComponent() {
   );
 }
 
+// Depois de um deploy novo, abas abertas pedem pedaços do app que já não existem.
+const ERRO_VERSAO =
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk .* failed|Unable to preload CSS/i;
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const versaoVelha = ERRO_VERSAO.test(String(error?.message ?? ""));
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+    // Recarrega sozinho uma vez (a cada 30 s no máximo) para pegar a versão nova.
+    if (versaoVelha && typeof window !== "undefined") {
+      let ultimo = 0;
+      try {
+        ultimo = Number(sessionStorage.getItem("recarregou-versao") ?? 0);
+        if (Date.now() - ultimo > 30_000) {
+          sessionStorage.setItem("recarregou-versao", String(Date.now()));
+          window.location.reload();
+        }
+      } catch {
+        /* sem sessionStorage: segue para a tela de erro */
+      }
+    }
+  }, [error, versaoVelha]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -48,11 +66,19 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
           This page didn't load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          {versaoVelha
+            ? "O sistema foi atualizado enquanto esta aba estava aberta. Recarregue a página."
+            : "Something went wrong on our end. You can try refreshing or head back home."}
         </p>
+        {!versaoVelha && error?.message && (
+          <p className="mt-3 text-xs text-muted-foreground/80 font-mono break-words">
+            {String(error.message).slice(0, 300)}
+          </p>
+        )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
+              if (versaoVelha) return window.location.reload();
               router.invalidate();
               reset();
             }}
@@ -78,25 +104,57 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "IAplicada Ads" },
-      { name: "description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM." },
+      {
+        name: "description",
+        content:
+          "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM.",
+      },
       { name: "author", content: "IAplicada" },
       { name: "theme-color", content: "#1a1c14" },
       { property: "og:title", content: "IAplicada Ads" },
-      { property: "og:description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM." },
+      {
+        property: "og:description",
+        content:
+          "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "IAplicada Ads" },
-      { name: "twitter:description", content: "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Cockpit de mídia paga da IAplicada: campanhas, criativos e landing pages, cruzados com os dados do CRM.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/3564a6a5-b0d4-43d0-9bf2-1dd23e96617d/id-preview-81695b46--c32fdead-754b-4b76-aaf2-7131a6e786bf.lovable.app-1780660586850.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/brand/iaplicada-mark.png" },
       { rel: "apple-touch-icon", href: "/brand/iaplicada-mark.png" },
-      { rel: "preload", as: "font", type: "font/woff2", href: "/fonts/inter-latin.woff2", crossOrigin: "anonymous" },
-      { rel: "preload", as: "font", type: "font/woff2", href: "/fonts/inter-tight-latin.woff2", crossOrigin: "anonymous" },
+      {
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href: "/fonts/inter-latin.woff2",
+        crossOrigin: "anonymous",
+      },
+      {
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href: "/fonts/inter-tight-latin.woff2",
+        crossOrigin: "anonymous",
+      },
     ],
     scripts: [
       {
