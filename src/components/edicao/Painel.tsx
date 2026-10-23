@@ -28,6 +28,8 @@ import { fmtTempo, type Midia, type Projeto } from "@/lib/vedit";
 import { ESTILOS } from "@/video/catalogo";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import type { Trecho } from "@/video/tempo";
+import { CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
 
 export function Painel({
   projeto,
@@ -40,6 +42,8 @@ export function Painel({
   onComando,
   onCorteRapido,
   selecionado,
+  trechos,
+  amostra,
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -53,6 +57,8 @@ export function Painel({
   onComando: (texto: string) => void;
   onCorteRapido: () => void;
   selecionado?: string | null;
+  trechos: Trecho[];
+  amostra?: { url?: string; tempos: number[] };
 }) {
   const [subindo, setSubindo] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -229,6 +235,10 @@ export function Painel({
             );
           })}
         </section>
+
+        <SonsAplicados tl={tl} setTl={setTl} trechos={trechos} onIr={onIr} />
+
+        <CorrecaoImagem tl={tl} setTl={setTl} amostra={amostra} />
 
         <section className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

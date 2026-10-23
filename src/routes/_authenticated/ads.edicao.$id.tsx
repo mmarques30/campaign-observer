@@ -17,7 +17,9 @@ import {
   Trash2,
   Undo2,
   Upload,
+  UserRound,
 } from "lucide-react";
+import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
@@ -71,6 +73,23 @@ function Editor() {
   const [zonas, setZonas] = useState(false);
   const [publicar, setPublicar] = useState(false);
   const navigate = useNavigate();
+  const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
+  async function recortarPessoa() {
+    const p = qc.getQueryData<Projeto>(["vedit", "projeto", id]);
+    if (!p?.fonte_path) return;
+    if (!suportaRecorte()) return toast.error("Este navegador não suporta o recorte. Use o Chrome atualizado.");
+    setRecortando({ p: 0, etapa: "Baixando o vídeo" });
+    try {
+      const arq = await baixarFonte(p.fonte_proxy_path ?? p.fonte_path);
+      await prepararRecorte(id, arq, (x, etapa) => setRecortando({ p: x, etapa }));
+      await Promise.all([midiasQ.refetch(), qc.invalidateQueries({ queryKey: ["vedit", "urls", id] })]);
+      toast.success("Pessoa recortada. Texto atrás, troca de fundo, contorno, moldura e vertigo liberados.");
+    } catch (e) {
+      toast.error(`Recorte: ${(e as Error).message}`);
+    } finally {
+      setRecortando(null);
+    }
+  }
   const [excluir, setExcluir] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
   async function confirmarExclusao() {
@@ -141,8 +160,13 @@ function Editor() {
       const fonte = await assinar(proj!.fonte_proxy_path ?? proj!.fonte_path!);
       const audio = proj!.audio_path ? await assinar(proj!.audio_path) : undefined;
       const midias: Record<string, string> = {};
-      for (const m of midiasQ.data ?? []) midias[m.id] = await assinar(m.path);
-      return { fonte, audio, midias };
+      let recorte: string | undefined;
+      for (const m of midiasQ.data ?? []) {
+        const u = await assinar(m.path);
+        if (m.nome === NOME_RECORTE) recorte = u;
+        else midias[m.id] = u;
+      }
+      return { fonte, audio, midias, recorte };
     },
   });
   const renderQ = useQuery({
@@ -224,6 +248,7 @@ function Editor() {
             palavras,
             fonteUrl: urlsQ.data.fonte,
             audioUrl: urlsQ.data.audio,
+            recorteUrl: urlsQ.data.recorte,
             duracaoFonte,
             midias: urlsQ.data.midias,
           }
@@ -369,6 +394,28 @@ function Editor() {
               )}
               Renderizar
             </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={recortarPessoa} disabled={!!recortando || !proj.fonte_path}>
+                  {recortando ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {Math.round(recortando.p * 100)}%
+                    </>
+                  ) : (
+                    <>
+                      <UserRound className="h-4 w-4 mr-2" />
+                      {urlsQ.data?.recorte ? "Recorte ok" : "Recortar pessoa"}
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {recortando
+                  ? `${recortando.etapa}… deixe esta aba aberta`
+                  : "Separa você do fundo (IA no navegador, 2–4 min). Libera /atras, /trocarfundo, /contorno, /moldura e /vertigo."}
+              </TooltipContent>
+            </Tooltip>
             <Button size="sm" onClick={() => setPublicar(true)} disabled={!proj.render_path}>
               <Send className="h-4 w-4 mr-2" />
               Publicar
@@ -448,6 +495,16 @@ function Editor() {
               onIr={irPara}
               onComando={(t) => setRascunho(t)}
               selecionado={selecionado}
+              trechos={trechos}
+              amostra={{
+                url: urlsQ.data?.fonte,
+                tempos: trechos.length
+                  ? [0.25, 0.5, 0.75].map((q) => {
+                      const t = trechos[Math.floor(q * (trechos.length - 1))];
+                      return (t.de + t.ate) / 2;
+                    })
+                  : [duracaoFonte * 0.25, duracaoFonte * 0.5, duracaoFonte * 0.75],
+              }}
               onCorteRapido={() => {
                 const cortes = cortarSilencios(palavras, duracaoFonte, {
                   tirarMuletas: true,

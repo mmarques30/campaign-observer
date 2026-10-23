@@ -26,6 +26,7 @@ import {
 import { AntesDepois, Broll, Colagem, Particulas, Rabisco } from "./efeitos/midia";
 import { Azulejos, Cracha, FraseCaixa, ListaEditorial, NumeroCapitulo } from "./efeitos/editorial";
 import { Dividir, FundoImagem, Reagir } from "./efeitos/formatos";
+import { Contorno, MolduraQuebrada, TextoAtras, TrocaFundo, Vertigo } from "./efeitos/recorte";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -473,7 +474,7 @@ export const EFEITOS: EfeitoDef[] = [
     disponivel: true,
     componente: FundoImagem,
   },
-  // ── Fase 2: dependem de recortar a pessoa do fundo (worker + modelo de matting) ──
+  // ── Fase 2: usam a pessoa recortada (botão "Recortar pessoa" no editor gera o WebM com alfa) ──
   {
     tipo: "texto-atras",
     comando: "/atras",
@@ -481,10 +482,11 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "texto",
     descricao: "Título enorme passando por trás da cabeça.",
     quandoUsar: "Gancho premium.",
-    params: "texto",
+    params: "texto (use | para quebrar linha), cor?, altura? (0–1, padrão 0.3)",
     duracaoPadrao: 3,
-    disponivel: false,
+    disponivel: true,
     precisaRecorte: true,
+    componente: TextoAtras,
     inspiracao: "castilho 'letras caindo atrás de mim'",
   },
   {
@@ -494,10 +496,11 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "midia",
     descricao: "A pessoa sai de dentro da moldura.",
     quandoUsar: "Pattern interrupt.",
-    params: "",
+    params: "escala? (0.6–0.9), topo? (0.15–0.45, padrão 0.3: onde fica a borda de cima; a cabeça acima dela sai da moldura), cor?, fundo?",
     duracaoPadrao: 2,
-    disponivel: false,
+    disponivel: true,
     precisaRecorte: true,
+    componente: MolduraQuebrada,
     inspiracao: "tenfoldmarc frame break",
   },
   {
@@ -507,10 +510,11 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "midia",
     descricao: "Você na frente de um print, site ou vídeo.",
     quandoUsar: "Reagir a notícia, mostrar tela.",
-    params: "midia",
+    params: "midia (id de imagem/vídeo), desfocar? (bool)",
     duracaoPadrao: 4,
-    disponivel: false,
+    disponivel: true,
     precisaRecorte: true,
+    componente: TrocaFundo,
     inspiracao: "tenfoldmarc green screen",
   },
   {
@@ -520,10 +524,11 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "transicao",
     descricao: "Dolly zoom: você parado, fundo esticando.",
     quandoUsar: "Momento de revelação.",
-    params: "",
+    params: "forca? (0.2–0.8)",
     duracaoPadrao: 2,
-    disponivel: false,
+    disponivel: true,
     precisaRecorte: true,
+    componente: Vertigo,
     inspiracao: "tenfoldmarc vertigo",
   },
   {
@@ -533,10 +538,11 @@ export const EFEITOS: EfeitoDef[] = [
     categoria: "texto",
     descricao: "Linha desenhada à mão contornando a pessoa.",
     quandoUsar: "Destaque de quem fala.",
-    params: "",
+    params: "cor?, espessura? (4–12)",
     duracaoPadrao: 2,
-    disponivel: false,
+    disponivel: true,
     precisaRecorte: true,
+    componente: Contorno,
     inspiracao: "tenfoldmarc doodle boil",
   },
   {
@@ -623,6 +629,12 @@ export const COMANDOS: ComandoDef[] = [
     descricao: "Cor e textura: natural, quente, frio, cinema, pb, vivo; grão; vinheta.",
   },
   {
+    comando: "/luz",
+    titulo: "Correção de luz",
+    descricao:
+      "Corrige a imagem: brilho, contraste, saturação, temperatura (frio/quente), sombras (clareia rosto escuro) e nitidez. Ex.: /luz está escuro e amarelado.",
+  },
+  {
     comando: "/imagem",
     titulo: "Buscar imagem ou vídeo na internet",
     descricao:
@@ -671,7 +683,7 @@ export function catalogoParaClaude(): string {
   const disp = EFEITOS.filter((e) => e.disponivel)
     .map(
       (e) =>
-        `- tipo "${e.tipo}" (${e.comando}) — ${e.nome}: ${e.descricao} Quando usar: ${e.quandoUsar} Props: ${e.params}. Duração típica ${e.duracaoPadrao}s.${e.telaCheia ? " COBRE A TELA INTEIRA (a pessoa some)." : ""}${e.escondeLegenda ? " A legenda some enquanto ele aparece: use o painel para a ideia principal." : ""}${e.somPadrao ? ` Som sugerido: ${e.somPadrao}.` : ""}`,
+        `- tipo "${e.tipo}" (${e.comando}) — ${e.nome}: ${e.descricao} Quando usar: ${e.quandoUsar} Props: ${e.params}. Duração típica ${e.duracaoPadrao}s.${e.telaCheia ? " COBRE A TELA INTEIRA (a pessoa some)." : ""}${e.escondeLegenda ? " A legenda some enquanto ele aparece: use o painel para a ideia principal." : ""}${e.somPadrao ? ` Som sugerido: ${e.somPadrao}.` : ""}${e.precisaRecorte ? " PRECISA DO RECORTE DA PESSOA: só use se em MÍDIAS ENVIADAS existir \"recorte-pessoa.webm\"; senão diga para clicar em Recortar pessoa no topo do editor." : ""}`,
     )
     .join("\n");
   const fase2 = EFEITOS.filter((e) => !e.disponivel)
@@ -681,5 +693,5 @@ export function catalogoParaClaude(): string {
   const estilos = Object.entries(ESTILOS)
     .map(([id, e]) => `- "${id}" (${e.nome}): ${e.descricao} Regras: ${e.regras}`)
     .join("\n");
-  return `EFEITOS DISPONÍVEIS:\n${disp}\n\nAINDA NÃO DISPONÍVEIS (não use; se pedirem, diga que está na fase 2): ${fase2}\n\nESTILOS VISUAIS:\n${estilos}\n\nCOMANDOS DE BARRA:\n${cmds}`;
+  return `EFEITOS DISPONÍVEIS:\n${disp}\n\nAINDA NÃO DISPONÍVEIS (não use; se pedirem, explique que depende de integração com IA de vídeo): ${fase2 || "(nenhum)"}\n\nESTILOS VISUAIS:\n${estilos}\n\nCOMANDOS DE BARRA:\n${cmds}`;
 }

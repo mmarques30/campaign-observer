@@ -36,6 +36,7 @@ export type PropsFila = {
   duracaoFonte: number;
   fontePath: string;
   midiasPaths: Record<string, string>;
+  recortePath?: string | null;
 };
 
 async function assinar(p: string) {
@@ -196,6 +197,7 @@ async function loop(serveUrl: string) {
         palavras: p.palavras,
         duracaoFonte: p.duracaoFonte,
         fonteUrl: await assinar(p.fontePath),
+        recorteUrl: p.recortePath ? await assinar(p.recortePath) : undefined,
         midias,
       };
       let ultimo = 0;

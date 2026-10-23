@@ -26,6 +26,20 @@ const FILTRO_LOOK: Record<string, string> = {
   vivo: "saturate(1.32) contrast(1.06)",
 };
 
+/** Correção de luz/cor em CSS (vale no preview e no render). */
+export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
+  const partes: string[] = [];
+  const brilho = v.brilho + v.sombras * 0.12;
+  const contraste = v.contraste - v.sombras * 0.12;
+  if (brilho !== 1) partes.push(`brightness(${brilho.toFixed(3)})`);
+  if (contraste !== 1) partes.push(`contrast(${contraste.toFixed(3)})`);
+  if (v.saturacao !== 1) partes.push(`saturate(${v.saturacao.toFixed(3)})`);
+  if (v.temperatura > 0) partes.push(`sepia(${(v.temperatura * 0.28).toFixed(3)})`);
+  if (v.temperatura < 0) partes.push(`hue-rotate(${(v.temperatura * -14).toFixed(1)}deg) saturate(${(1 + v.temperatura * 0.08).toFixed(3)})`);
+  if (v.nitidez > 0) partes.push("url(#vedit-nitidez)");
+  return partes.join(" ");
+}
+
 /** Escala de zoom num frame de saída: alternância por trecho + eventos de ênfase. */
 function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trecho[]) {
   const tl = props.timeline;
@@ -167,6 +181,16 @@ export function Reel(bruto: ReelProps) {
     trechos,
     palavras: props.palavras,
     modoGaleria: props.modoGaleria,
+    recorteUrl: props.recorteUrl,
+    estiloBase: {
+      transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
+      transformOrigin: `${ox * 100}% ${oy * 100}%`,
+      objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+      filter:
+        [filtroCorrecao(tl.visual), FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look]]
+          .filter(Boolean)
+          .join(" ") || undefined,
+    },
   };
   const efeitos = tl.efeitos.filter((e) => EFEITO_POR_TIPO[e.tipo]?.componente);
   const camada = (cheia: boolean) =>
@@ -190,12 +214,29 @@ export function Reel(bruto: ReelProps) {
 
   return (
     <AbsoluteFill style={{ background: tl.marca.fundo, overflow: "hidden" }}>
+      {tl.visual.nitidez > 0 && (
+        <svg width="0" height="0" style={{ position: "absolute" }}>
+          <filter id="vedit-nitidez">
+            <feConvolveMatrix
+              order="3"
+              preserveAlpha="true"
+              kernelMatrix={(() => {
+                const a = tl.visual.nitidez * 0.9;
+                return `0 ${-a} 0 ${-a} ${1 + 4 * a} ${-a} 0 ${-a} 0`;
+              })()}
+            />
+          </filter>
+        </svg>
+      )}
       {/* Vídeo base, já cortado */}
       <AbsoluteFill
         style={{
           transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
           transformOrigin: `${ox * 100}% ${oy * 100}%`,
-          filter: `${FILTRO_LOOK[tl.visual.look] ?? "none"}${blur ? ` blur(${blur}px)` : ""}`,
+          filter:
+            [filtroCorrecao(tl.visual), FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look], blur ? `blur(${blur}px)` : ""]
+              .filter(Boolean)
+              .join(" ") || "none",
         }}
       >
         {props.modoGaleria || !props.fonteUrl ? (

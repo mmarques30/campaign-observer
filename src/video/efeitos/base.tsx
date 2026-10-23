@@ -11,7 +11,7 @@ import type { Palavra, Timeline } from "../schema";
 import type { Trecho } from "../tempo";
 
 // No preview, um vídeo que não carrega não derruba a tela; no render, falha alto.
-const aoErrar = () =>
+export const aoErrar = () =>
   getRemotionEnvironment().isRendering ? undefined : (e: Error) => console.warn("[vedit] mídia", e);
 
 export type EfeitoCtx = {
@@ -23,6 +23,9 @@ export type EfeitoCtx = {
   palavras: Palavra[];
   deFonte: number; // início do efeito no tempo do original
   modoGaleria?: boolean;
+  recorteUrl?: string;
+  // Transform/enquadramento do vídeo base no quadro atual (para a pessoa recortada encaixar).
+  estiloBase?: { transform: string; transformOrigin: string; objectPosition: string; filter?: string };
 };
 
 export type EfeitoProps = { p: Record<string, any>; ctx: EfeitoCtx; dur: number };
