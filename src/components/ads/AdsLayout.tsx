@@ -247,7 +247,11 @@ export function AdsLayout() {
             <Link to="/ads" className="flex items-center min-w-0" aria-label="Ir para o Dashboard">
               {showLabels ? <Logo size={22} /> : <LogoMark size={28} />}
             </Link>
-            {showLabels && <span className="ml-1.5 mt-0.5 rounded-md border border-primary/30 bg-primary/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.14em] text-primary">Ads</span>}
+            {showLabels && (
+              <span className="ml-2 inline-flex h-[18px] items-center self-center rounded-md bg-primary px-1.5 text-[10px] font-bold leading-none tracking-[0.12em] text-primary-foreground">
+                ADS
+              </span>
+            )}
             {isMobile && (
               <Button variant="ghost" size="icon-sm" className="ml-auto" onClick={() => setMobileOpen(false)} aria-label="Fechar menu">
                 <X className="h-4 w-4" />

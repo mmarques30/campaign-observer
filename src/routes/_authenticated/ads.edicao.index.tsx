@@ -178,7 +178,7 @@ function Estudio() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-                <CardContent className="p-4 flex gap-4">
+                <CardContent className="p-5 flex items-center gap-4">
                   <div
                     className={cn(
                       "shrink-0 rounded-lg bg-foreground/90 flex items-center justify-center",
