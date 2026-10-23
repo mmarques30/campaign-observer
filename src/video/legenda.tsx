@@ -53,8 +53,9 @@ export function montarBlocos(
   return blocos;
 }
 
-// Três alturas bem distintas; "inferior" fica logo acima da faixa que o Instagram cobre (35% de baixo).
-const TOPO: Record<string, string> = { inferior: "63%", centro: "45%", superior: "20%" };
+// Três alturas bem distintas. "inferior" fica logo acima da legenda/botões do Reels;
+// para descer mais, use o ajuste fino (legenda.altura) — o guia de zona segura mostra o limite.
+export const TOPO: Record<string, string> = { inferior: "71%", centro: "50%", superior: "22%" };
 
 export function Legenda({
   tl,
@@ -85,7 +86,7 @@ export function Legenda({
     position: "absolute",
     left: "7%",
     right: "7%",
-    top: TOPO[tl.legenda.posicao],
+    top: tl.legenda.altura != null ? `${tl.legenda.altura * 100}%` : TOPO[tl.legenda.posicao],
     transform: `translateY(-50%) scale(${interpolate(entrada, [0, 1], [0.86, 1])})`,
     opacity: interpolate(entrada, [0, 1], [0, 1]),
     display: "flex",
@@ -200,7 +201,8 @@ export function Legenda({
         <div
           style={{
             position: "absolute",
-            top: TOPO[tl.legenda.posicao],
+            top:
+              tl.legenda.altura != null ? `${tl.legenda.altura * 100}%` : TOPO[tl.legenda.posicao],
             transform: `translateY(-50%) scale(${interpolate(s, [0, 1], [1.6, 1])})`,
             fontFamily: f("Anton", "Impact, sans-serif"),
             fontSize: 150 * u,
@@ -244,6 +246,43 @@ export function Legenda({
               </span>
             );
           })}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (estilo === "simples") {
+    // Legenda comum: frase em letra normal, branca, contorno fino. Sem pulo nem pílula.
+    const surge = interpolate(frame - bloco.ini, [0, 3], [0, 1], { extrapolateRight: "clamp" });
+    return (
+      <AbsoluteFill>
+        <div
+          style={{
+            ...base,
+            left: "9%",
+            right: "9%",
+            transform: "translateY(-50%)",
+            opacity: surge,
+            gap: `${4 * u}px ${12 * u}px`,
+          }}
+        >
+          {bloco.palavras.map((w) => (
+            <span
+              key={w.idx}
+              style={{
+                fontFamily: f(m.fonteLegenda),
+                fontWeight: 600,
+                fontSize: 54 * u,
+                lineHeight: 1.22,
+                color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
+                WebkitTextStroke: `${1.6 * u}px rgba(0,0,0,.85)`,
+                paintOrder: "stroke fill",
+                textShadow: `0 ${2 * u}px ${10 * u}px rgba(0,0,0,.55)`,
+              }}
+            >
+              {w.texto}
+            </span>
+          ))}
         </div>
       </AbsoluteFill>
     );

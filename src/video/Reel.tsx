@@ -1,5 +1,6 @@
 import {
   AbsoluteFill,
+  Easing,
   Audio,
   getRemotionEnvironment,
   interpolate,
@@ -36,7 +37,10 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
   if (contraste !== 1) partes.push(`contrast(${contraste.toFixed(3)})`);
   if (v.saturacao !== 1) partes.push(`saturate(${v.saturacao.toFixed(3)})`);
   if (v.temperatura > 0) partes.push(`sepia(${(v.temperatura * 0.28).toFixed(3)})`);
-  if (v.temperatura < 0) partes.push(`hue-rotate(${(v.temperatura * -14).toFixed(1)}deg) saturate(${(1 + v.temperatura * 0.08).toFixed(3)})`);
+  if (v.temperatura < 0)
+    partes.push(
+      `hue-rotate(${(v.temperatura * -14).toFixed(1)}deg) saturate(${(1 + v.temperatura * 0.08).toFixed(3)})`,
+    );
   if (v.nitidez > 0) partes.push("url(#vedit-nitidez)");
   return partes.join(" ");
 }
@@ -92,6 +96,38 @@ function Grao({ forca }: { forca: number }) {
         </filter>
         <rect width="100%" height="100%" filter={`url(#grao-${frame % 6})`} />
       </svg>
+    </AbsoluteFill>
+  );
+}
+
+function Dissolve({
+  src,
+  trimBefore,
+  dur,
+  objectPosition,
+}: {
+  src: string;
+  trimBefore: number;
+  dur: number;
+  objectPosition: string;
+}) {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill
+      style={{
+        opacity: interpolate(frame, [0, dur], [1, 0], {
+          easing: Easing.inOut(Easing.quad),
+          extrapolateRight: "clamp",
+        }),
+      }}
+    >
+      <OffthreadVideo
+        src={src}
+        trimBefore={trimBefore}
+        muted
+        pauseWhenBuffering
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
+      />
     </AbsoluteFill>
   );
 }
@@ -153,7 +189,9 @@ export function Reel(bruto: ReelProps) {
 
   const { escala, ox, oy } = zoomNoFrame(frame, fps, props, trechos);
   // Música: biblioteca/trilhas de base ("trilha:...") ou mídia do projeto.
-  const urlMusica = tl.musica.midia ? (props.midias[tl.musica.midia] ?? urlTrilhaBase(tl.musica.midia)) : undefined;
+  const urlMusica = tl.musica.midia
+    ? (props.midias[tl.musica.midia] ?? urlTrilhaBase(tl.musica.midia))
+    : undefined;
   // Ducking suave: média móvel de ~0,3 s sobre "está falando" (sem degrau no volume).
   const duck = useMemo(() => {
     const alvo = tl.musica.abaixarNaVoz ? tl.musica.abaixarPara : 1;
@@ -184,7 +222,28 @@ export function Reel(bruto: ReelProps) {
   let extraEscala = 1,
     extraX = 0,
     blur = 0;
+  // Quadros até o próximo corte (para transições que começam antes dele).
+  const proxTrecho = trechos.find((t) => Math.round(t.saidaDe * fps) > frame);
+  const ateCorte = proxTrecho ? Math.round(proxTrecho.saidaDe * fps) - frame : 999;
+  // Curva em "pico" no corte: sobe nos últimos quadros do trecho e desce nos primeiros do próximo.
+  const picoNoCorte = (antes: number, depois: number) =>
+    Math.max(
+      ateCorte <= antes
+        ? interpolate(ateCorte, [1, antes + 1], [1, 0], { extrapolateRight: "clamp" })
+        : 0,
+      desdeCorte < depois ? interpolate(desdeCorte, [0, depois], [1, 0]) : 0,
+    );
+  let escuro = 0,
+    brilho = 1;
   if (trans === "zoom" && desdeCorte < 7) extraEscala = interpolate(desdeCorte, [0, 7], [1.25, 1]);
+  if (trans === "zoom-suave" && desdeCorte < 12)
+    extraEscala = interpolate(desdeCorte, [0, 12], [1.07, 1], { easing: Easing.out(Easing.cubic) });
+  if (trans === "escurecer") escuro = 0.9 * picoNoCorte(3, 4);
+  if (trans === "desfoque") {
+    const k = picoNoCorte(3, 5);
+    blur = 12 * k;
+    brilho = 1 + 0.1 * k;
+  }
   if (trans === "chicote" && desdeCorte < 6) {
     extraX = interpolate(desdeCorte, [0, 6], [120, 0]);
     blur = interpolate(desdeCorte, [0, 6], [14, 0]);
@@ -205,7 +264,10 @@ export function Reel(bruto: ReelProps) {
       transformOrigin: `${ox * 100}% ${oy * 100}%`,
       objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
       filter:
-        [filtroCorrecao(tl.visual), FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look]]
+        [
+          filtroCorrecao(tl.visual),
+          FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look],
+        ]
           .filter(Boolean)
           .join(" ") || undefined,
     },
@@ -252,7 +314,12 @@ export function Reel(bruto: ReelProps) {
           transform: `translateX(${extraX}px) scale(${escala * extraEscala * enq.escala})`,
           transformOrigin: `${ox * 100}% ${oy * 100}%`,
           filter:
-            [filtroCorrecao(tl.visual), FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look], blur ? `blur(${blur}px)` : ""]
+            [
+              filtroCorrecao(tl.visual),
+              FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look],
+              blur ? `blur(${blur.toFixed(2)}px)` : "",
+              brilho !== 1 ? `brightness(${brilho.toFixed(3)})` : "",
+            ]
               .filter(Boolean)
               .join(" ") || "none",
         }}
@@ -312,12 +379,37 @@ export function Reel(bruto: ReelProps) {
                   objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
                 }}
               />
-              {audioSeparado && (
-                <Audio src={props.audioUrl!} trimBefore={Math.round(t.de * fps)} />
-              )}
+              {audioSeparado && <Audio src={props.audioUrl!} trimBefore={Math.round(t.de * fps)} />}
             </Sequence>
           ))
         )}
+        {/* Dissolve: a imagem do trecho anterior continua alguns quadros por cima e some aos poucos. */}
+        {trans === "suave" &&
+          !props.modoGaleria &&
+          props.fonteUrl &&
+          trechos.slice(1).map((t, k) => {
+            const ant = trechos[k];
+            const d = Math.min(8, Math.round((t.ate - t.de) * fps) - 1);
+            if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
+              return null;
+            return (
+              <Sequence
+                key={`d${k}`}
+                from={Math.round(t.saidaDe * fps)}
+                durationInFrames={d}
+                premountFor={fps}
+                name={`Dissolve ${k + 2}`}
+              >
+                <Dissolve
+                  src={props.fonteUrl}
+                  trimBefore={Math.round(ant.ate * fps)}
+                  dur={d}
+                  objectPosition={`${enq.x * 100}% ${enq.y * 100}%`}
+                />
+              </Sequence>
+            );
+          })}
+        {escuro > 0 && <AbsoluteFill style={{ background: "#000", opacity: escuro }} />}
       </AbsoluteFill>
 
       {tl.visual.vinheta > 0 && (
@@ -371,7 +463,9 @@ export function Reel(bruto: ReelProps) {
           volume={(f) => {
             const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
             const fadeOut = tl.musica.fade ? Math.min(1, (durationInFrames - f) / (fps * 1.5)) : 1;
-            return tl.musica.volume * tl.musica.ganho * duck[f] * Math.max(0, Math.min(fadeIn, fadeOut));
+            return (
+              tl.musica.volume * tl.musica.ganho * duck[f] * Math.max(0, Math.min(fadeIn, fadeOut))
+            );
           }}
         />
       )}

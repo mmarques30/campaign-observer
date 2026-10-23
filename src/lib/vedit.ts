@@ -480,7 +480,19 @@ export async function pedirSugestao(projetoId: string) {
 
 /** Aplica a sugestão (toda ou com ajustes da pessoa) no projeto. */
 export async function aplicarSugestao(p: Projeto, s: Sugestao) {
-  const tl = normalizarTimeline({ ...(p.timeline ?? {}), formato: s.formato }).timeline;
+  let tl = normalizarTimeline({ ...(p.timeline ?? {}), formato: s.formato }).timeline;
+  // Modelo marcado como padrão (salvo de um vídeo que ficou bom): o novo já nasce no mesmo estilo.
+  let resumoModelo = "";
+  try {
+    const { listarModelos, aplicarModelo } = await import("@/lib/modelos");
+    const m = (await listarModelos()).find((x) => x.padrao);
+    if (m && !tl.modelo) {
+      tl = aplicarModelo(tl, m);
+      resumoModelo = ` Modelo "${m.nome}" aplicado (legenda, look, transição, música).`;
+    }
+  } catch {
+    /* sem modelo: segue o padrão */
+  }
   // Primeira versão já sai limpa: silêncios, muletas e tomadas repetidas fora (fica a última).
   const palavras = (p.palavras ?? []) as Palavra[];
   const duracao = Number(p.fonte_duracao ?? 0);
@@ -495,8 +507,21 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
     const final = tl.cortes.reduce((acc, c) => acc + c.ate - c.de, 0);
     // Anúncio sempre com música de fundo (orgânico também, mais baixa): trilha de base pelo estilo.
     if (!tl.musica.midia) {
-      const pref = s.objetivo === "anuncio" ? (s.estilo === "viral" ? "base-pulso" : "base-corporativo") : s.estilo === "editorial" ? "base-corporativo" : "base-lofi";
-      tl.musica = { ...tl.musica, midia: `trilha:${pref}`, volume: s.objetivo === "anuncio" ? 0.16 : 0.12, ganho: 1, abaixarNaVoz: true };
+      const pref =
+        s.objetivo === "anuncio"
+          ? s.estilo === "viral"
+            ? "base-pulso"
+            : "base-corporativo"
+          : s.estilo === "editorial"
+            ? "base-corporativo"
+            : "base-lofi";
+      tl.musica = {
+        ...tl.musica,
+        midia: `trilha:${pref}`,
+        volume: s.objetivo === "anuncio" ? 0.16 : 0.12,
+        ganho: 1,
+        abaixarNaVoz: true,
+      };
     }
     resumoCorte = ` Corte automático: ${reps.length} fala(s) repetida(s) fora (ficou a última de cada) e silêncios removidos — ${fmtTempo(duracao)} → ${fmtTempo(final)}. Ajuste em "Na edição" ou peça no chat.`;
   }
@@ -520,16 +545,18 @@ export async function aplicarSugestao(p: Projeto, s: Sugestao) {
     .insert({
       projeto_id: p.id,
       papel: "sistema",
-      conteudo: `Projeto definido: "${s.nome}" · ${s.objetivo === "anuncio" ? "anúncio" : "orgânico"} · ${s.formato} · estilo ${s.estilo} · alvo ~${s.duracao_alvo}s.${s.palavra_cta ? ` Palavra do CTA: ${s.palavra_cta}.` : ""}${resumoCorte}`,
+      conteudo: `Projeto definido: "${s.nome}" · ${s.objetivo === "anuncio" ? "anúncio" : "orgânico"} · ${s.formato} · estilo ${s.estilo} · alvo ~${s.duracao_alvo}s.${s.palavra_cta ? ` Palavra do CTA: ${s.palavra_cta}.` : ""}${resumoModelo}${resumoCorte}`,
     });
   if (resumoCorte)
-    await db().from("vedit_versoes").insert({
-      projeto_id: p.id,
-      versao: (p.versao ?? 0) + 1,
-      timeline: tl,
-      origem: "manual",
-      resumo: "Corte automático: silêncios e tomadas repetidas",
-    });
+    await db()
+      .from("vedit_versoes")
+      .insert({
+        projeto_id: p.id,
+        versao: (p.versao ?? 0) + 1,
+        timeline: tl,
+        origem: "manual",
+        resumo: "Corte automático: silêncios e tomadas repetidas",
+      });
   if (resumoCorte)
     await db()
       .from("vedit_projetos")
