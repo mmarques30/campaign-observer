@@ -6,6 +6,7 @@ import { COMANDOS, EFEITOS } from "@/video/catalogo";
 import type { Cena, Mensagem } from "@/lib/vedit";
 import { fmtTempo } from "@/lib/vedit";
 import { cn } from "@/lib/utils";
+import { BotaoVoz } from "@/components/BotaoVoz";
 
 type Sugestao = { comando: string; titulo: string; descricao: string };
 
@@ -211,7 +212,12 @@ export function Chat({
             rows={2}
             className="border-0 shadow-none focus-visible:ring-0 resize-none min-h-0 p-1"
           />
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-1.5">
+            <BotaoVoz
+              className="h-8 w-8 rounded-full"
+              disabled={enviando}
+              onTexto={(t) => setRascunho(rascunho.trim() ? `${rascunho.trim()} ${t}` : t)}
+            />
             <Button
               size="icon"
               className="h-8 w-8 rounded-full"
