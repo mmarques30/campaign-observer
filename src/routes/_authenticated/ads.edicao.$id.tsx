@@ -124,15 +124,19 @@ function Editor() {
       "urls",
       id,
       proj?.fonte_path,
+      proj?.fonte_proxy_path,
+      proj?.audio_path,
       (midiasQ.data ?? []).map((m) => m.id).join(","),
     ],
     enabled: !!proj?.fonte_path,
     staleTime: 5 * 3600 * 1000,
     queryFn: async () => {
-      const fonte = await assinar(proj!.fonte_path!);
+      // Preview usa a versão leve quando existe; o render usa sempre o arquivo enviado.
+      const fonte = await assinar(proj!.fonte_proxy_path ?? proj!.fonte_path!);
+      const audio = proj!.audio_path ? await assinar(proj!.audio_path) : undefined;
       const midias: Record<string, string> = {};
       for (const m of midiasQ.data ?? []) midias[m.id] = await assinar(m.path);
-      return { fonte, midias };
+      return { fonte, audio, midias };
     },
   });
   const renderQ = useQuery({
@@ -205,6 +209,7 @@ function Editor() {
             timeline: tl,
             palavras,
             fonteUrl: urlsQ.data.fonte,
+            audioUrl: urlsQ.data.audio,
             duracaoFonte,
             midias: urlsQ.data.midias,
           }

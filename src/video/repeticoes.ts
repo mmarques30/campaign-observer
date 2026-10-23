@@ -1,11 +1,15 @@
 // Detecção de tomadas repetidas (retakes) na transcrição.
-// Quem grava sozinho repete a mesma frase até sair boa; a regra é ficar com a ÚLTIMA.
+// Quem grava sozinho repete a mesma fala até sair boa; a regra é ficar com a ÚLTIMA.
+// Uma tomada costuma ser um BLOCO de várias frases ("Ei, vem cá. 1, 2, 3. Isso é o número…"),
+// então a detecção é por alinhamento de blocos, não frase a frase: quando a mesma abertura
+// (3 palavras) reaparece mais à frente e o bloco entre as duas é parecido com o que vem depois,
+// o bloco anterior é descartado.
 // Sem IA: roda no navegador e na função edge (cópia em supabase/functions/vedit-agente/repeticoes.ts).
 
 export type PalavraT = { p: string; i: number; f: number };
 
 export type Frase = {
-  idx: number; // índice da frase
+  idx: number;
   de: number; // início (s, original)
   ate: number; // fim (s, original)
   texto: string;
@@ -21,8 +25,6 @@ export type Repeticao = {
   motivo: "igual" | "abortada" | "parecida";
 };
 
-const STOP = new Set(["o", "a", "os", "as", "um", "uma", "de", "do", "da", "e", "que", "é", "em"]);
-
 export function normalizar(p: string) {
   return p
     .toLowerCase()
@@ -31,20 +33,19 @@ export function normalizar(p: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-/** Quebra as palavras em frases: pausa ≥ `pausa` s ou pontuação final. */
+/** Quebra as palavras em frases: pausa ≥ `pausa` s ou pontuação final. (Para exibir.) */
 export function frasear(palavras: PalavraT[], pausa = 0.5): Frase[] {
   const out: Frase[] = [];
   let atual: PalavraT[] = [];
   let primeira = 0;
   const fechar = (ultima: number) => {
     if (!atual.length) return;
-    const tokens = atual.map((w) => normalizar(w.p)).filter(Boolean);
     out.push({
       idx: out.length,
       de: atual[0].i,
       ate: atual[atual.length - 1].f,
       texto: atual.map((w) => w.p).join(" "),
-      tokens,
+      tokens: atual.map((w) => normalizar(w.p)).filter(Boolean),
       primeira,
       ultima,
     });
@@ -56,71 +57,106 @@ export function frasear(palavras: PalavraT[], pausa = 0.5): Frase[] {
     const prox = palavras[k + 1];
     const pontua = /[.!?…]$/.test(w.p.trim());
     const gap = prox ? prox.i - w.f : Infinity;
-    // Pontuação só fecha se vier com um mínimo de pausa; pausa longa fecha sempre.
     if (gap >= pausa || (pontua && gap >= 0.2) || !prox) fechar(k);
   });
   return out;
 }
 
-/** Similaridade entre tomadas: Jaccard em tokens (sem stopwords) + bônus se A é prefixo de B. */
-function comparar(a: Frase, b: Frase): { s: number; motivo: Repeticao["motivo"] } {
-  const ta = a.tokens.filter((t) => !STOP.has(t));
-  const tb = b.tokens.filter((t) => !STOP.has(t));
-  if (!ta.length || !tb.length) return { s: 0, motivo: "parecida" };
-  const sa = new Set(ta),
-    sb = new Set(tb);
-  let inter = 0;
-  for (const t of sa) if (sb.has(t)) inter++;
-  const jaccard = inter / (sa.size + sb.size - inter);
-  // Tomada abortada: "hoje eu vou te mostrar— hoje eu vou te mostrar como…"
-  // A (curta) aparece quase inteira, em ordem, no começo de B.
-  let seq = 0;
-  for (let k = 0; k < Math.min(a.tokens.length, b.tokens.length); k++) {
-    if (a.tokens[k] === b.tokens[k]) seq++;
-    else break;
+/** Razão de similaridade por subsequência comum (2·LCS / (|a|+|b|)), como o difflib. */
+function razao(a: string[], b: string[]) {
+  if (!a.length || !b.length) return 0;
+  const m = a.length,
+    n = b.length;
+  let prev = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    const cur = new Array<number>(n + 1).fill(0);
+    for (let j = 1; j <= n; j++)
+      cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1]);
+    prev = cur;
   }
-  const prefixo = a.tokens.length >= 3 ? seq / a.tokens.length : 0;
-  if (jaccard >= 0.85) return { s: jaccard, motivo: "igual" };
-  if (prefixo >= 0.7 && a.tokens.length <= b.tokens.length)
-    return { s: Math.max(jaccard, prefixo), motivo: "abortada" };
-  return { s: jaccard, motivo: "parecida" };
+  return (2 * prev[n]) / (m + n);
+}
+
+function bloco(palavras: PalavraT[], de: number, ate: number): Frase {
+  const fatia = palavras.slice(de, ate);
+  return {
+    idx: de,
+    de: fatia[0].i,
+    ate: fatia[fatia.length - 1].f,
+    texto: fatia.map((w) => w.p).join(" "),
+    tokens: fatia.map((w) => normalizar(w.p)).filter(Boolean),
+    primeira: de,
+    ultima: ate - 1,
+  };
 }
 
 /**
- * Encontra frases repetidas. Compara cada frase com as próximas `janela` frases;
- * quando parecem a mesma fala, a anterior é descartada (fica a última tomada).
+ * Encontra tomadas repetidas por alinhamento de blocos.
+ * - `abertura`: quantas palavras formam a "assinatura" do começo de uma tomada (3).
+ * - `janela`: máximo de segundos entre o começo de uma tomada e o começo da repetição (45).
+ * - `limiar`: similaridade mínima entre o bloco anterior e o que vem depois (0.55).
+ * Varre da esquerda para a direita: ao achar A→B, descarta A e continua a partir de B
+ * (assim 3 tomadas seguidas viram "fica a terceira").
  */
 export function detectarRepeticoes(
   palavras: PalavraT[],
-  opts?: { janela?: number; limiar?: number; pausa?: number },
+  opts?: { abertura?: number; janela?: number; limiar?: number },
 ): Repeticao[] {
-  const janela = opts?.janela ?? 3;
-  const limiar = opts?.limiar ?? 0.6;
-  const frases = frasear(palavras, opts?.pausa);
+  const abertura = opts?.abertura ?? 3;
+  const janela = opts?.janela ?? 45;
+  const limiar = opts?.limiar ?? 0.55;
+  const tok = palavras.map((w) => normalizar(w.p));
+  const n = palavras.length;
   const reps: Repeticao[] = [];
-  const fora = new Set<number>();
-  for (let a = 0; a < frases.length; a++) {
-    if (fora.has(a)) continue;
-    const fa = frases[a];
-    if (fa.tokens.length < 2) continue;
-    let melhor: { b: number; s: number; motivo: Repeticao["motivo"] } | null = null;
-    for (let b = a + 1; b <= Math.min(frases.length - 1, a + janela); b++) {
-      const fb = frases[b];
-      // Uma tomada repetida não pode ser muito mais curta que a anterior (seria só uma retomada de 1 palavra).
-      if (fb.tokens.length < Math.max(2, fa.tokens.length * 0.4)) continue;
-      const { s, motivo } = comparar(fa, fb);
-      if (s >= limiar && (!melhor || s > melhor.s)) melhor = { b, s, motivo };
+  const chave = (k: number) => {
+    const t: string[] = [];
+    for (let q = k; q < n && t.length < abertura; q++) if (tok[q]) t.push(tok[q]);
+    return t.length === abertura ? t.join(" ") : null;
+  };
+  let i = 0;
+  while (i < n) {
+    const ch = chave(i);
+    if (!ch || palavras[i].f - palavras[i].i > 3) {
+      i++;
+      continue;
+    }
+    // Candidatos: a mesma abertura mais à frente, dentro da janela.
+    let melhor: { j: number; s: number; fimB: number } | null = null;
+    for (let j = i + abertura; j < n; j++) {
+      if (palavras[j].i - palavras[i].i > janela) break;
+      if (chave(j) !== ch) continue;
+      const a = tok.slice(i, j).filter(Boolean);
+      if (a.length < abertura) continue;
+      // A tomada seguinte pode ser mais longa (a pessoa acrescenta uma frase): testa 1×, 1,3× e 1,6×.
+      let sc = 0,
+        fimB = j;
+      for (const fator of [1, 1.3, 1.6]) {
+        const fim = Math.min(n, j + Math.round((j - i) * fator));
+        const b = tok.slice(j, fim).filter(Boolean);
+        const s = Math.max(razao(a, b), a.length <= 10 ? razao(a, b.slice(0, a.length)) : 0);
+        if (s > sc) {
+          sc = s;
+          fimB = fim;
+        }
+      }
+      if (sc >= limiar) {
+        melhor = { j, s: sc, fimB };
+        break; // a repetição mais próxima é a tomada seguinte
+      }
     }
     if (melhor) {
-      // Tudo entre A e B (hesitações, "não, pera") sai junto com A.
-      for (let k = a; k < melhor.b; k++) fora.add(k);
+      const A = bloco(palavras, i, melhor.j);
+      const B = bloco(palavras, melhor.j, melhor.fimB);
       reps.push({
-        descartada: fa,
-        mantida: frases[melhor.b],
+        descartada: A,
+        mantida: B,
         similaridade: +melhor.s.toFixed(2),
-        motivo: melhor.motivo,
+        motivo: melhor.s >= 0.85 ? "igual" : A.tokens.length <= 10 ? "abortada" : "parecida",
       });
+      i = melhor.j;
+      continue;
     }
+    i++;
   }
   return reps;
 }
@@ -128,10 +164,7 @@ export function detectarRepeticoes(
 /** Índices (na lista de palavras) que caem fora por serem tomada repetida — inclui o "lixo" entre as tomadas. */
 export function palavrasRepetidas(palavras: PalavraT[], reps: Repeticao[]): Set<number> {
   const fora = new Set<number>();
-  for (const r of reps) {
-    // da primeira palavra da descartada até a palavra anterior ao início da mantida
-    for (let k = r.descartada.primeira; k < r.mantida.primeira; k++) fora.add(k);
-  }
+  for (const r of reps) for (let k = r.descartada.primeira; k < r.mantida.primeira; k++) fora.add(k);
   return fora;
 }
 
@@ -140,7 +173,7 @@ export function descreverRepeticoes(reps: Repeticao[]) {
   return reps
     .map(
       (r) =>
-        `- ${r.descartada.de.toFixed(1)}–${r.mantida.de.toFixed(1)}s sai (${r.motivo}, ${Math.round(r.similaridade * 100)}%): "${r.descartada.texto.slice(0, 70)}" → fica "${r.mantida.texto.slice(0, 70)}" (${r.mantida.de.toFixed(1)}–${r.mantida.ate.toFixed(1)}s)`,
+        `- ${r.descartada.de.toFixed(1)}–${r.mantida.de.toFixed(1)}s sai (${r.motivo}, ${Math.round(r.similaridade * 100)}%): "${r.descartada.texto.slice(0, 80)}${r.descartada.texto.length > 80 ? "…" : ""}" → fica a tomada que começa em ${r.mantida.de.toFixed(1)}s: "${r.mantida.texto.slice(0, 80)}${r.mantida.texto.length > 80 ? "…" : ""}"`,
     )
     .join("\n");
 }
