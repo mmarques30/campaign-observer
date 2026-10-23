@@ -83,6 +83,7 @@ export function Roteiro({
         .map((w) => w.p)
         .join(" ")
     : "";
+  const legendaOculta = sel ? tl.legenda.correcoes[String(sel[0])] === "" : false;
   const falandoAgora = palavras.findIndex((w) => agora >= w.i && agora < w.f + 0.05);
 
   const limpar = () => {
@@ -206,6 +207,31 @@ export function Roteiro({
             <Button
               size="sm"
               variant="outline"
+              className="h-7 text-xs"
+              title={
+                legendaOculta
+                  ? "Volta a mostrar a legenda destas palavras"
+                  : "Tira a legenda destas palavras (a fala continua)"
+              }
+              onClick={() => {
+                if (!sel) return;
+                const corr = { ...tl.legenda.correcoes };
+                for (let k = sel[0]; k <= sel[1]; k++) {
+                  if (legendaOculta) delete corr[String(k)];
+                  else corr[String(k)] = "";
+                }
+                setTl(
+                  { ...tl, legenda: { ...tl.legenda, correcoes: corr } },
+                  legendaOculta ? "Legenda de volta" : "Legenda apagada no trecho",
+                );
+                limpar();
+              }}
+            >
+              {legendaOculta ? "Mostrar legenda" : "Sem legenda"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               className="h-7 w-7 p-0"
               title="Ouvir a partir daqui"
               onClick={() => onIr(Math.max(0, palavras[sel[0]].i - 0.8))}
@@ -266,6 +292,9 @@ export function Roteiro({
                         "cursor-pointer rounded px-[1px]",
                         !mantida[k] &&
                           "line-through text-muted-foreground/60 decoration-red-500/70",
+                        mantida[k] &&
+                          tl.legenda.correcoes[String(k)] === "" &&
+                          "underline decoration-dotted decoration-amber-500",
                         naSel(k) && "bg-primary/20",
                         k === falandoAgora && "ring-1 ring-primary",
                       )}

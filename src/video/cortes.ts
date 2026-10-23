@@ -166,3 +166,42 @@ export function excluirTrecho(trechos: Trecho[], idx: number, duracao: number): 
     duracao,
   );
 }
+
+/**
+ * Divide o trecho mantido em `t` (segundo do original) em dois, para poder apagar só uma parte.
+ * O ponto encosta na pausa entre palavras mais próxima (o micro-corte cai no silêncio).
+ */
+export function dividirEm(
+  cortes: Corte[],
+  trechos: Trecho[],
+  palavras: Palavra[],
+  t: number,
+  duracao: number,
+): { cortes: Corte[]; ok: boolean } {
+  const tr = trechos.find((x) => t > x.de + 0.15 && t < x.ate - 0.15);
+  if (!tr) return { cortes, ok: false };
+  // Pausas entre palavras dentro do trecho: escolhe a mais perto de t.
+  let melhor = t;
+  let dist = Infinity;
+  for (let k = 0; k < palavras.length - 1; k++) {
+    const a = palavras[k].f,
+      b = palavras[k + 1].i;
+    if (a < tr.de || b > tr.ate) continue;
+    const meio = (a + b) / 2;
+    if (Math.abs(meio - t) < dist && Math.abs(meio - t) < 1.2) {
+      dist = Math.abs(meio - t);
+      melhor = meio;
+    }
+  }
+  const novos = trechos
+    .flatMap((x) =>
+      x === tr
+        ? [
+            { de: x.de, ate: melhor - 0.02 },
+            { de: melhor + 0.02, ate: x.ate },
+          ]
+        : [{ de: x.de, ate: x.ate }],
+    )
+    .filter((c) => c.ate - c.de >= MIN_TRECHO);
+  return { cortes: limparCortes(novos, duracao), ok: true };
+}

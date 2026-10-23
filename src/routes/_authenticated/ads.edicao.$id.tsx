@@ -12,6 +12,7 @@ import {
   Clapperboard,
   Loader2,
   RotateCcw,
+  Scissors,
   Send,
   ShieldAlert,
   Trash2,
@@ -57,7 +58,7 @@ import { duracaoSaida, paraFonte, paraSaida, trechosMantidos } from "@/video/tem
 import { cortarSilencios } from "@/video/automatico";
 import { detectarRepeticoes } from "@/video/repeticoes";
 import { Repeticoes } from "@/components/edicao/Repeticoes";
-import { ajustarBorda, excluirTrecho, pausasLongas } from "@/video/cortes";
+import { ajustarBorda, dividirEm, excluirTrecho, pausasLongas } from "@/video/cortes";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/$id")({
   component: Editor,
@@ -78,6 +79,8 @@ function Editor() {
   const [rascunho, setRascunho] = useState("");
   const [zonas, setZonas] = useState(false);
   const [trechoSel, setTrechoSel] = useState<number | null>(null);
+  const [blocoSel, setBlocoSel] = useState<number[] | null>(null);
+  const [textoBloco, setTextoBloco] = useState("");
   const [publicar, setPublicar] = useState(false);
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
@@ -663,9 +666,86 @@ function Editor() {
                 efeitoSelecionado={selecionado}
                 onSelecionarEfeito={setSelecionado}
                 trechoSelecionado={trechoSel}
-                onSelecionarTrecho={setTrechoSel}
+                onSelecionarTrecho={(i) => {
+                  setTrechoSel(i);
+                  setBlocoSel(null);
+                }}
                 pausas={pausas}
+                onAjustarBorda={(i, borda, d) => {
+                  setTl(
+                    { ...tl, cortes: ajustarBorda(tl.cortes, trechos, i, borda, d, duracaoFonte) },
+                    `Trecho ${i + 1}: ${borda === "de" ? "início" : "fim"} ${d > 0 ? "+" : ""}${d.toFixed(1)}s (arrastando)`,
+                  );
+                }}
+                blocoSelecionado={blocoSel}
+                onSelecionarBloco={(idxs) => {
+                  setBlocoSel(idxs);
+                  setTrechoSel(null);
+                  setTextoBloco(
+                    (idxs ?? [])
+                      .map((k) => tl.legenda.correcoes[String(k)] ?? palavras[k]?.p ?? "")
+                      .filter(Boolean)
+                      .join(" "),
+                  );
+                }}
               />
+              {blocoSel?.length ? (
+                <div className="flex flex-wrap items-center gap-1.5 pb-2 text-xs">
+                  <span className="font-medium">Legenda</span>
+                  <input
+                    className="h-7 flex-1 min-w-[180px] rounded-md border bg-background px-2 text-xs"
+                    value={textoBloco}
+                    onChange={(e) => setTextoBloco(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" &&
+                      (e.currentTarget.nextElementSibling as HTMLButtonElement)?.click()
+                    }
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      // O texto inteiro vai na 1ª palavra do bloco; as outras somem (mantém o tempo do bloco).
+                      const corr = { ...tl.legenda.correcoes };
+                      blocoSel.forEach(
+                        (k, j) => (corr[String(k)] = j === 0 ? textoBloco.trim() : ""),
+                      );
+                      setTl(
+                        { ...tl, legenda: { ...tl.legenda, correcoes: corr } },
+                        `Legenda editada: "${textoBloco.slice(0, 30)}"`,
+                      );
+                      setBlocoSel(null);
+                    }}
+                  >
+                    Salvar texto
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      const corr = { ...tl.legenda.correcoes };
+                      blocoSel.forEach((k) => (corr[String(k)] = ""));
+                      setTl(
+                        { ...tl, legenda: { ...tl.legenda, correcoes: corr } },
+                        "Legenda apagada neste trecho",
+                      );
+                      setBlocoSel(null);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Apagar esta legenda
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setBlocoSel(null)}
+                  >
+                    Fechar
+                  </Button>
+                </div>
+              ) : null}
               {trechoSel != null &&
                 trechos[trechoSel] &&
                 (() => {
@@ -688,9 +768,36 @@ function Editor() {
                     );
                   };
                   const btn = "h-7 px-2 text-xs";
+                  const agoraOrig = paraFonte(trechos, frame / 30);
+                  const agulhaDentro = agoraOrig > t.de + 0.15 && agoraOrig < t.ate - 0.15;
                   return (
                     <div className="flex flex-wrap items-center gap-1.5 pb-2 text-xs">
                       <span className="font-medium">Trecho {trechoSel + 1}</span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={btn}
+                        disabled={!agulhaDentro}
+                        title={
+                          agulhaDentro
+                            ? "Divide o trecho onde está a agulha (na pausa mais perto)"
+                            : "Leve a agulha para dentro deste trecho"
+                        }
+                        onClick={() => {
+                          const r = dividirEm(
+                            tl.cortes,
+                            trechos,
+                            palavras,
+                            agoraOrig,
+                            duracaoFonte,
+                          );
+                          if (!r.ok) return;
+                          setTl({ ...tl, cortes: r.cortes }, `Trecho ${trechoSel + 1} dividido`);
+                          setTrechoSel(null);
+                        }}
+                      >
+                        <Scissors className="h-3.5 w-3.5 mr-1" /> Dividir na agulha
+                      </Button>
                       <span className="text-muted-foreground font-mono">
                         {fmtTempo(t.de)}–{fmtTempo(t.ate)} ({(t.ate - t.de).toFixed(1)}s)
                       </span>

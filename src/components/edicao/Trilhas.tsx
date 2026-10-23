@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { EFEITO_POR_TIPO, type Categoria } from "@/video/catalogo";
 import { montarBlocos } from "@/video/legenda";
 import type { Palavra, Timeline } from "@/video/schema";
@@ -26,6 +26,9 @@ export function Trilhas({
   trechoSelecionado,
   onSelecionarTrecho,
   pausas = [],
+  onAjustarBorda,
+  blocoSelecionado,
+  onSelecionarBloco,
 }: {
   tl: Timeline;
   palavras: Palavra[];
@@ -37,6 +40,10 @@ export function Trilhas({
   trechoSelecionado?: number | null;
   onSelecionarTrecho?: (i: number | null) => void;
   pausas?: { de: number; ate: number; duracao: number }[];
+  // Arrastar a borda de um trecho (delta em segundos; + = mais para a direita).
+  onAjustarBorda?: (i: number, borda: "de" | "ate", delta: number) => void;
+  blocoSelecionado?: number[] | null; // índices das palavras do bloco de legenda selecionado
+  onSelecionarBloco?: (idxs: number[] | null) => void;
 }) {
   const fps = 30;
   const total = Math.max(1, duracaoSaida(trechos));
@@ -44,6 +51,32 @@ export function Trilhas({
   const largura = total * pxs;
   const blocos = useMemo(() => montarBlocos(palavras, tl, trechos, fps), [palavras, tl, trechos]);
   const pos = (s: number) => `${(s / total) * 100}%`;
+  const trilha = useRef<HTMLDivElement>(null);
+  const [arraste, setArraste] = useState<{
+    i: number;
+    borda: "de" | "ate";
+    x0: number;
+    dx: number;
+  } | null>(null);
+
+  // Arrasta a borda do trecho selecionado; aplica ao soltar.
+  function pegarBorda(e: React.PointerEvent, i: number, borda: "de" | "ate") {
+    e.stopPropagation();
+    e.preventDefault();
+    const x0 = e.clientX;
+    const largura = trilha.current?.getBoundingClientRect().width ?? 1;
+    setArraste({ i, borda, x0, dx: 0 });
+    const mover = (ev: PointerEvent) => setArraste((a) => (a ? { ...a, dx: ev.clientX - x0 } : a));
+    const soltar = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      const delta = ((ev.clientX - x0) / largura) * total;
+      setArraste(null);
+      if (Math.abs(delta) >= 0.03) onAjustarBorda?.(i, borda, +delta.toFixed(2));
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+  }
 
   const clique = (e: React.MouseEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -77,26 +110,49 @@ export function Trilhas({
           </div>,
           "h-4",
         )}
-        <div className="relative">
+        <div className="relative" ref={trilha}>
           {linha(
             "Vídeo",
             trechos
-              .map((t, i) => (
-                <div
-                  key={i}
-                  onClick={() => {
-                    onSeek(t.saidaDe + 0.01);
-                    onSelecionarTrecho?.(trechoSelecionado === i ? null : i);
-                  }}
-                  className={cn(
-                    "absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer",
-                    i % 2 ? "bg-zinc-600" : "bg-zinc-500",
-                    trechoSelecionado === i && "ring-2 ring-primary bg-primary/60 z-[1]",
-                  )}
-                  style={{ left: pos(t.saidaDe), width: pos(t.ate - t.de) }}
-                  title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original · clique para ajustar ou excluir`}
-                />
-              ))
+              .map((t, i) => {
+                const sel = trechoSelecionado === i;
+                const pxPorSeg = (trilha.current?.getBoundingClientRect().width ?? 1) / total;
+                const dS = arraste?.i === i ? arraste.dx / pxPorSeg : 0;
+                const ini = t.saidaDe + (arraste?.i === i && arraste.borda === "de" ? dS : 0);
+                const dur =
+                  t.ate - t.de + (arraste?.i === i ? (arraste.borda === "de" ? -dS : dS) : 0);
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      onSeek(t.saidaDe + 0.01);
+                      onSelecionarTrecho?.(sel ? null : i);
+                    }}
+                    className={cn(
+                      "absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer",
+                      i % 2 ? "bg-zinc-600" : "bg-zinc-500",
+                      sel && "ring-2 ring-primary bg-primary/60 z-[3]",
+                    )}
+                    style={{ left: pos(ini), width: pos(Math.max(0.1, dur)) }}
+                    title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original · clique e arraste as bordas para encurtar`}
+                  >
+                    {sel && onAjustarBorda && (
+                      <>
+                        <span
+                          onPointerDown={(e) => pegarBorda(e, i, "de")}
+                          className="absolute left-0 top-0 bottom-0 w-2 -ml-1 cursor-ew-resize rounded-l bg-primary"
+                          title="Arraste para cortar o começo"
+                        />
+                        <span
+                          onPointerDown={(e) => pegarBorda(e, i, "ate")}
+                          className="absolute right-0 top-0 bottom-0 w-2 -mr-1 cursor-ew-resize rounded-r bg-primary"
+                          title="Arraste para cortar o final"
+                        />
+                      </>
+                    )}
+                  </div>
+                );
+              })
               .concat(
                 pausas.map((p, k) => {
                   const a = paraSaida(trechos, p.de);
@@ -117,8 +173,17 @@ export function Trilhas({
               blocos.map((b, i) => (
                 <div
                   key={i}
-                  onClick={() => onSeek(b.ini / fps)}
-                  className="absolute top-1 bottom-1 rounded-sm bg-primary/25 border border-primary/40 overflow-hidden text-[9px] px-0.5 leading-5 whitespace-nowrap cursor-pointer"
+                  onClick={() => {
+                    onSeek(b.ini / fps + 0.01);
+                    const idxs = b.palavras.map((w) => w.idx);
+                    onSelecionarBloco?.(blocoSelecionado?.[0] === idxs[0] ? null : idxs);
+                  }}
+                  title="Clique para editar ou apagar esta legenda"
+                  className={cn(
+                    "absolute top-1 bottom-1 rounded-sm bg-primary/25 border border-primary/40 overflow-hidden text-[9px] px-0.5 leading-5 whitespace-nowrap cursor-pointer",
+                    blocoSelecionado?.[0] === b.palavras[0]?.idx &&
+                      "ring-2 ring-primary bg-primary/50",
+                  )}
                   style={{ left: pos(b.ini / fps), width: pos((b.fim - b.ini) / fps) }}
                 >
                   {b.palavras.map((w) => w.texto).join(" ")}
