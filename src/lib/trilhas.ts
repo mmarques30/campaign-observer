@@ -49,8 +49,42 @@ export async function urlTrilha(t: Trilha) {
   return data?.signedUrl;
 }
 
-/** Mede a faixa (duração e volume médio) para nivelar todas no mesmo volume percebido. */
-async function medir(file: File) {
+/** Andamento aproximado (BPM) pela autocorrelação da envoltória de ataques. */
+function estimarBpm(buf: AudioBuffer) {
+  const d = buf.getChannelData(0);
+  const sr = buf.sampleRate;
+  const passo = Math.round(sr / 100); // envoltória a 100 Hz
+  const ini = Math.floor(Math.min(d.length, sr * 15)); // pula a introdução
+  const fim = Math.min(d.length, ini + sr * 45);
+  const env: number[] = [];
+  let ant = 0;
+  for (let i = ini; i + passo < fim; i += passo) {
+    let e = 0;
+    for (let k = 0; k < passo; k++) e += d[i + k] * d[i + k];
+    e = Math.sqrt(e / passo);
+    env.push(Math.max(0, e - ant)); // só subidas (ataques)
+    ant = e;
+  }
+  const media = env.reduce((x, y) => x + y, 0) / Math.max(1, env.length);
+  for (let i = 0; i < env.length; i++) env[i] -= media;
+  let melhor = -Infinity,
+    bpm = 0;
+  for (let lag = 33; lag <= 100; lag++) {
+    // 60–180 bpm; preferência suave por ~110 bpm evita pegar metade/dobro do andamento.
+    let soma = 0;
+    for (let i = lag; i < env.length; i++) soma += env[i] * env[i - lag];
+    const b = 6000 / lag;
+    const nota = (soma / (env.length - lag)) * Math.exp(-0.5 * (Math.log2(b / 110) / 0.7) ** 2);
+    if (nota > melhor) {
+      melhor = nota;
+      bpm = b;
+    }
+  }
+  return bpm ? Math.round(bpm) : undefined;
+}
+
+/** Mede a faixa (duração, volume médio e andamento) para nivelar todas no mesmo volume percebido. */
+export async function medir(file: Blob) {
   const ctx = new OfflineAudioContext(1, 44100, 44100);
   const buf = await ctx.decodeAudioData(await file.arrayBuffer());
   let soma = 0,
@@ -65,21 +99,77 @@ async function medir(file: File) {
   const rms = Math.sqrt(soma / Math.max(1, n));
   // Alvo: o mesmo das trilhas de base (~-13 dBFS RMS).
   const ganho = Math.min(4, Math.max(0.25, 0.22 / Math.max(1e-4, rms)));
-  return { duracao: Math.round(buf.duration), ganho: +ganho.toFixed(2) };
+  const bpm = estimarBpm(buf);
+  const energia: Trilha["energia"] = !bpm
+    ? "media"
+    : bpm >= 115
+      ? "alta"
+      : bpm <= 90
+        ? "baixa"
+        : "media";
+  return { duracao: Math.round(buf.duration), ganho: +ganho.toFixed(2), bpm, energia };
+}
+
+export const HUMOR_POR_ENERGIA: Record<Trilha["energia"], string[]> = {
+  alta: ["energetico", "confiante", "moderno"],
+  media: ["corporativo", "inspirador", "positivo"],
+  baixa: ["calmo", "bastidor", "intimo"],
+};
+
+/** Registra no manifesto uma faixa que já está no bucket (ex.: baixada pela busca de músicas). */
+export async function registrarTrilha(
+  path: string,
+  info: {
+    id?: string;
+    nome: string;
+    humor?: string[];
+    uso?: string;
+    licenca?: string;
+    credito?: string;
+  },
+) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  if (error || !data) throw new Error(error?.message ?? "não consegui ler a faixa");
+  const m = await medir(data);
+  const lista = await lerManifesto();
+  const t: Trilha = {
+    id: info.id ?? `t${Date.now().toString(36)}`,
+    nome: info.nome,
+    humor: info.humor?.length ? info.humor : HUMOR_POR_ENERGIA[m.energia],
+    energia: m.energia,
+    uso: info.uso ?? "Uso geral",
+    bpm: m.bpm,
+    ganho: m.ganho,
+    duracao: m.duracao,
+    path,
+    licenca: [info.licenca, info.credito].filter(Boolean).join(" · ") || null,
+  };
+  lista.push(t);
+  await gravarManifesto(lista);
+  return t;
 }
 
 export async function enviarTrilha(
   file: File,
-  info: { nome: string; humor: string[]; energia: Trilha["energia"]; uso: string; bpm?: number; licenca?: string },
+  info: {
+    nome: string;
+    humor: string[];
+    energia: Trilha["energia"];
+    uso: string;
+    bpm?: number;
+    licenca?: string;
+  },
 ) {
-  const { duracao, ganho } = await medir(file);
+  const { duracao, ganho, bpm } = await medir(file);
   const id = `t${Date.now().toString(36)}`;
   const ext = (file.name.split(".").pop() || "mp3").toLowerCase();
   const path = `trilhas/${id}.${ext}`;
-  const up = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type || "audio/mpeg" });
+  const up = await supabase.storage
+    .from(BUCKET)
+    .upload(path, file, { contentType: file.type || "audio/mpeg" });
   if (up.error) throw new Error(up.error.message);
   const lista = await lerManifesto();
-  lista.push({ id, ...info, ganho, duracao, path, licenca: info.licenca ?? null });
+  lista.push({ id, bpm, ...info, ganho, duracao, path, licenca: info.licenca ?? null });
   await gravarManifesto(lista);
 }
 

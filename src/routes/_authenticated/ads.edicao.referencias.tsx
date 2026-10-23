@@ -21,8 +21,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
+import { UsarReferencia } from "@/components/edicao/UsarReferencia";
 import {
   BookOpen,
   Copy,
@@ -49,7 +56,9 @@ import {
   type Referencia,
   type Tecnica,
 } from "@/lib/referencias";
-import { db, fmtTempo } from "@/lib/vedit";
+import { BUCKET, db, fmtTempo } from "@/lib/vedit";
+import { supabase } from "@/integrations/supabase/client";
+import { callEdgeFunction } from "@/lib/ads-mutations";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/referencias")({
   component: ReferenciasPage,
@@ -104,7 +113,10 @@ function ReferenciasPage() {
 
   const lista = refs.data ?? [];
   const backlog = useMemo(() => {
-    const m = new Map<string, { nome: string; vezes: number; status: Tecnica["status"]; refs: string[] }>();
+    const m = new Map<
+      string,
+      { nome: string; vezes: number; status: Tecnica["status"]; refs: string[] }
+    >();
     for (const r of lista)
       for (const t of r.analise?.tecnicas ?? [])
         if (t.status !== "temos") {
@@ -137,8 +149,8 @@ function ReferenciasPage() {
         <Card className="border-amber-500/40">
           <CardContent className="p-4 text-sm">
             A tabela <code>vedit_referencias</code> ainda não existe. Rode{" "}
-            <code>supabase/migrations/20261023000000_vedit_referencias.sql</code> e publique a função{" "}
-            <code>vedit-referencia</code>.
+            <code>supabase/migrations/20261023000000_vedit_referencias.sql</code> e publique a
+            função <code>vedit-referencia</code>.
           </CardContent>
         </Card>
       )}
@@ -178,8 +190,8 @@ function ReferenciasPage() {
             <div>
               <div className="font-semibold">Nenhuma referência ainda</div>
               <p className="text-sm text-muted-foreground max-w-md">
-                Viu um Reel com uma edição que você quer reproduzir? Salve aqui. Em 1–2 minutos
-                você tem a ficha técnica e um pedido pronto para colar no editor.
+                Viu um Reel com uma edição que você quer reproduzir? Salve aqui. Em 1–2 minutos você
+                tem a ficha técnica e um pedido pronto para colar no editor.
               </p>
             </div>
             <Button onClick={() => setAberto(true)}>
@@ -190,7 +202,12 @@ function ReferenciasPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {lista.map((r) => (
-            <CartaoRef key={r.id} r={r} onAbrir={() => setSel(r)} onExcluir={() => setExcluindo(r)} />
+            <CartaoRef
+              key={r.id}
+              r={r}
+              onAbrir={() => setSel(r)}
+              onExcluir={() => setExcluindo(r)}
+            />
           ))}
         </div>
       )}
@@ -202,7 +219,11 @@ function ReferenciasPage() {
       />
       <Detalhe r={sel} onFechar={() => setSel(null)} onExcluir={() => sel && setExcluindo(sel)} />
       <ConfirmarExclusao
-        projeto={excluindo ? { id: excluindo.id, nome: excluindo.autor ?? excluindo.titulo ?? "referência" } : null}
+        projeto={
+          excluindo
+            ? { id: excluindo.id, nome: excluindo.autor ?? excluindo.titulo ?? "referência" }
+            : null
+        }
         ocupado={excluir.isPending}
         onCancelar={() => setExcluindo(null)}
         onConfirmar={() => excluindo && excluir.mutate(excluindo)}
@@ -212,10 +233,22 @@ function ReferenciasPage() {
 }
 
 function usarEtapa(id: string) {
-  return useSyncExternalStore(assinarEtapas, () => lerEtapa(id), () => null);
+  return useSyncExternalStore(
+    assinarEtapas,
+    () => lerEtapa(id),
+    () => null,
+  );
 }
 
-function CartaoRef({ r, onAbrir, onExcluir }: { r: Referencia; onAbrir: () => void; onExcluir: () => void }) {
+function CartaoRef({
+  r,
+  onAbrir,
+  onExcluir,
+}: {
+  r: Referencia;
+  onAbrir: () => void;
+  onExcluir: () => void;
+}) {
   const etapa = usarEtapa(r.id);
   const [thumb, setThumb] = useState<string | null>(null);
   useEffect(() => {
@@ -226,7 +259,10 @@ function CartaoRef({ r, onAbrir, onExcluir }: { r: Referencia; onAbrir: () => vo
   for (const t of a?.tecnicas ?? []) contagem[t.status]++;
   const ocupado = r.status !== "pronta" && r.status !== "erro";
   return (
-    <Card className="group relative hover:border-primary/50 hover:shadow-md transition cursor-pointer" onClick={onAbrir}>
+    <Card
+      className="group relative hover:border-primary/50 hover:shadow-md transition cursor-pointer"
+      onClick={onAbrir}
+    >
       <Button
         variant="ghost"
         size="icon"
@@ -248,7 +284,9 @@ function CartaoRef({ r, onAbrir, onExcluir }: { r: Referencia; onAbrir: () => vo
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="font-semibold truncate">{r.autor ? `@${r.autor.replace(/^@/, "")}` : r.titulo ?? "Referência"}</div>
+          <div className="font-semibold truncate">
+            {r.autor ? `@${r.autor.replace(/^@/, "")}` : (r.titulo ?? "Referência")}
+          </div>
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline">{STATUS_REF[r.status]}</Badge>
             <Badge variant="outline">{r.plataforma}</Badge>
@@ -256,11 +294,19 @@ function CartaoRef({ r, onAbrir, onExcluir }: { r: Referencia; onAbrir: () => vo
           </div>
           {a ? (
             <>
-              <div className="text-xs text-muted-foreground line-clamp-2">{a.estilo.nome} · {a.resumo}</div>
+              <div className="text-xs text-muted-foreground line-clamp-2">
+                {a.estilo.nome} · {a.resumo}
+              </div>
               <div className="flex gap-1.5 text-[11px]">
-                <span className={cn("px-1.5 rounded border", COR_STATUS.temos)}>{contagem.temos} temos</span>
-                <span className={cn("px-1.5 rounded border", COR_STATUS.adaptar)}>{contagem.adaptar} adaptar</span>
-                <span className={cn("px-1.5 rounded border", COR_STATUS.criar)}>{contagem.criar} criar</span>
+                <span className={cn("px-1.5 rounded border", COR_STATUS.temos)}>
+                  {contagem.temos} temos
+                </span>
+                <span className={cn("px-1.5 rounded border", COR_STATUS.adaptar)}>
+                  {contagem.adaptar} adaptar
+                </span>
+                <span className={cn("px-1.5 rounded border", COR_STATUS.criar)}>
+                  {contagem.criar} criar
+                </span>
               </div>
             </>
           ) : ocupado ? (
@@ -292,19 +338,41 @@ function NovaReferencia({
   onCriada: () => void;
 }) {
   const [url, setUrl] = useState("");
+  const [conta, setConta] = useState("");
+  const [etapa, setEtapa] = useState("");
   const [notas, setNotas] = useState("");
   const [legenda, setLegenda] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [ocupado, setOcupado] = useState(false);
+  const ehInstagram = /instagram\.com\/(p|reel|reels|tv)\//i.test(url);
   async function criar() {
-    if (!arquivo) return toast.error("Solte o arquivo do vídeo (o Instagram não deixa baixar pelo sistema).");
+    if (!arquivo && !ehInstagram)
+      return toast.error("Cole um link de Reel do Instagram ou solte o arquivo do vídeo.");
     setOcupado(true);
     try {
-      await criarReferencia({ url, arquivo, notas, legenda });
+      let video = arquivo;
+      let leg = legenda;
+      if (!video) {
+        // Pela API oficial: funciona com contas comerciais/criador quando o Instagram libera o arquivo.
+        setEtapa("Buscando o reel no Instagram…");
+        const r: any = await callEdgeFunction("vedit-pesquisa", {
+          acao: "reel_por_link",
+          url: url.trim(),
+          username: conta.trim() || undefined,
+        });
+        if (r?.error) throw new Error(`${r.error}. Se preferir, solte o arquivo do vídeo.`);
+        setEtapa("Baixando o vídeo…");
+        const { data, error } = await supabase.storage.from(BUCKET).download(r.path);
+        if (error || !data) throw new Error(error?.message ?? "não consegui baixar o vídeo");
+        video = new File([data], `${r.username}-${r.path.split("/").pop()}`, { type: "video/mp4" });
+        if (!leg && r.legenda) leg = r.legenda;
+      }
+      await criarReferencia({ url, arquivo: video, notas, legenda: leg });
       toast.success("Referência salva. Analisando em segundo plano — deixe esta aba aberta.");
       onCriada();
       onFechar();
       setUrl("");
+      setConta("");
       setNotas("");
       setLegenda("");
       setArquivo(null);
@@ -312,6 +380,7 @@ function NovaReferencia({
       toast.error((e as Error).message);
     } finally {
       setOcupado(false);
+      setEtapa("");
     }
   }
   return (
@@ -320,18 +389,37 @@ function NovaReferencia({
         <DialogHeader>
           <DialogTitle>Nova referência</DialogTitle>
           <DialogDescription>
-            Link do post + arquivo do vídeo. Para baixar o Reel: no Instagram, compartilhar → copiar
-            link, e salve o vídeo pelo app (ou por um downloader) antes de soltar aqui.
+            Cole o link de um Reel do Instagram: o sistema puxa o vídeo pela API oficial (contas
+            comerciais ou de criador). Se o Instagram não liberar o arquivo (ex.: música licenciada)
+            ou for TikTok, solte o arquivo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Link do post</Label>
-            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://www.instagram.com/p/…" />
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.instagram.com/reel/…"
+            />
           </div>
+          {ehInstagram && !arquivo && (
+            <div className="space-y-1.5">
+              <Label>@ da conta que publicou</Label>
+              <Input
+                value={conta}
+                onChange={(e) => setConta(e.target.value)}
+                placeholder="@conta (o link do Instagram não traz o autor)"
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
-            <Label>Arquivo do vídeo</Label>
-            <Input type="file" accept="video/*" onChange={(e) => setArquivo(e.target.files?.[0] ?? null)} />
+            <Label>Arquivo do vídeo {ehInstagram ? "(opcional)" : ""}</Label>
+            <Input
+              type="file"
+              accept="video/*"
+              onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+            />
           </div>
           <div className="space-y-1.5">
             <Label>O que chamou sua atenção (opcional)</Label>
@@ -351,8 +439,15 @@ function NovaReferencia({
           <Button variant="outline" onClick={onFechar} disabled={ocupado}>
             Cancelar
           </Button>
+          {etapa && (
+            <span className="text-xs text-muted-foreground mr-auto self-center">{etapa}</span>
+          )}
           <Button onClick={criar} disabled={ocupado}>
-            {ocupado ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            {ocupado ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
             Analisar
           </Button>
         </DialogFooter>
@@ -361,19 +456,30 @@ function NovaReferencia({
   );
 }
 
-function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: () => void; onExcluir: () => void }) {
+function Detalhe({
+  r,
+  onFechar,
+  onExcluir,
+}: {
+  r: Referencia | null;
+  onFechar: () => void;
+  onExcluir: () => void;
+}) {
   const [folhas, setFolhas] = useState<string[]>([]);
   const [reanalisando, setReanalisando] = useState(false);
   useEffect(() => {
     if (!r?.folhas?.length) return setFolhas([]);
-    void Promise.all(r.folhas.map((p) => urlAssinada(p))).then((u) => setFolhas(u.filter(Boolean) as string[]));
+    void Promise.all(r.folhas.map((p) => urlAssinada(p))).then((u) =>
+      setFolhas(u.filter(Boolean) as string[]),
+    );
   }, [r?.folhas]);
   const a = r?.analise;
   const copiar = async (t: string) => {
     await navigator.clipboard.writeText(t);
     toast.success("Copiado.");
   };
-  const efeitoTitulo = (tipo?: string | null) => EFEITOS.find((e) => e.tipo === tipo)?.comando ?? tipo ?? "";
+  const efeitoTitulo = (tipo?: string | null) =>
+    EFEITOS.find((e) => e.tipo === tipo)?.comando ?? tipo ?? "";
   return (
     <Sheet open={!!r} onOpenChange={(o) => !o && onFechar()}>
       <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
@@ -381,9 +487,14 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
           <>
             <SheetHeader>
               <SheetTitle className="flex items-center gap-2">
-                {r.autor ? `@${r.autor.replace(/^@/, "")}` : r.titulo ?? "Referência"}
+                {r.autor ? `@${r.autor.replace(/^@/, "")}` : (r.titulo ?? "Referência")}
                 {r.url && (
-                  <a href={r.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 )}
@@ -408,28 +519,40 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
                   <div className="font-semibold">{a.estilo.nome}</div>
                   <p className="text-muted-foreground">{a.resumo}</p>
                   <p>
-                    <b>Gancho</b> ({a.gancho.segundos ?? "?"}s): "{a.gancho.texto}" — {a.gancho.tecnica}
+                    <b>Gancho</b> ({a.gancho.segundos ?? "?"}s): "{a.gancho.texto}" —{" "}
+                    {a.gancho.tecnica}
                   </p>
                   {a.ritmo && (
                     <p>
                       <b>Ritmo</b>: estímulo a cada {a.ritmo.estimulo_medio_s ?? "?"}s · legenda{" "}
-                      {a.ritmo.legenda_estilo ?? "?"}, {a.ritmo.legenda_palavras_por_bloco ?? "?"} palavra(s)/bloco,{" "}
-                      {a.ritmo.legenda_posicao ?? "?"}
+                      {a.ritmo.legenda_estilo ?? "?"}, {a.ritmo.legenda_palavras_por_bloco ?? "?"}{" "}
+                      palavra(s)/bloco, {a.ritmo.legenda_posicao ?? "?"}
                     </p>
                   )}
                   {a.estilo.paleta?.length ? (
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-muted-foreground mr-1">Paleta</span>
                       {a.estilo.paleta.map((c) => (
-                        <span key={c} title={c} className="h-5 w-5 rounded border" style={{ background: c }} />
+                        <span
+                          key={c}
+                          title={c}
+                          className="h-5 w-5 rounded border"
+                          style={{ background: c }}
+                        />
                       ))}
-                      {a.estilo.tipografia && <span className="text-xs text-muted-foreground ml-2">{a.estilo.tipografia}</span>}
+                      {a.estilo.tipografia && (
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {a.estilo.tipografia}
+                        </span>
+                      )}
                     </div>
                   ) : null}
                 </div>
 
+                <UsarReferencia r={r} a={a} />
+
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" onClick={() => copiar(a.prompt_para_editor)}>
+                  <Button size="sm" variant="outline" onClick={() => copiar(a.prompt_para_editor)}>
                     <Copy className="h-4 w-4 mr-2" /> Copiar pedido para o editor
                   </Button>
                   <Button size="sm" variant="outline" asChild>
@@ -453,14 +576,25 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
                       }
                     }}
                   >
-                    {reanalisando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                    {reanalisando ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
                     Reanalisar
                   </Button>
-                  <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-red-600" onClick={onExcluir}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-red-600"
+                    onClick={onExcluir}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="rounded-md bg-muted/50 p-3 text-xs whitespace-pre-wrap">{a.prompt_para_editor}</div>
+                <div className="rounded-md bg-muted/50 p-3 text-xs whitespace-pre-wrap">
+                  {a.prompt_para_editor}
+                </div>
 
                 <Tabs defaultValue="tecnicas">
                   <TabsList>
@@ -509,8 +643,9 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
                       <div className="mt-3 rounded-lg border p-3 text-sm">
                         <div className="font-semibold mb-1">Preset para o editor</div>
                         <div className="text-muted-foreground">
-                          base {a.preset_estilo.estilo_base ?? "viral"} · legenda {a.preset_estilo.legenda ?? "?"} · look{" "}
-                          {a.preset_estilo.look ?? "?"} · transição {a.preset_estilo.transicao ?? "?"}
+                          base {a.preset_estilo.estilo_base ?? "viral"} · legenda{" "}
+                          {a.preset_estilo.legenda ?? "?"} · look {a.preset_estilo.look ?? "?"} ·
+                          transição {a.preset_estilo.transicao ?? "?"}
                         </div>
                         {a.preset_estilo.efeitos_preferidos?.length ? (
                           <div className="flex flex-wrap gap-1 mt-2">
@@ -526,11 +661,18 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
                   </TabsContent>
                   <TabsContent value="quadros" className="space-y-3">
                     {folhas.map((u, i) => (
-                      <img key={i} src={u} alt={`folha ${i + 1}`} className="w-full rounded-lg border" />
+                      <img
+                        key={i}
+                        src={u}
+                        alt={`folha ${i + 1}`}
+                        className="w-full rounded-lg border"
+                      />
                     ))}
                   </TabsContent>
                   <TabsContent value="fala">
-                    <p className="text-sm whitespace-pre-wrap">{r.transcricao_texto || "(sem transcrição)"}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {r.transcricao_texto || "(sem transcrição)"}
+                    </p>
                     {r.legenda && (
                       <p className="text-xs text-muted-foreground mt-3 whitespace-pre-wrap">
                         <b>Legenda do post:</b> {r.legenda}
@@ -542,9 +684,20 @@ function Detalhe({ r, onFechar, onExcluir }: { r: Referencia | null; onFechar: (
             ) : (
               <div className="mt-6 text-sm text-muted-foreground flex items-center gap-2">
                 {r.status !== "erro" && <Loader2 className="h-4 w-4 animate-spin" />}
-                {r.status === "erro" ? "A análise falhou. Exclua e tente de novo." : "Analisando… a ficha aparece aqui quando terminar."}
+                {r.status === "erro"
+                  ? "A análise falhou. Exclua e tente de novo."
+                  : "Analisando… a ficha aparece aqui quando terminar."}
                 {r.status === "erro" && (
-                  <Button size="sm" variant="outline" className="ml-auto" onClick={() => reanalisar(r.id).then(() => toast.success("Reanalisando.")).catch((e) => toast.error(e.message))}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    onClick={() =>
+                      reanalisar(r.id)
+                        .then(() => toast.success("Reanalisando."))
+                        .catch((e) => toast.error(e.message))
+                    }
+                  >
                     <Eye className="h-4 w-4 mr-2" /> Tentar analisar de novo
                   </Button>
                 )}

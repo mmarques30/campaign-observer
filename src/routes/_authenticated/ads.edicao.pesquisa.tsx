@@ -12,8 +12,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Check,
   ExternalLink,
@@ -42,6 +54,7 @@ type Config = {
   hashtags: string[];
   dias_janela: number;
   ultima_busca: string | null;
+  alcance?: "brasil" | "internacional" | "ambos";
 };
 type Perfil = {
   id: string;
@@ -53,6 +66,7 @@ type Perfil = {
   mediana_engajamento: number | null;
   ultima_coleta: string | null;
   erro: string | null;
+  regiao?: "br" | "intl" | null;
 };
 type Reel = {
   id: string;
@@ -63,6 +77,7 @@ type Reel = {
   permalink: string | null;
   caption: string | null;
   thumbnail_url: string | null;
+  media_url?: string | null;
   like_count: number;
   comments_count: number;
   publicado_em: string | null;
@@ -99,7 +114,11 @@ function PesquisaPage() {
   const cfgQ = useQuery({
     queryKey: ["vedit", "nicho", "config"],
     queryFn: async () => {
-      const { data, error } = await db().from("vedit_nicho_config").select("*").eq("id", 1).single();
+      const { data, error } = await db()
+        .from("vedit_nicho_config")
+        .select("*")
+        .eq("id", 1)
+        .single();
       if (error) throw error;
       return data as Config;
     },
@@ -107,8 +126,8 @@ function PesquisaPage() {
   const perfisQ = useQuery({
     queryKey: ["vedit", "nicho", "perfis"],
     queryFn: async () =>
-      ((await db().from("vedit_nicho_perfis").select("*").order("followers", { ascending: false })).data ??
-        []) as Perfil[],
+      ((await db().from("vedit_nicho_perfis").select("*").order("followers", { ascending: false }))
+        .data ?? []) as Perfil[],
   });
   const reelsQ = useQuery({
     queryKey: ["vedit", "nicho", "reels"],
@@ -133,7 +152,9 @@ function PesquisaPage() {
     mutationFn: () => callEdgeFunction("vedit-pesquisa", { acao: "coletar" }),
     onSuccess: (r: any) => {
       if (r?.error) return toast.error(r.error);
-      toast.success(`${r.coletados} reels atualizados.${r.erros?.length ? ` ${r.erros.length} erro(s).` : ""}`);
+      toast.success(
+        `${r.coletados} reels atualizados.${r.erros?.length ? ` ${r.erros.length} erro(s).` : ""}`,
+      );
       if (r.erros?.length) r.erros.slice(0, 3).forEach((e: string) => toast.warning(e));
       invalidar();
     },
@@ -154,9 +175,11 @@ function PesquisaPage() {
     let l = reelsQ.data ?? [];
     if (filtroPerfil !== "todos") l = l.filter((r) => r.username === filtroPerfil);
     const ord = [...l];
-    if (ordem === "indice") ord.sort((a, b) => (b.indice ?? 0) - (a.indice ?? 0) || b.engajamento - a.engajamento);
+    if (ordem === "indice")
+      ord.sort((a, b) => (b.indice ?? 0) - (a.indice ?? 0) || b.engajamento - a.engajamento);
     if (ordem === "engajamento") ord.sort((a, b) => b.engajamento - a.engajamento);
-    if (ordem === "recentes") ord.sort((a, b) => (b.publicado_em ?? "").localeCompare(a.publicado_em ?? ""));
+    if (ordem === "recentes")
+      ord.sort((a, b) => (b.publicado_em ?? "").localeCompare(a.publicado_em ?? ""));
     return ord;
   }, [reelsQ.data, filtroPerfil, ordem]);
   const perfisComReels = useMemo(
@@ -177,7 +200,11 @@ function PesquisaPage() {
         </div>
         <div className="flex gap-2">
           <Button onClick={() => coletar.mutate()} disabled={coletar.isPending}>
-            {coletar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+            {coletar.isPending ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4 mr-2" />
+            )}
             Buscar agora
           </Button>
         </div>
@@ -228,8 +255,16 @@ function PesquisaPage() {
             </SelectContent>
           </Select>
           {marcados.size > 0 && (
-            <Button size="sm" onClick={() => analisar.mutate([...marcados])} disabled={analisar.isPending}>
-              {analisar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+            <Button
+              size="sm"
+              onClick={() => analisar.mutate([...marcados])}
+              disabled={analisar.isPending}
+            >
+              {analisar.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
               Analisar {marcados.size}
             </Button>
           )}
@@ -237,10 +272,21 @@ function PesquisaPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => analisar.mutate(lista.filter((r) => !r.analise).slice(0, 8).map((r) => r.id))}
+              onClick={() =>
+                analisar.mutate(
+                  lista
+                    .filter((r) => !r.analise)
+                    .slice(0, 8)
+                    .map((r) => r.id),
+                )
+              }
               disabled={analisar.isPending}
             >
-              {analisar.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              {analisar.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
               Analisar top 8
             </Button>
           )}
@@ -274,7 +320,7 @@ function PesquisaPage() {
       )}
 
       <DetalheReel
-        r={sel ? (reelsQ.data ?? []).find((x) => x.id === sel.id) ?? sel : null}
+        r={sel ? ((reelsQ.data ?? []).find((x) => x.id === sel.id) ?? sel) : null}
         onFechar={() => setSel(null)}
         onAnalisar={(id) => analisar.mutate([id])}
         analisando={analisar.isPending}
@@ -295,7 +341,7 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
   const vTags = hashtags ?? (cfg?.hashtags ?? []).join(", ");
   const sujo = nicho !== null || publico !== null || hashtags !== null;
 
-  async function salvar() {
+  async function salvar(silencioso = false) {
     setOcupado("salvar");
     try {
       const { error } = await db()
@@ -314,7 +360,7 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
       setNicho(null);
       setPublico(null);
       setHashtags(null);
-      toast.success("Nicho salvo.");
+      if (!silencioso) toast.success("Nicho salvo.");
       onMudou();
     } catch (e) {
       toast.error((e as Error).message);
@@ -326,7 +372,10 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
     if (!novo.trim()) return;
     setOcupado("perfil");
     try {
-      const r: any = await callEdgeFunction("vedit-pesquisa", { acao: "perfil", username: novo.trim() });
+      const r: any = await callEdgeFunction("vedit-pesquisa", {
+        acao: "perfil",
+        username: novo.trim(),
+      });
       if (r?.error) throw new Error(r.error);
       toast.success(`@${r.username} cadastrado (${fmtN(r.followers ?? 0)} seguidores).`);
       setNovo("");
@@ -338,11 +387,15 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
     }
   }
   async function sugerir() {
+    // O que está digitado vale para a sugestão, mesmo sem clicar em salvar.
+    if (sujo) await salvar(true);
     setOcupado("sugerir");
     try {
       const r: any = await callEdgeFunction("vedit-pesquisa", { acao: "sugerir_perfis" });
       if (r?.error) throw new Error(r.error);
-      toast.success(`${r.validos.length} perfil(is) adicionado(s).${r.invalidos.length ? ` ${r.invalidos.length} não eram contas business.` : ""}`);
+      toast.success(
+        `${r.validos.length} perfil(is) adicionado(s).${r.invalidos.length ? ` ${r.invalidos.length} não eram contas business.` : ""}`,
+      );
       onMudou();
     } catch (e) {
       toast.error((e as Error).message);
@@ -370,6 +423,7 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
               rows={2}
               value={vNicho}
               onChange={(e) => setNicho(e.target.value)}
+              onBlur={() => sujo && void salvar(true)}
               placeholder="ex.: IA aplicada ao dia a dia de empresas: WhatsApp, CRM, vendas, automação"
             />
           </div>
@@ -378,16 +432,65 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
             <Input
               value={vPublico}
               onChange={(e) => setPublico(e.target.value)}
+              onBlur={() => sujo && void salvar(true)}
               placeholder="ex.: donos e gestores de empresas que faturam acima de R$ 3 mi"
             />
           </div>
           <div className="space-y-1.5">
             <Label>Hashtags (até 10; o Meta limita a 30 diferentes por semana)</Label>
-            <Input value={vTags} onChange={(e) => setHashtags(e.target.value)} placeholder="inteligenciaartificial, iaparanegocios" />
+            <p className="text-[11px] text-muted-foreground">
+              A busca por hashtag só funciona depois que o Meta aprovar o recurso "Instagram Public
+              Content Access" no app (revisão do app no developers.facebook.com). Até lá, a pesquisa
+              usa os perfis monitorados.
+            </p>
+            <Input
+              value={vTags}
+              onChange={(e) => setHashtags(e.target.value)}
+              onBlur={() => sujo && void salvar(true)}
+              placeholder="vazio = padrão pelo alcance (ex.: artificialintelligence, aitools, inteligenciaartificial)"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Onde buscar</Label>
+            <Select
+              value={cfg?.alcance ?? "ambos"}
+              onValueChange={async (v) => {
+                const { error } = await db()
+                  .from("vedit_nicho_config")
+                  .update({ alcance: v })
+                  .eq("id", 1);
+                if (error) return toast.error(error.message);
+                toast.success(
+                  v === "brasil"
+                    ? "Só perfis do Brasil."
+                    : v === "internacional"
+                      ? "Só perfis de fora."
+                      : "Brasil e internacional.",
+                );
+                onMudou();
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ambos">Brasil e internacional</SelectItem>
+                <SelectItem value="internacional">Só internacional</SelectItem>
+                <SelectItem value="brasil">Só Brasil</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Vale para "Sugerir perfis" e para as hashtags padrão. Os roteiros saem sempre em
+              português, adaptados ao Brasil.
+            </p>
           </div>
           {sujo && (
-            <Button size="sm" onClick={salvar} disabled={ocupado === "salvar"}>
-              {ocupado === "salvar" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" />}
+            <Button size="sm" onClick={() => void salvar()} disabled={ocupado === "salvar"}>
+              {ocupado === "salvar" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
               Salvar nicho
             </Button>
           )}
@@ -395,9 +498,21 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <span className="font-semibold">Perfis monitorados</span>
-            <span className="text-xs text-muted-foreground">{perfis.filter((p) => p.ativo).length} ativos</span>
-            <Button size="sm" variant="outline" className="ml-auto" onClick={sugerir} disabled={ocupado === "sugerir"}>
-              {ocupado === "sugerir" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+            <span className="text-xs text-muted-foreground">
+              {perfis.filter((p) => p.ativo).length} ativos
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="ml-auto"
+              onClick={sugerir}
+              disabled={ocupado === "sugerir"}
+            >
+              {ocupado === "sugerir" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4 mr-2" />
+              )}
               Sugerir perfis
             </Button>
           </div>
@@ -409,27 +524,52 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
               placeholder="@username de uma conta business/creator"
             />
             <Button size="sm" onClick={addPerfil} disabled={ocupado === "perfil" || !novo.trim()}>
-              {ocupado === "perfil" ? <Loader2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {ocupado === "perfil" ? (
+                <Loader2 className="h-4 w-4" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
             </Button>
           </div>
           <div className="max-h-56 overflow-y-auto divide-y rounded-md border">
             {perfis.length === 0 && (
-              <div className="p-3 text-sm text-muted-foreground">Nenhum perfil ainda. Adicione ou peça sugestões.</div>
+              <div className="p-3 text-sm text-muted-foreground">
+                Nenhum perfil ainda. Adicione ou peça sugestões.
+              </div>
             )}
             {perfis.map((p) => (
-              <div key={p.id} className={cn("flex items-center gap-3 px-3 py-2 text-sm", !p.ativo && "opacity-60")}>
+              <div
+                key={p.id}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-2 text-sm",
+                  !p.ativo && "opacity-60",
+                )}
+              >
                 <Switch checked={p.ativo} onCheckedChange={() => alternar(p)} />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium truncate">
-                    @{p.username} <span className="font-normal text-muted-foreground">{p.nome}</span>
+                    @{p.username}{" "}
+                    <span className="font-normal text-muted-foreground">{p.nome}</span>
+                    {p.regiao === "intl" && (
+                      <Badge variant="outline" className="ml-1.5 h-4 px-1 text-[10px]">
+                        internacional
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
                     {p.followers ? `${fmtN(p.followers)} seguidores` : ""}
-                    {p.mediana_engajamento ? ` · normal ${fmtN(Math.round(Number(p.mediana_engajamento)))} interações/reel` : ""}
+                    {p.mediana_engajamento
+                      ? ` · normal ${fmtN(Math.round(Number(p.mediana_engajamento)))} interações/reel`
+                      : ""}
                     {p.erro ? ` · ${p.erro}` : ""}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600" onClick={() => remover(p)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                  onClick={() => remover(p)}
+                >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -441,17 +581,32 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
   );
 }
 
-function CartaoReel({ r, marcado, onMarcar, onAbrir }: { r: Reel; marcado: boolean; onMarcar: () => void; onAbrir: () => void }) {
+function CartaoReel({
+  r,
+  marcado,
+  onMarcar,
+  onAbrir,
+}: {
+  r: Reel;
+  marcado: boolean;
+  onMarcar: () => void;
+  onAbrir: () => void;
+}) {
   return (
     <Card
-      className={cn("group relative hover:border-primary/50 hover:shadow-md transition cursor-pointer", marcado && "border-primary")}
+      className={cn(
+        "group relative hover:border-primary/50 hover:shadow-md transition cursor-pointer",
+        marcado && "border-primary",
+      )}
       onClick={onAbrir}
     >
       <button
         type="button"
         className={cn(
           "absolute top-2 left-2 z-10 h-6 w-6 rounded-md border bg-background flex items-center justify-center",
-          marcado ? "border-primary text-primary" : "text-transparent group-hover:text-muted-foreground",
+          marcado
+            ? "border-primary text-primary"
+            : "text-transparent group-hover:text-muted-foreground",
         )}
         onClick={(e) => {
           e.stopPropagation();
@@ -463,7 +618,21 @@ function CartaoReel({ r, marcado, onMarcar, onAbrir }: { r: Reel; marcado: boole
       </button>
       <CardContent className="p-3 flex gap-3">
         <div className="shrink-0 w-20 h-32 rounded-lg bg-muted overflow-hidden">
-          {r.thumbnail_url && <img src={r.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
+          {r.thumbnail_url ? (
+            <img
+              src={r.thumbnail_url}
+              alt=""
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          ) : r.media_url ? (
+            <video
+              src={`${r.media_url}#t=1`}
+              muted
+              preload="metadata"
+              className="w-full h-full object-cover"
+            />
+          ) : null}
         </div>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
@@ -472,17 +641,27 @@ function CartaoReel({ r, marcado, onMarcar, onAbrir }: { r: Reel; marcado: boole
               <Badge
                 className={cn(
                   "ml-auto",
-                  r.indice >= 3 ? "bg-rose-600" : r.indice >= 1.5 ? "bg-amber-500" : "bg-muted text-foreground",
+                  r.indice >= 3
+                    ? "bg-rose-600"
+                    : r.indice >= 1.5
+                      ? "bg-amber-500"
+                      : "bg-muted text-foreground",
                 )}
               >
                 {r.indice.toFixed(1)}× o normal
               </Badge>
             )}
-            {r.origem === "hashtag" && <Badge variant="outline" className="ml-auto">#{r.hashtag}</Badge>}
+            {r.origem === "hashtag" && (
+              <Badge variant="outline" className="ml-auto">
+                #{r.hashtag}
+              </Badge>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">
             {fmtN(r.like_count)} curtidas · {fmtN(r.comments_count)} comentários
-            {r.publicado_em ? ` · ${formatDistanceToNow(new Date(r.publicado_em), { locale: ptBR, addSuffix: true })}` : ""}
+            {r.publicado_em
+              ? ` · ${formatDistanceToNow(new Date(r.publicado_em), { locale: ptBR, addSuffix: true })}`
+              : ""}
           </div>
           <p className="text-xs line-clamp-3">{r.caption || "(sem legenda)"}</p>
           <div className="flex gap-1.5 flex-wrap">
@@ -514,7 +693,10 @@ function DetalheReel({
     if (!r) return;
     setEnviando(true);
     try {
-      const x: any = await callEdgeFunction("vedit-pesquisa", { acao: "enviar_marketing", id: r.id });
+      const x: any = await callEdgeFunction("vedit-pesquisa", {
+        acao: "enviar_marketing",
+        id: r.id,
+      });
       if (x?.error) throw new Error(x.error);
       toast.success("Roteiro criado na página de Marketing (backlog).");
       onMudou();
@@ -543,11 +725,18 @@ function DetalheReel({
               <SheetTitle className="flex items-center gap-2">
                 @{r.username}
                 {r.permalink && (
-                  <a href={r.permalink} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
+                  <a
+                    href={r.permalink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 )}
-                {r.indice != null && <Badge className="ml-auto">{r.indice.toFixed(1)}× o normal do perfil</Badge>}
+                {r.indice != null && (
+                  <Badge className="ml-auto">{r.indice.toFixed(1)}× o normal do perfil</Badge>
+                )}
               </SheetTitle>
               <SheetDescription>
                 {fmtN(r.like_count)} curtidas · {fmtN(r.comments_count)} comentários
@@ -556,14 +745,26 @@ function DetalheReel({
               </SheetDescription>
             </SheetHeader>
             <div className="mt-4 flex gap-3">
-              {r.thumbnail_url && <img src={r.thumbnail_url} alt="" className="w-28 h-48 object-cover rounded-lg border" />}
-              <p className="text-xs whitespace-pre-wrap text-muted-foreground flex-1 max-h-48 overflow-y-auto">{r.caption}</p>
+              {r.thumbnail_url && (
+                <img
+                  src={r.thumbnail_url}
+                  alt=""
+                  className="w-28 h-48 object-cover rounded-lg border"
+                />
+              )}
+              <p className="text-xs whitespace-pre-wrap text-muted-foreground flex-1 max-h-48 overflow-y-auto">
+                {r.caption}
+              </p>
             </div>
 
             {!r.analise ? (
               <div className="mt-4 flex gap-2">
                 <Button onClick={() => onAnalisar(r.id)} disabled={analisando}>
-                  {analisando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  {analisando ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
                   Por que funcionou + roteiro original
                 </Button>
                 <Button variant="ghost" className="text-muted-foreground" onClick={descartar}>
@@ -597,7 +798,9 @@ function DetalheReel({
                   <div className="rounded-lg border p-3 space-y-2">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold">Roteiro original: {r.roteiro.titulo}</span>
-                      <Badge variant="outline" className="ml-auto">{r.roteiro.finalidade}</Badge>
+                      <Badge variant="outline" className="ml-auto">
+                        {r.roteiro.finalidade}
+                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">{r.roteiro.formato}</p>
                     <p>
@@ -625,11 +828,21 @@ function DetalheReel({
                         <Badge variant="outline">Já está no Marketing</Badge>
                       ) : (
                         <Button size="sm" onClick={enviar} disabled={enviando}>
-                          {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                          {enviando ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4 mr-2" />
+                          )}
                           Enviar para o Marketing
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => copiar(`${r.roteiro!.gancho}\n\n${r.roteiro!.falas}\n\n${r.roteiro!.cta}`)}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          copiar(`${r.roteiro!.gancho}\n\n${r.roteiro!.falas}\n\n${r.roteiro!.cta}`)
+                        }
+                      >
                         Copiar roteiro
                       </Button>
                       <Button size="sm" variant="outline" asChild>
@@ -637,10 +850,20 @@ function DetalheReel({
                           <Wand2 className="h-4 w-4 mr-2" /> Gravar e editar
                         </Link>
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => onAnalisar(r.id)} disabled={analisando}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onAnalisar(r.id)}
+                        disabled={analisando}
+                      >
                         <RefreshCw className="h-4 w-4 mr-2" /> Refazer
                       </Button>
-                      <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={descartar}>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={descartar}
+                      >
                         Descartar
                       </Button>
                     </div>
