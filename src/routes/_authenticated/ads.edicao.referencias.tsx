@@ -53,6 +53,7 @@ import {
   reanalisar,
   STATUS_REF,
   urlAssinada,
+  criarReferenciaPorLink,
   type Referencia,
   type Tecnica,
 } from "@/lib/referencias";
@@ -135,9 +136,9 @@ function ReferenciasPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Referências</h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
-            Cole o link do Reel e solte o arquivo do vídeo. O sistema extrai os quadros e a fala no
-            seu navegador; o Claude lê tudo com o nosso catálogo e devolve as técnicas, o estilo, o
-            ritmo e o que já temos, adaptar ou criar.
+            Cole o link do vídeo (Instagram, TikTok, YouTube). O servidor baixa, extrai os quadros e
+            a fala; o Claude lê tudo com o nosso catálogo e devolve as técnicas, o estilo, o ritmo e
+            o que já temos, adaptar ou criar.
           </p>
         </div>
         <Button onClick={() => setAberto(true)}>
@@ -328,29 +329,6 @@ function CartaoRef({
   );
 }
 
-/** Pede ao servidor de render para baixar o vídeo do link e espera (até ~4 min). */
-async function baixarPorLink(url: string, etapa: (t: string) => void) {
-  const { data: job, error } = await db()
-    .from("vedit_jobs")
-    .insert({ tipo: "baixar", params: { url } })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  for (let i = 0; i < 120; i++) {
-    await new Promise((ok) => setTimeout(ok, 2000));
-    const { data: j } = await db()
-      .from("vedit_jobs")
-      .select("status, erro, resultado")
-      .eq("id", job.id)
-      .single();
-    if (j?.status === "pronto" && j.resultado?.path) return j.resultado;
-    if (j?.status === "erro") throw new Error(j.erro ?? "falhou ao baixar");
-    if (j?.status === "fila" && i === 10)
-      etapa("Na fila do servidor (ele pode estar renderizando)…");
-  }
-  throw new Error("o download demorou demais");
-}
-
 function NovaReferencia({
   aberto,
   onFechar,
@@ -361,7 +339,6 @@ function NovaReferencia({
   onCriada: () => void;
 }) {
   const [url, setUrl] = useState("");
-  const [conta, setConta] = useState("");
   const [etapa, setEtapa] = useState("");
   const [notas, setNotas] = useState("");
   const [legenda, setLegenda] = useState("");
@@ -377,41 +354,21 @@ function NovaReferencia({
       let video = arquivo;
       let leg = legenda;
       if (!video) {
-        // 1) Baixa pelo link no servidor de render (yt-dlp): não precisa do @ e funciona com a maioria dos posts públicos.
-        setEtapa("Baixando o vídeo pelo link…");
-        let r: { path: string; username?: string | null; legenda?: string | null } | null = null;
-        let falha = "";
-        try {
-          r = await baixarPorLink(url.trim(), setEtapa);
-        } catch (e) {
-          falha = (e as Error).message;
-        }
-        // 2) Instagram: tenta a API oficial (precisa do @ e de conta comercial/criador).
-        if (!r && ehInstagram && conta.trim()) {
-          setEtapa("Tentando pela API oficial do Instagram…");
-          const o: any = await callEdgeFunction("vedit-pesquisa", {
-            acao: "reel_por_link",
-            url: url.trim(),
-            username: conta.trim(),
-          });
-          if (!o?.error) r = o;
-          else falha = o.error;
-        }
-        if (!r) throw new Error(`${falha}. Se preferir, solte o arquivo do vídeo.`);
-        setEtapa("Abrindo o vídeo…");
-        const { data, error } = await supabase.storage.from(BUCKET).download(r.path);
-        if (error || !data) throw new Error(error?.message ?? "não consegui baixar o vídeo");
-        video = new File([data], `${r.username ?? "referencia"}-${r.path.split("/").pop()}`, {
-          type: "video/mp4",
-        });
-        if (!leg && r.legenda) leg = r.legenda;
+        // Tudo no servidor (baixa, quadros, áudio, transcrição e análise): pode fechar a aba.
+        await criarReferenciaPorLink({ url, notas, legenda });
+        toast.success("Baixando e analisando no servidor (1 a 2 min). Pode sair desta tela.");
+        onCriada();
+        onFechar();
+        setUrl("");
+        setNotas("");
+        setLegenda("");
+        return;
       }
       await criarReferencia({ url, arquivo: video, notas, legenda: leg });
       toast.success("Referência salva. Analisando em segundo plano — deixe esta aba aberta.");
       onCriada();
       onFechar();
       setUrl("");
-      setConta("");
       setNotas("");
       setLegenda("");
       setArquivo(null);
@@ -442,16 +399,6 @@ function NovaReferencia({
               placeholder="https://www.instagram.com/reel/… ou link do TikTok"
             />
           </div>
-          {ehInstagram && !arquivo && (
-            <div className="space-y-1.5">
-              <Label>@ da conta que publicou (opcional, ajuda se o download falhar)</Label>
-              <Input
-                value={conta}
-                onChange={(e) => setConta(e.target.value)}
-                placeholder="@conta (o link do Instagram não traz o autor)"
-              />
-            </div>
-          )}
           <div className="space-y-1.5">
             <Label>Arquivo do vídeo {ehLink ? "(opcional)" : ""}</Label>
             <Input

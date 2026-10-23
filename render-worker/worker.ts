@@ -17,6 +17,7 @@ import {
   makeCancelSignal,
 } from "@remotion/renderer";
 import { createRequire } from "node:module";
+import { catalogoParaClaude } from "../src/video/catalogo";
 
 const require = createRequire(import.meta.url);
 const execFileP = promisify(execFile);
@@ -236,11 +237,8 @@ export async function gerarVoz(projetoId: string) {
 }
 
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
-/**
- * Baixa um vídeo de referência pelo link (Instagram, TikTok, YouTube Shorts…) com o yt-dlp
- * e sobe para o bucket. Usado quando a API oficial do Instagram não libera o arquivo.
- */
-async function baixarPorLink(id: string, url: string) {
+/** Baixa o vídeo do link (Instagram, TikTok, YouTube…) com o yt-dlp para o disco, em H.264. */
+async function baixarLocal(id: string, url: string) {
   if (!/^https?:\/\//.test(url)) throw new Error("link inválido");
   const base = path.join(os.tmpdir(), `ref-${id}`);
   try {
@@ -273,6 +271,7 @@ async function baixarPorLink(id: string, url: string) {
   }
   let arquivo = `${base}.mp4`;
   const info = JSON.parse(await fs.readFile(`${base}.info.json`, "utf8").catch(() => "{}"));
+  await fs.rm(`${base}.info.json`, { force: true });
   // Instagram costuma entregar VP9: converte para H.264 para abrir em qualquer navegador (Safari incluso).
   if (!/^(avc|h264)/i.test(String(info.vcodec ?? ""))) {
     const h264 = `${base}-h264.mp4`;
@@ -303,24 +302,161 @@ async function baixarPorLink(id: string, url: string) {
     await fs.rm(arquivo, { force: true });
     arquivo = h264;
   }
-  const destino = `referencias/links/${id}.mp4`;
-  const up = await sbc()
-    .storage.from(BUCKET)
-    .upload(destino, await fs.readFile(arquivo), { contentType: "video/mp4", upsert: true });
-  await fs.rm(arquivo, { force: true });
-  await fs.rm(`${base}.info.json`, { force: true });
-  if (up.error) throw new Error(up.error.message);
   return {
-    path: destino,
-    username: info.channel || info.uploader_id || info.uploader || null,
-    legenda: info.description || info.title || null,
-    curtidas: info.like_count ?? null,
-    duracao: info.duration ?? null,
+    arquivo,
+    username: (info.channel || info.uploader_id || info.uploader || null) as string | null,
+    legenda: (info.description || info.title || null) as string | null,
+    curtidas: (info.like_count ?? null) as number | null,
   };
 }
 
-async function rodarJobs(): Promise<boolean> {
-  const { data, error } = await sbc().rpc("vedit_pegar_job", { p_worker: NOME });
+/** Só baixa e sobe (o navegador faz o resto). */
+async function baixarPorLink(id: string, url: string) {
+  const r = await baixarLocal(id, url);
+  const destino = `referencias/links/${id}.mp4`;
+  const up = await sbc()
+    .storage.from(BUCKET)
+    .upload(destino, await fs.readFile(r.arquivo), { contentType: "video/mp4", upsert: true });
+  await fs.rm(r.arquivo, { force: true });
+  if (up.error) throw new Error(up.error.message);
+  return { path: destino, username: r.username, legenda: r.legenda, curtidas: r.curtidas };
+}
+
+const FONTE_CARIMBO =
+  process.env.FONTE_CARIMBO ?? "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf";
+
+async function chamarFuncao(nome: string, corpo: Record<string, unknown>) {
+  const r = await fetch(`${process.env.SUPABASE_URL}/functions/v1/${nome}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(corpo),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error ?? `${nome} ${r.status}`);
+  return j;
+}
+
+/**
+ * Referência inteira no servidor, sem depender da aba aberta: baixa pelo link, separa o áudio,
+ * monta as folhas de quadros com o tempo carimbado (ffmpeg, segundos), sobe tudo, transcreve
+ * e pede a análise ao Claude.
+ */
+async function processarReferencia(jobId: string, refId: string, url: string) {
+  const patch = (p: Record<string, unknown>) =>
+    sbc().from("vedit_referencias").update(p).eq("id", refId);
+  const pasta = path.join(os.tmpdir(), `refp-${jobId}`);
+  await fs.mkdir(pasta, { recursive: true });
+  try {
+    const r = await baixarLocal(jobId, url);
+    const sys = process.env.FFMPEG_SISTEMA ?? "ffmpeg";
+    const { stdout } = await execFileP("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=width,height:format=duration",
+      "-of",
+      "json",
+      r.arquivo,
+    ]);
+    const pr = JSON.parse(stdout);
+    const dur = Number(pr.format?.duration ?? 0);
+    const largura = pr.streams?.[0]?.width ?? null;
+    const altura = pr.streams?.[0]?.height ?? null;
+    const vertical = (altura ?? 1) >= (largura ?? 0);
+    const [W, H] = vertical ? [324, 576] : [576, 324];
+    const passo = dur > 60 ? 2 : dur > 35 ? 1.6 : 1.2;
+    const audio = path.join(pasta, "audio.wav");
+    const temAudio = await execFileP(sys, [
+      "-y",
+      "-loglevel",
+      "error",
+      "-i",
+      r.arquivo,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      audio,
+    ])
+      .then(() => true)
+      .catch(() => false);
+    const carimbo = `drawbox=x=0:y=0:w=64:h=22:color=black@0.65:t=fill,drawtext=fontfile=${FONTE_CARIMBO}:fontsize=15:fontcolor=white:x=4:y=4:text='%{eif\\:t\\:d}.%{eif\\:t*10-10*trunc(t)\\:d}s'`;
+    await execFileP(sys, [
+      "-y",
+      "-loglevel",
+      "error",
+      "-i",
+      r.arquivo,
+      "-vf",
+      `fps=1/${passo},scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0x111111,${carimbo},tile=3x4:color=0x111111`,
+      "-q:v",
+      "4",
+      path.join(pasta, "folha-%02d.jpg"),
+    ]);
+    const st = sbc().storage.from(BUCKET);
+    const sobe = async (local: string, destino: string, tipo: string) => {
+      const u = await st.upload(destino, await fs.readFile(local), {
+        contentType: tipo,
+        upsert: true,
+      });
+      if (u.error) throw new Error(u.error.message);
+      return destino;
+    };
+    const arquivos = (await fs.readdir(pasta)).filter((f) => f.startsWith("folha-")).sort();
+    const folhas = await Promise.all(
+      arquivos.map((f) => sobe(path.join(pasta, f), `referencias/${refId}/${f}`, "image/jpeg")),
+    );
+    const videoPath = await sobe(r.arquivo, `referencias/${refId}/video.mp4`, "video/mp4");
+    const audioPath = temAudio
+      ? await sobe(audio, `referencias/${refId}/audio.wav`, "audio/wav")
+      : null;
+    const { data: atual } = await sbc()
+      .from("vedit_referencias")
+      .select("autor, legenda")
+      .eq("id", refId)
+      .single();
+    await patch({
+      folhas,
+      video_path: videoPath,
+      audio_path: audioPath,
+      duracao: dur || null,
+      largura,
+      altura,
+      autor: atual?.autor ?? r.username,
+      legenda: atual?.legenda ?? r.legenda,
+      status: "transcrevendo",
+    });
+    await fs.rm(r.arquivo, { force: true });
+    if (audioPath) await chamarFuncao("vedit-referencia", { acao: "transcrever", id: refId });
+    await chamarFuncao("vedit-referencia", {
+      acao: "analisar",
+      id: refId,
+      catalogo: catalogoParaClaude(),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await patch({ status: "erro", erro: msg.slice(0, 500) });
+    throw e;
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+}
+
+/** Tipos leves que rodam numa fila paralela, sem esperar o render terminar. */
+const JOBS_RAPIDOS = ["baixar", "referencia"];
+
+async function rodarJobs(tipos?: string[]): Promise<boolean> {
+  const { data, error } = tipos
+    ? await sbc().rpc("vedit_pegar_job_tipos", { p_worker: NOME, p_tipos: tipos })
+    : await sbc().rpc("vedit_pegar_job", { p_worker: NOME });
   if (error) {
     console.error("[jobs]", error.message);
     return false;
@@ -331,6 +467,12 @@ async function rodarJobs(): Promise<boolean> {
   try {
     if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
     else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
+    else if (job.tipo === "referencia")
+      await processarReferencia(
+        job.id,
+        String(job.params?.referencia_id),
+        String(job.params?.url ?? ""),
+      );
     else if (job.tipo === "baixar") {
       const resultado = await baixarPorLink(job.id, String(job.params?.url ?? ""));
       await sbc().from("vedit_jobs").update({ resultado }).eq("id", job.id);
@@ -351,7 +493,19 @@ async function rodarJobs(): Promise<boolean> {
   return true;
 }
 
+async function loopRapido() {
+  for (;;) {
+    try {
+      if (await rodarJobs(JOBS_RAPIDOS)) continue;
+    } catch (e) {
+      console.error("[rapido]", e);
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 async function loop(serveUrl: string) {
+  void loopRapido();
   for (;;) {
     if (await rodarJobs()) continue;
     const { data, error } = await sbc().rpc("vedit_pegar_render", { p_worker: NOME });
