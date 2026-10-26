@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Check, ExternalLink, Loader2, Pause, Play, Plus, Search } from "lucide-react";
-import { callEdgeFunction } from "@/lib/ads-mutations";
+import { callEdgeFunction, FUNCTIONS_BASE } from "@/lib/ads-mutations";
 import { registrarTrilha } from "@/lib/trilhas";
 import { fmtTempo } from "@/lib/vedit";
 
@@ -43,45 +43,23 @@ const ATALHOS: { nome: string; q: string; humor: string[] }[] = [
   { nome: "Tensão", q: "suspense", humor: ["tenso", "urgente"] },
 ];
 
-// Openverse: busca anônima aceita no máximo 20 por página (acima disso responde 401).
-async function paginaDoAcervo(params: string): Promise<any[]> {
-  const r = await fetch(`https://api.openverse.org/v1/audio/?${params}&page_size=20&mature=false`, {
-    signal: AbortSignal.timeout(20000),
-  });
-  if (r.status === 429) throw new Error("O acervo pediu uma pausa. Tente de novo em 1 minuto.");
-  if (!r.ok) throw new Error(`O acervo respondeu ${r.status}. Tente de novo em instantes.`);
-  return (await r.json()).results ?? [];
-}
-
+// A busca roda no servidor (vedit-musicas): ccMixter + Openverse. Pelo navegador o Openverse
+// não responde a pedidos vindos de outro site, e o ccMixter bloqueia tocar o arquivo direto.
+const SISTEMA =
+  /^(media|remix|sample|bpm_|trackback|in_|attribution|audio|mp3|44k|48k|stereo|mono|cbr|vbr|ccplus|editorial_pick|featured|acappella|non_commercial|sharealike)/i;
 async function buscarNoAcervo(q: string, licenca: string): Promise<Musica[]> {
-  const lic = licenca === "livre" ? "cc0,pdm" : "cc0,pdm,by";
-  const qq = encodeURIComponent(q);
-  // 1) só o que está marcado como música; 2) se vier pouco, completa com "<termo> music"
-  // (boa parte do Freesound não tem categoria). Em sequência, para não estourar o limite.
-  let brutos = await paginaDoAcervo(`q=${qq}&license=${lic}&category=music`);
-  if (brutos.length < 12) {
-    const extra = await paginaDoAcervo(
-      `q=${encodeURIComponent(/music|beat|loop/i.test(q) ? q : `${q} music`)}&license=${lic}`,
-    ).catch(() => []);
-    brutos = [...brutos, ...extra];
-  }
-  const vistos = new Set<string>();
-  return brutos
-    .filter((a) => a?.source !== "wikimedia_audio" && !vistos.has(a.id) && vistos.add(a.id))
-    .map((a: any) => ({
-      id: a.id,
-      titulo: a.title ?? "Sem título",
-      autor: a.creator ?? "autor",
-      url: a.url,
-      duracao: a.duration ? Math.round(a.duration / 1000) : null,
-      licenca: `${String(a.license ?? "").toUpperCase()} ${a.license_version ?? ""}`.trim(),
-      exigeCredito: !["cc0", "pdm"].includes(String(a.license ?? "").toLowerCase()),
-      fonte: a.source ?? a.provider,
-      pagina: a.foreign_landing_url ?? null,
-      tags: (a.tags ?? []).map((t: any) => t.name).slice(0, 6),
-    }))
-    .filter((a: Musica) => a.url && (!a.duracao || (a.duracao >= 20 && a.duracao <= 420)));
+  const r: any = await callEdgeFunction("vedit-musicas", { acao: "buscar", consulta: q, licenca });
+  if (r?.error) throw new Error(r.error);
+  return ((r?.musicas ?? []) as Musica[]).map((m) => ({
+    ...m,
+    tags: (m.tags ?? []).filter((t) => t && !SISTEMA.test(t)).slice(0, 5),
+  }));
 }
+// ccMixter não deixa tocar o arquivo direto de outro site: a prévia passa pelo servidor.
+const urlOuvir = (u: string) =>
+  /(^|\.)ccmixter\.org$/i.test(new URL(u).hostname)
+    ? `${FUNCTIONS_BASE}/vedit-musicas?ouvir=${encodeURIComponent(u)}`
+    : u;
 
 export function BuscarMusicas({ onAdicionada }: { onAdicionada: () => void }) {
   const [busca, setBusca] = useState("");
@@ -109,10 +87,21 @@ export function BuscarMusicas({ onAdicionada }: { onAdicionada: () => void }) {
   function ouvir(m: Musica) {
     audio.current?.pause();
     if (tocando === m.id) return setTocando(null);
-    const el = new Audio(m.url);
+    const el = new Audio(urlOuvir(m.url));
     el.volume = 0.6;
-    el.currentTime = 20; // pula a introdução
-    void el.play();
+    // pula a introdução (depois de carregar os metadados, senão o salto é ignorado)
+    el.addEventListener(
+      "loadedmetadata",
+      () => {
+        if (el.duration > 40) el.currentTime = 20;
+      },
+      { once: true },
+    );
+    el.onerror = () => {
+      toast.error("Não consegui tocar essa música. Tente outra.");
+      setTocando(null);
+    };
+    void el.play().catch(() => {});
     el.onended = () => setTocando(null);
     audio.current = el;
     setTocando(m.id);
@@ -242,10 +231,12 @@ export function BuscarMusicas({ onAdicionada }: { onAdicionada: () => void }) {
                 {salvando === m.id ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 ) : feitas.has(m.id) ? (
-                  <Check className="h-3.5 w-3.5" />
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1" /> Salva
+                  </>
                 ) : (
                   <>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Salvar na biblioteca
                   </>
                 )}
               </Button>
