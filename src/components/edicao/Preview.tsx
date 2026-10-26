@@ -68,6 +68,9 @@ export const Preview = forwardRef<
         controls={controles}
         loop={loop}
         autoPlay={autoPlay}
+        // Voz por trecho (o atual + o próximo já preparado), música e efeitos sonoros tocam juntos.
+        // Com o limite padrão (5) o player estourava: a voz ficava em eco ou muda.
+        numberOfSharedAudioTags={30}
         acknowledgeRemotionLicense
         clickToPlay
         spaceKeyToPlayOrPause
