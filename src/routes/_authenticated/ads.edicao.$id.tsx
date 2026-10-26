@@ -394,7 +394,7 @@ function Editor() {
     const d = urlsQ.data;
     if (!d) return;
     const lista = [d.fonte, d.audio, ...Object.values(d.voz ?? {})].filter(
-      (u): u is string => !!u && !locais[u],
+      (u): u is string => !!u && !locais[u.split("?")[0]],
     );
     if (!lista.length) return;
     let vivo = true;
@@ -408,7 +408,7 @@ function Editor() {
           const blob = await r.blob();
           if (!vivo) return;
           const local = URL.createObjectURL(blob);
-          setLocais((x) => ({ ...x, [u]: local }));
+          setLocais((x) => ({ ...x, [u.split("?")[0]]: local }));
         } catch {
           /* sem cópia local: o preview segue pela rede */
         }
@@ -419,7 +419,7 @@ function Editor() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlsQ.data]);
-  const local = (u?: string) => (u ? (locais[u] ?? u) : u);
+  const local = (u?: string) => (u ? (locais[u.split("?")[0]] ?? u) : u);
 
   const props: ReelProps | null = useMemo(
     () =>
