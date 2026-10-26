@@ -448,6 +448,9 @@ export function Reel(bruto: ReelProps) {
                   premountFor={fps}
                 >
                   <OffthreadVideo
+                    // key = arquivo: se o arquivo muda (cópia em memória, URL renovada), o elemento
+                    // antigo é desmontado em vez de continuar tocando junto com o novo.
+                    key={props.fonteUrl}
                     src={props.fonteUrl}
                     trimBefore={Math.round(t.de * fps)}
                     // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
@@ -468,6 +471,7 @@ export function Reel(bruto: ReelProps) {
                   />
                   {somExterno && (
                     <Audio
+                      key={somExterno}
                       src={somExterno}
                       trimBefore={Math.round(t.de * fps)}
                       volume={volumeVoz}
