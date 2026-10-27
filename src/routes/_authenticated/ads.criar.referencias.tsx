@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BUCKET, db } from "@/lib/vedit";
 import { chamarAgente } from "@/lib/criativos";
 import type { CriaReferencia } from "@/criativos/design";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/ads/criar/referencias")({
   component: ReferenciasCriativos,
@@ -26,6 +27,7 @@ function ReferenciasCriativos() {
   const [conta, setConta] = useState("");
   const [ocupado, setOcupado] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const [aberta, setAberta] = useState<string | null>(null);
 
   const refs = useQuery({
     queryKey: ["cria", "referencias"],
@@ -55,6 +57,7 @@ function ReferenciasCriativos() {
         : false,
   });
   const recarregar = () => qc.invalidateQueries({ queryKey: ["cria", "referencias"] });
+  const sel = (refs.data ?? []).find((r) => r.id === aberta) ?? null;
 
   async function porLink() {
     if (!LINK_POST.test(link)) return toast.error("Cole o link de um post do Instagram.");
@@ -174,159 +177,194 @@ function ReferenciasCriativos() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       )}
-      <div className="space-y-4">
-        {(refs.data ?? []).map((r) => {
-          const a = r.analise;
-          return (
-            <Card key={r.id}>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {r.urls.map((u, i) => (
-                    <img
-                      key={i}
-                      src={u}
-                      className="h-44 aspect-[4/5] object-cover rounded-md border shrink-0"
-                      loading="lazy"
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="font-semibold">
-                    {a?.estilo ?? (r.autor ? `@${r.autor}` : "Referência")}
-                  </div>
-                  {r.autor && <Badge variant="outline">@{r.autor}</Badge>}
-                  <Badge variant="secondary">{r.urls.length} slides</Badge>
-                  {r.status === "baixando" && (
-                    <Badge
-                      className="bg-sky-500/15 text-sky-700 border-sky-500/30"
-                      variant="outline"
-                    >
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Baixando slides
-                    </Badge>
-                  )}
-                  {r.status === "analisando" && (
-                    <Badge
-                      className="bg-amber-500/15 text-amber-700 border-amber-500/30"
-                      variant="outline"
-                    >
-                      <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Analisando
-                    </Badge>
-                  )}
-                  {r.status === "erro" && (
-                    <Badge
-                      variant="outline"
-                      className="text-red-600 border-red-500/40"
-                      title={r.erro ?? ""}
-                    >
-                      {r.urls.length ? "Erro na análise" : "Não consegui baixar"}
-                    </Badge>
-                  )}
-                  <div className="ml-auto flex gap-1.5">
-                    {r.url && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        asChild
-                        title="Abrir no Instagram"
-                      >
-                        <a href={r.url} target="_blank" rel="noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    )}
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      title="Analisar de novo"
-                      onClick={async () => {
-                        try {
-                          // Sem imagens (o download falhou): baixa de novo pelo link.
-                          if (!r.imagens?.length && r.url) {
-                            await db().from("cria_referencias").delete().eq("id", r.id);
-                            await chamarAgente({ acao: "referencia", url: r.url });
-                          } else await chamarAgente({ acao: "analisar_referencia", id: r.id });
-                        } catch (e) {
-                          toast.error((e as Error).message);
-                        }
-                        recarregar();
-                      }}
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 hover:text-red-600"
-                      title="Excluir"
-                      onClick={() => excluir(r)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-8"
-                      disabled={r.status !== "pronta"}
-                      onClick={() => navigate({ to: "/ads/criar", search: { ref: r.id } })}
-                    >
-                      <Wand2 className="h-4 w-4 mr-1.5" /> Criar com esta referência
-                    </Button>
-                  </div>
-                </div>
-                {r.status === "erro" && r.erro && <p className="text-xs text-red-600">{r.erro}</p>}
-                {a && (
-                  <div className="grid gap-3 md:grid-cols-2 text-sm">
-                    <div className="space-y-2">
-                      {a.resumo && <p>{a.resumo}</p>}
-                      {a.gancho && (
-                        <p className="text-muted-foreground">
-                          <span className="font-medium text-foreground">Gancho: </span>
-                          {a.gancho}
-                        </p>
-                      )}
-                      {a.tipografia && (
-                        <p className="text-muted-foreground">
-                          <span className="font-medium text-foreground">Tipografia: </span>
-                          {a.tipografia}
-                        </p>
-                      )}
-                      {!!a.cores?.length && (
-                        <div className="flex gap-1.5 items-center">
-                          {a.cores.slice(0, 8).map((c) => (
-                            <span
-                              key={c}
-                              title={c}
-                              className="h-5 w-5 rounded border"
-                              style={{ background: c }}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      {!!a.estrutura?.length && (
-                        <ol className="list-decimal pl-4 text-muted-foreground space-y-0.5">
-                          {a.estrutura.map((e, i) => (
-                            <li key={i}>{e}</li>
-                          ))}
-                        </ol>
-                      )}
-                      {!!a.dicas?.length && (
-                        <ul className="list-disc pl-4 text-muted-foreground space-y-0.5">
-                          {a.dicas.map((e, i) => (
-                            <li key={i}>{e}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {(refs.data ?? []).map((r) => (
+          <Card
+            key={r.id}
+            className="overflow-hidden cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => setAberta(r.id)}
+          >
+            <div className="relative aspect-[4/5] max-h-64 w-full bg-muted overflow-hidden">
+              {r.urls[0] && (
+                <img src={r.urls[0]} className="h-full w-full object-cover" loading="lazy" />
+              )}
+              {r.urls.length > 1 && (
+                <span className="absolute top-2 right-2 rounded-full bg-black/60 text-white text-[11px] px-2 py-0.5">
+                  {r.urls.length} slides
+                </span>
+              )}
+              <div className="absolute top-2 left-2">
+                <StatusRef r={r} />
+              </div>
+            </div>
+            <CardContent className="p-3 space-y-1">
+              <div className="font-semibold text-sm line-clamp-1">
+                {r.analise?.estilo ?? (r.autor ? `@${r.autor}` : "Referência")}
+              </div>
+              {r.autor && <div className="text-xs text-muted-foreground">@{r.autor}</div>}
+              {r.analise?.resumo && (
+                <p className="text-xs text-muted-foreground line-clamp-2">{r.analise.resumo}</p>
+              )}
+              {r.status === "erro" && r.erro && (
+                <p className="text-xs text-red-600 line-clamp-2">{r.erro}</p>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
+
+      <Dialog open={!!sel} onOpenChange={(o) => !o && setAberta(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          {sel && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex flex-wrap items-center gap-2">
+                  {sel.analise?.estilo ?? (sel.autor ? `@${sel.autor}` : "Referência")}
+                  {sel.autor && <Badge variant="outline">@{sel.autor}</Badge>}
+                  <StatusRef r={sel} />
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {sel.urls.map((u, i) => (
+                  <img
+                    key={i}
+                    src={u}
+                    className="h-56 aspect-[4/5] object-cover rounded-md border shrink-0"
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+              {sel.status === "erro" && sel.erro && (
+                <p className="text-xs text-red-600">{sel.erro}</p>
+              )}
+              {sel.analise && <DetalheAnalise a={sel.analise} />}
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                {sel.url && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={sel.url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-1.5" /> Abrir no Instagram
+                    </a>
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      // Sem imagens (o download falhou): baixa de novo pelo link.
+                      if (!sel.imagens?.length && sel.url) {
+                        await db().from("cria_referencias").delete().eq("id", sel.id);
+                        await chamarAgente({ acao: "referencia", url: sel.url });
+                        setAberta(null);
+                      } else await chamarAgente({ acao: "analisar_referencia", id: sel.id });
+                    } catch (e) {
+                      toast.error((e as Error).message);
+                    }
+                    recarregar();
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1.5" /> Analisar de novo
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="hover:text-red-600"
+                  onClick={async () => {
+                    await excluir(sel);
+                    setAberta(null);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 mr-1.5" /> Excluir
+                </Button>
+                <Button
+                  size="sm"
+                  className="ml-auto"
+                  disabled={sel.status !== "pronta"}
+                  onClick={() => navigate({ to: "/ads/criar", search: { ref: sel.id } })}
+                >
+                  <Wand2 className="h-4 w-4 mr-1.5" /> Criar com esta referência
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function StatusRef({ r }: { r: RefComUrls }) {
+  if (r.status === "baixando")
+    return (
+      <Badge className="bg-sky-500/90 text-white border-transparent">
+        <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Baixando
+      </Badge>
+    );
+  if (r.status === "analisando")
+    return (
+      <Badge className="bg-amber-500/90 text-white border-transparent">
+        <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Analisando
+      </Badge>
+    );
+  if (r.status === "erro")
+    return (
+      <Badge className="bg-red-600/90 text-white border-transparent">
+        {r.urls.length ? "Erro na análise" : "Não baixou"}
+      </Badge>
+    );
+  return null;
+}
+
+function DetalheAnalise({ a }: { a: NonNullable<CriaReferencia["analise"]> }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 text-sm">
+      <div className="space-y-2">
+        {a.resumo && <p>{a.resumo}</p>}
+        {a.gancho && (
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Gancho: </span>
+            {a.gancho}
+          </p>
+        )}
+        {a.tipografia && (
+          <p className="text-muted-foreground">
+            <span className="font-medium text-foreground">Tipografia: </span>
+            {a.tipografia}
+          </p>
+        )}
+        {!!a.cores?.length && (
+          <div className="flex gap-1.5 items-center">
+            {a.cores.slice(0, 8).map((c) => (
+              <span
+                key={c}
+                title={c}
+                className="h-5 w-5 rounded border"
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        )}
+        {!!a.dicas?.length && (
+          <>
+            <div className="font-medium pt-1">Acabamento</div>
+            <ul className="list-disc pl-4 text-muted-foreground space-y-0.5">
+              {a.dicas.map((e, i) => (
+                <li key={i}>{e}</li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+      {!!a.estrutura?.length && (
+        <div className="space-y-1">
+          <div className="font-medium">Estrutura slide a slide</div>
+          <ol className="list-decimal pl-4 text-muted-foreground space-y-0.5">
+            {a.estrutura.map((e, i) => (
+              <li key={i}>{e}</li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
