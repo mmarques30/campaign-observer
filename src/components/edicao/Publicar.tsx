@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
+import { Slider } from "@/components/ui/slider";
+import { MusicaInstagram, type MusicaIg } from "@/components/publicacoes/MusicaInstagram";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -45,6 +47,8 @@ export function Publicar({
   const [trial, setTrial] = useState(false);
   const [confirmarIg, setConfirmarIg] = useState(false);
   const [quando, setQuando] = useState<"agora" | "agendar">("agora");
+  const [musica, setMusica] = useState<MusicaIg | null>(null);
+  const [volMusica, setVolMusica] = useState(30);
   const [data, setData] = useState(() =>
     format(new Date(Date.now() + 24 * 3600 * 1000), "yyyy-MM-dd'T'HH:mm"),
   );
@@ -161,6 +165,8 @@ export function Publicar({
             midias: [projeto.render_path],
             legenda,
             agendado_para: quandoData.toISOString(),
+            // Música do Instagram por baixo da voz (a voz do vídeo fica em 100).
+            audio: musica ? { ...musica, audio_volume: volMusica, video_volume: 100 } : null,
           });
         if (error) throw new Error(error.message);
         if (quando === "agora") {
@@ -198,7 +204,7 @@ export function Publicar({
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && !ocupado && onFechar()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Publicar "{projeto.nome}"</DialogTitle>
           <DialogDescription>
@@ -306,6 +312,29 @@ export function Publicar({
               </div>
               <Switch checked={trial} onCheckedChange={setTrial} />
             </div>
+            {!trial && (
+              <>
+                <MusicaInstagram valor={musica} onChange={setMusica} />
+                {musica && (
+                  <div className="space-y-1">
+                    <Label className="text-xs flex justify-between">
+                      <span>Volume da música do Instagram (a voz fica em 100)</span>
+                      <span className="tabular-nums text-muted-foreground">{volMusica}</span>
+                    </Label>
+                    <Slider
+                      min={5}
+                      max={100}
+                      step={5}
+                      value={[volMusica]}
+                      onValueChange={([v]) => setVolMusica(v)}
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Se o vídeo já tem a trilha da edição, tire uma das duas para não somar.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
             {!trial && (
               <div className="grid grid-cols-2 gap-2">
                 {(["agora", "agendar"] as const).map((q) => (

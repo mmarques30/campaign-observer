@@ -33,10 +33,11 @@ import { adPayload, CTAS, novoAnuncio } from "@/components/ads/AnuncioFields";
 import { BUCKET, db } from "@/lib/vedit";
 import type { CriaProjeto } from "@/criativos/design";
 import { EditorLegenda } from "./EditorLegenda";
+import { MusicaInstagram, type MusicaIg } from "@/components/publicacoes/MusicaInstagram";
 
 type Publicacao = {
   id: string;
-  status: "agendado" | "publicando" | "publicado" | "erro" | "cancelado";
+  status: "preparando" | "agendado" | "publicando" | "publicado" | "erro" | "cancelado";
   agendado_para: string;
   publicado_em: string | null;
   permalink: string | null;
@@ -100,6 +101,8 @@ export function PublicarCriativo({
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [adsetId, setAdsetId] = useState("");
   const [ad, setAd] = useState(() => ({ ...novoAnuncio(), nome: projeto.nome }));
+  const [musica, setMusica] = useState<MusicaIg | null>(null);
+  const [segSlide, setSegSlide] = useState(3);
 
   useEffect(() => {
     if (aberto) {
@@ -120,7 +123,9 @@ export function PublicarCriativo({
     queryKey: ["publicar", "lista", projeto.id],
     enabled: aberto,
     refetchInterval: (q) =>
-      (q.state.data as Publicacao[] | undefined)?.some((p) => p.status === "publicando")
+      (q.state.data as Publicacao[] | undefined)?.some((p) =>
+        ["publicando", "preparando"].includes(p.status),
+      )
         ? 5000
         : false,
     queryFn: async () =>
@@ -147,8 +152,10 @@ export function PublicarCriativo({
   });
 
   const tipo = totalSlides > 1 ? "carrossel" : "imagem";
-  const vertical = projeto.formato === "9:16";
-  const demais = totalSlides > 10;
+  // Com música, sai como Reel (slides em vídeo): aí 9:16 e mais de 10 slides deixam de ser limite.
+  const comoReel = !!musica;
+  const vertical = projeto.formato === "9:16" && !comoReel;
+  const demais = totalSlides > 10 && !comoReel;
 
   async function instagram() {
     const quandoData = quando === "agora" ? new Date() : new Date(data);
@@ -159,18 +166,38 @@ export function PublicarCriativo({
       const pngs = await gerarImagens();
       const id = crypto.randomUUID();
       const midias = await subirSlides(pngs, id);
-      const { error } = await db().from("publicacoes").insert({
-        id,
-        origem: "criativo",
-        ref_id: projeto.id,
-        nome: projeto.nome,
-        tipo,
-        midias,
-        legenda,
-        agendado_para: quandoData.toISOString(),
-      });
+      const { error } = await db()
+        .from("publicacoes")
+        .insert({
+          id,
+          origem: "criativo",
+          ref_id: projeto.id,
+          nome: projeto.nome,
+          tipo: comoReel ? "reel" : tipo,
+          midias,
+          legenda,
+          agendado_para: quandoData.toISOString(),
+          ...(comoReel
+            ? {
+                status: "preparando",
+                slides_seg: segSlide,
+                audio: { ...musica, audio_volume: 100, video_volume: 1 },
+              }
+            : {}),
+        });
       if (error) throw new Error(error.message);
-      if (quando === "agora") {
+      if (comoReel) {
+        // O servidor de vídeo monta o Reel com os slides e publica (agora) ou deixa na fila.
+        const job = await db()
+          .from("vedit_jobs")
+          .insert({ tipo: "slideshow", params: { publicacao_id: id } });
+        if (job.error) throw new Error(job.error.message);
+        toast.success(
+          quando === "agora"
+            ? "Montando o Reel com a música; ele sai em 1 a 2 minutos. Acompanhe em Publicados."
+            : `Reel com música agendado para ${format(quandoData, "dd/MM 'às' HH:mm", { locale: ptBR })}.`,
+        );
+      } else if (quando === "agora") {
         const r = await callEdgeFunction("publicar-agendados", { acao: "agora", id });
         if (r.error) throw new Error(r.error);
         toast.success(
@@ -242,6 +269,7 @@ export function PublicarCriativo({
   }
 
   const ROTULO: Record<Publicacao["status"], string> = {
+    preparando: "Montando vídeo",
     agendado: "Agendado",
     publicando: "Publicando",
     publicado: "Publicado",
@@ -285,6 +313,33 @@ export function PublicarCriativo({
               </div>
             )}
             <EditorLegenda projetoId={projeto.id} valor={legenda} onChange={setLegenda} />
+            <MusicaInstagram valor={musica} onChange={setMusica} />
+            {comoReel && (
+              <div className="rounded-md border border-sky-500/40 bg-sky-500/10 p-2 text-xs space-y-2">
+                <p>
+                  O Instagram só aceita música por sistema em Reels. Com música, este{" "}
+                  {tipo === "carrossel" ? "carrossel" : "post"} sai como <b>Reel</b>: cada slide
+                  inteiro em tela cheia, um depois do outro, com a música escolhida.
+                </p>
+                {tipo === "carrossel" && (
+                  <label className="flex items-center gap-2">
+                    Segundos por slide
+                    <Input
+                      type="number"
+                      min={1.5}
+                      max={8}
+                      step={0.5}
+                      value={segSlide}
+                      onChange={(e) => setSegSlide(Number(e.target.value) || 3)}
+                      className="h-7 w-20"
+                    />
+                    <span className="text-muted-foreground">
+                      vídeo de {Math.round(segSlide * totalSlides)}s
+                    </span>
+                  </label>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2">
               {(["agendar", "agora"] as const).map((q) => (
                 <Button

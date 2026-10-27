@@ -25,3 +25,16 @@ create index if not exists publicacoes_ref on public.publicacoes(ref_id);
 alter table public.publicacoes enable row level security;
 create policy "publicacoes autenticados" on public.publicacoes for all to authenticated using (true) with check (true);
 select cron.schedule('publicacoes-agendadas', '*/5 * * * *', $$select net.http_get(url := 'https://ciwdlceyjsnlnunktqzx.supabase.co/functions/v1/publicar-agendados')$$);
+-- Destino (Instagram/anúncio), vínculo com o anúncio e métricas.
+alter table public.publicacoes add column if not exists destino text not null default 'instagram' check (destino in ('instagram','anuncio'));
+alter table public.publicacoes add column if not exists meta_ad_id text;
+alter table public.publicacoes add column if not exists metricas jsonb;
+alter table public.publicacoes add column if not exists metricas_em timestamptz;
+alter table public.publicacoes add column if not exists thumb text;
+-- Música do Instagram (só Reels aceitam pela API) e carrossel virando Reel (slides em vídeo).
+alter table public.publicacoes add column if not exists audio jsonb;
+alter table public.publicacoes add column if not exists slides_seg numeric;
+alter table public.publicacoes drop constraint if exists publicacoes_status_check;
+alter table public.publicacoes add constraint publicacoes_status_check check (status in ('preparando','agendado','publicando','publicado','erro','cancelado'));
+alter table public.vedit_jobs drop constraint if exists vedit_jobs_tipo_check;
+alter table public.vedit_jobs add constraint vedit_jobs_tipo_check check (tipo in ('proxy','recorte','voz','baixar','referencia','cria_referencia','slideshow'));
