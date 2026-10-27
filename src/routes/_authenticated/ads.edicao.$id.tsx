@@ -80,6 +80,49 @@ function Editor() {
   const player = useRef<PlayerRef>(null);
   // O Player monta depois (o Preview espera o cliente): avisa quando a ref existe para ligar a agulha.
   const [playerPronto, setPlayerPronto] = useState(false);
+  // Vigia do preview: se ficar parado com o play ligado (mídia que não carrega, erro), destrava sozinho.
+  useEffect(() => {
+    const p = player.current;
+    if (!p) return;
+    let ultimo = -1,
+      desde = Date.now(),
+      avisado = -1;
+    const destravar = (motivo: string) => {
+      const f = p.getCurrentFrame();
+      p.pause();
+      p.seekTo(f + 2);
+      setTimeout(() => p.play(), 150);
+      if (avisado !== f) {
+        avisado = f;
+        const s = Math.floor(f / 30);
+        toast.message(
+          `O preview engasgou em ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} e foi destravado.`,
+          { description: motivo },
+        );
+      }
+    };
+    const t = setInterval(() => {
+      const f = p.getCurrentFrame();
+      if (!p.isPlaying() || f !== ultimo) {
+        ultimo = f;
+        desde = Date.now();
+        return;
+      }
+      if (Date.now() - desde > 2500) {
+        desde = Date.now();
+        destravar("Parou de avançar com o play ligado.");
+      }
+    }, 500);
+    const aoErrar = (ev: { detail: { error: Error } }) => {
+      console.warn("[vedit] erro no preview", ev.detail.error);
+      destravar(ev.detail.error.message.slice(0, 140));
+    };
+    p.addEventListener("error", aoErrar);
+    return () => {
+      clearInterval(t);
+      p.removeEventListener("error", aoErrar);
+    };
+  }, [playerPronto]);
   // Avisa o painel quando o preview começa a tocar (a comparação de voz para sozinha).
   useEffect(() => {
     const p = player.current;
