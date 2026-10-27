@@ -508,7 +508,26 @@ function Editor() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlsQ.data]);
-  const local = (u?: string) => (u ? (locais[u.split("?")[0]] ?? u) : u);
+  // A cópia em memória só entra com o player PARADO: trocar o arquivo no meio da reprodução
+  // dava um arranhado e o som sumia. Se terminar de baixar tocando, espera a próxima pausa.
+  const [locaisAplicados, setLocaisAplicados] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (Object.keys(locais).length === Object.keys(locaisAplicados).length) return;
+    const p = player.current;
+    if (!p || !p.isPlaying()) {
+      setLocaisAplicados(locais);
+      return;
+    }
+    const aplicar = () => setLocaisAplicados(locais);
+    p.addEventListener("pause", aplicar);
+    p.addEventListener("ended", aplicar);
+    return () => {
+      p.removeEventListener("pause", aplicar);
+      p.removeEventListener("ended", aplicar);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locais, playerPronto]);
+  const local = (u?: string) => (u ? (locaisAplicados[u.split("?")[0]] ?? u) : u);
 
   const props: ReelProps | null = useMemo(
     () =>
@@ -527,7 +546,7 @@ function Editor() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj, locais],
+    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj, locaisAplicados],
   );
 
   async function mandar(texto: string) {
