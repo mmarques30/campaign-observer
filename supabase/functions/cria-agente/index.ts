@@ -198,13 +198,13 @@ async function analisarReferencia(sb: any, id: string) {
   await sb.from("cria_referencias").update({ status: "analisando", erro: null }).eq("id", id);
   try {
     const imgs = (
-      await Promise.all((ref.imagens ?? []).slice(0, 10).map((p: string) => imagemBloco(sb, p)))
+      await Promise.all((ref.imagens ?? []).slice(0, 15).map((p: string) => imagemBloco(sb, p)))
     ).filter(Boolean);
     if (!imgs.length) throw new Error("sem imagens para analisar");
     const j = await claude(
       sb,
       {
-        max_tokens: 2500,
+        max_tokens: 8000,
         messages: [
           {
             role: "user",
@@ -218,7 +218,7 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
 {
  "estilo": "nome curto do estilo (ex.: 'Post de tweet com foto', 'Comandos com antes e depois')",
  "resumo": "2 frases: o que o post entrega e por que prende",
- "estrutura": ["slide 1: papel e conteúdo", "slide 2: ...", ...],
+ "estrutura": ["slide 1: papel e conteúdo (1 frase curta)", "slide 2: ...", ...]  (um item por slide, todos os slides),
  "tipografia": "fontes/pesos/caixa, tamanhos relativos, alinhamento",
  "cores": ["#hex", ...],
  "layouts": ["capa", "tweet", "comando", "topico", "texto", "lista", "foto", "cta"]  (os do nosso editor que mais se parecem, na ordem dos slides),
@@ -416,7 +416,7 @@ async function rodar(sb: any, projetoId: string, pedido: string, verReferencia =
     // Na criação, o Claude vê os slides da referência (o molde), não só a análise em texto.
     const imgsRef = verReferencia
       ? (
-          await Promise.all(ctx.imagensRef.slice(0, 10).map((x: string) => imagemBloco(sb, x)))
+          await Promise.all(ctx.imagensRef.slice(0, 15).map((x: string) => imagemBloco(sb, x)))
         ).filter(Boolean)
       : [];
     const messages: any[] = [
