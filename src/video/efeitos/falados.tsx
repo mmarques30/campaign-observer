@@ -5,7 +5,7 @@
 //   no instante em que ela fala dele.
 import { AbsoluteFill, Img, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
-import { paraSaida } from "../tempo";
+import { paraFonte, paraSaida } from "../tempo";
 import { ICONES } from "./icones";
 import { ICONES_PH, LADO_PH } from "./icones-ph";
 import { ruido, u, useEntradaSaida, type EfeitoCtx, type EfeitoProps } from "./base";
@@ -276,7 +276,36 @@ type ItemApontado = {
   lado?: "direita" | "esquerda" | "centro"; // para que lado o card cresce a partir da âncora
   px?: number; // ponta do dedo (0–1): ganha um pulso no instante em que o item entra
   py?: number;
+  // Caminho da ponta do dedo: [s do ORIGINAL, x, y] (0–1, quadro sem zoom). Com ele o card
+  // anda junto com o dedo (fica logo acima da ponta; abaixo quando não cabe em cima).
+  trilha?: [number, number, number][];
 };
+
+/** Ponto do dedo no instante (s do original), interpolado entre as amostras da trilha. */
+function pontoNaTrilha(tr: [number, number, number][], s: number): [number, number] {
+  if (s <= tr[0][0]) return [tr[0][1], tr[0][2]];
+  for (let i = 1; i < tr.length; i++)
+    if (s <= tr[i][0]) {
+      const [ta, xa, ya] = tr[i - 1];
+      const [tb, xb, yb] = tr[i];
+      const f = tb > ta ? (s - ta) / (tb - ta) : 0;
+      return [xa + (xb - xa) * f, ya + (yb - ya) * f];
+    }
+  const u = tr[tr.length - 1];
+  return [u[1], u[2]];
+}
+
+/** Leva um ponto do quadro original para a tela, com o zoom/enquadramento deste quadro. */
+function comZoom(ctx: EfeitoCtx, x: number, y: number, largura: number): [number, number] {
+  const e = ctx.estiloBase;
+  if (!e) return [x, y];
+  const esc = Number(/scale\(([\d.]+)\)/.exec(e.transform)?.[1] ?? 1) || 1;
+  const tx = Number(/translateX\((-?[\d.]+)px\)/.exec(e.transform)?.[1] ?? 0) || 0;
+  const [ox, oy] = (e.transformOrigin.match(/-?[\d.]+/g) ?? ["50", "50"]).map(
+    (v) => Number(v) / 100,
+  );
+  return [ox + (x - ox) * esc + tx / largura, oy + (y - oy) * esc];
+}
 
 export function ListaApontada({ p, ctx, dur }: EfeitoProps) {
   const { width, height } = useVideoConfig();
@@ -313,12 +342,27 @@ export function ListaApontada({ p, ctx, dur }: EfeitoProps) {
                 extrapolateRight: "clamp",
               })
             : 1;
-        const lado = it.lado ?? ladosPadrao[n % 2];
-        const x = Math.min(
-          0.96,
-          Math.max(0.04, Number(it.x ?? (lado === "esquerda" ? 0.46 : 0.54))),
-        );
-        const y = Math.min(0.9, Math.max(0.06, Number(it.y ?? 0.6)));
+        let lado = it.lado ?? ladosPadrao[n % 2];
+        let x = Math.min(0.96, Math.max(0.04, Number(it.x ?? (lado === "esquerda" ? 0.46 : 0.54))));
+        let y = Math.min(0.9, Math.max(0.06, Number(it.y ?? 0.6)));
+        let px = it.px,
+          py = it.py;
+        // Segue o dedo: o card fica logo acima da ponta (abaixo quando não cabe), centrado nela.
+        if (Array.isArray(it.trilha) && it.trilha.length) {
+          const agoraFonte = paraFonte(ctx.trechos, t0 + frame / fps);
+          const [bx, by] = pontoNaTrilha(it.trilha, agoraFonte);
+          [px, py] = comZoom(ctx, bx, by, width);
+          const larg =
+            ((170 +
+              Math.max(String(it.texto).length * 25, String(it.etapa ?? "").length * 18 + 60)) *
+              k) /
+            width;
+          const alt = (140 * k) / height;
+          lado = "centro";
+          x = Math.min(0.97 - larg / 2, Math.max(0.03 + larg / 2, px));
+          y = py - 0.035 - alt / 2 < 0.04 ? py + 0.05 + alt / 2 : py - 0.035 - alt / 2;
+          y = Math.min(0.84, y);
+        }
         const pos: React.CSSProperties =
           lado === "esquerda"
             ? { right: (1 - x) * width, maxWidth: (x - 0.03) * width }
@@ -326,7 +370,7 @@ export function ListaApontada({ p, ctx, dur }: EfeitoProps) {
               ? { left: x * width, maxWidth: 0.9 * width, translate: "-50% 0" }
               : { left: x * width, maxWidth: (0.97 - x) * width };
         const deX = lado === "esquerda" ? 40 : lado === "direita" ? -40 : 0;
-        const temPonto = it.px != null && it.py != null;
+        const temPonto = px != null && py != null;
         const pulso = interpolate(g, [0, fps * 0.9], [0, 1], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
@@ -337,8 +381,8 @@ export function ListaApontada({ p, ctx, dur }: EfeitoProps) {
               <div
                 style={{
                   position: "absolute",
-                  left: Number(it.px) * width - 30 * k,
-                  top: Number(it.py) * height - 30 * k,
+                  left: Number(px) * width - 30 * k,
+                  top: Number(py) * height - 30 * k,
                   width: 60 * k,
                   height: 60 * k,
                   borderRadius: "50%",
