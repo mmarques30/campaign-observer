@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { EFEITO_POR_TIPO, type Categoria } from "@/video/catalogo";
 import { montarBlocos } from "@/video/legenda";
 import type { Palavra, Timeline } from "@/video/schema";
-import { duracaoSaida, paraSaida, type Trecho } from "@/video/tempo";
+import { duracaoSaida, duracaoTrecho, paraSaida, type Trecho } from "@/video/tempo";
 import { cn } from "@/lib/utils";
 
 const COR: Record<Categoria, string> = {
@@ -70,7 +70,8 @@ export function Trilhas({
     const soltar = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", mover);
       window.removeEventListener("pointerup", soltar);
-      const delta = ((ev.clientX - x0) / largura) * total;
+      // Arraste em segundos do vídeo final → segundos do original (trecho acelerado anda mais).
+      const delta = ((ev.clientX - x0) / largura) * total * (trechos[i]?.vel ?? 1);
       setArraste(null);
       if (Math.abs(delta) >= 0.03) onAjustarBorda?.(i, borda, +delta.toFixed(2));
     };
@@ -120,7 +121,7 @@ export function Trilhas({
                 const dS = arraste?.i === i ? arraste.dx / pxPorSeg : 0;
                 const ini = t.saidaDe + (arraste?.i === i && arraste.borda === "de" ? dS : 0);
                 const dur =
-                  t.ate - t.de + (arraste?.i === i ? (arraste.borda === "de" ? -dS : dS) : 0);
+                  duracaoTrecho(t) + (arraste?.i === i ? (arraste.borda === "de" ? -dS : dS) : 0);
                 return (
                   <div
                     key={i}
@@ -134,8 +135,13 @@ export function Trilhas({
                       sel && "ring-2 ring-primary bg-primary/60 z-[3]",
                     )}
                     style={{ left: pos(ini), width: pos(Math.max(0.1, dur)) }}
-                    title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original · clique e arraste as bordas para encurtar`}
+                    title={`Trecho ${i + 1}: ${t.de.toFixed(1)}–${t.ate.toFixed(1)}s do original${t.vel !== 1 ? ` · ${t.vel}x` : ""} · clique e arraste as bordas para encurtar`}
                   >
+                    {t.vel !== 1 && (
+                      <span className="absolute left-1 top-0 text-[10px] font-semibold text-white/90 leading-[1.6] pointer-events-none">
+                        {String(t.vel).replace(".", ",")}x
+                      </span>
+                    )}
                     {sel && onAjustarBorda && (
                       <>
                         <span
@@ -160,7 +166,10 @@ export function Trilhas({
                     <div
                       key={`p${k}`}
                       className="absolute top-0 bottom-0 bg-amber-400/70 pointer-events-none z-[2]"
-                      style={{ left: pos(a), width: pos(Math.max(0.08, p.ate - p.de)) }}
+                      style={{
+                        left: pos(a),
+                        width: pos(Math.max(0.08, paraSaida(trechos, p.ate) - a)),
+                      }}
                       title={`Pausa de ${p.duracao.toFixed(1)}s`}
                     />
                   );

@@ -7,10 +7,42 @@ import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
 
 // Trilhas que vêm com o editor (espelho de src/video/trilhas.ts) + biblioteca da marca no bucket.
 const TRILHAS_BASE = [
-  { id: "base-pulso", nome: "Pulso", humor: ["energetico", "moderno", "confiante"], energia: "alta", bpm: 118, uso: "Anúncio direto (dor → solução → CTA), listas rápidas, estilo viral.", ganho: 1 },
-  { id: "base-corporativo", nome: "Corporativo leve", humor: ["inspirador", "corporativo", "positivo"], energia: "media", bpm: 100, uso: "Método, autoridade, institucional, estilo editorial ou limpo.", ganho: 1 },
-  { id: "base-tensao", nome: "Tensão", humor: ["tenso", "dramatico", "urgente"], energia: "media", bpm: 92, uso: "Abrir com dor/problema/prejuízo; virada antes da solução.", ganho: 1 },
-  { id: "base-lofi", nome: "Lo-fi", humor: ["calmo", "intimo", "bastidor"], energia: "baixa", bpm: 84, uso: "Orgânico conversado, bastidor, história pessoal.", ganho: 1 },
+  {
+    id: "base-pulso",
+    nome: "Pulso",
+    humor: ["energetico", "moderno", "confiante"],
+    energia: "alta",
+    bpm: 118,
+    uso: "Anúncio direto (dor → solução → CTA), listas rápidas, estilo viral.",
+    ganho: 1,
+  },
+  {
+    id: "base-corporativo",
+    nome: "Corporativo leve",
+    humor: ["inspirador", "corporativo", "positivo"],
+    energia: "media",
+    bpm: 100,
+    uso: "Método, autoridade, institucional, estilo editorial ou limpo.",
+    ganho: 1,
+  },
+  {
+    id: "base-tensao",
+    nome: "Tensão",
+    humor: ["tenso", "dramatico", "urgente"],
+    energia: "media",
+    bpm: 92,
+    uso: "Abrir com dor/problema/prejuízo; virada antes da solução.",
+    ganho: 1,
+  },
+  {
+    id: "base-lofi",
+    nome: "Lo-fi",
+    humor: ["calmo", "intimo", "bastidor"],
+    energia: "baixa",
+    bpm: 84,
+    uso: "Orgânico conversado, bastidor, história pessoal.",
+    ganho: 1,
+  },
 ];
 async function listarTrilhas(sb: any) {
   let marca: any[] = [];
@@ -131,7 +163,7 @@ COMO O SISTEMA FUNCIONA
 FORMATO DA TIMELINE
 {
   "versao": 1, "formato": "9:16"|"4:5"|"1:1", "fps": 30,
-  "cortes": [{"de": s, "ate": s}],            // trechos que FICAM, em ordem. [] = vídeo inteiro
+  "cortes": [{"de": s, "ate": s, "velocidade"?: 1.25|1.5|2}],  // trechos que FICAM, em ordem. [] = vídeo inteiro. velocidade acelera o trecho (omitida = normal)
   "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
   "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
   "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "tamanho": 0.5–1.8 (1 = padrão; "legenda maior/menor" → ±0.15), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
@@ -177,7 +209,7 @@ ESTILO VISUAL DESTE VÍDEO: "${estilo}". Siga as regras desse estilo (lista em E
 
 MODELO DE EDIÇÃO: se timeline.modelo existir, a pessoa salvou esse padrão de um vídeo que aprovou. Mantenha legenda, posição/altura, look, transição, zoom e música como estão na timeline (não troque sem ela pedir), use de preferência os tipos de efeito em timeline.modelo.efeitos (na mesma ordem de preferência) e mire em ~timeline.modelo.ritmo efeitos por minuto. Siga timeline.modelo.notas. Sempre devolva "modelo" igual ao recebido.
 
-CORTES À MÃO: a pessoa também corta pelo roteiro (aba Cortes). Ao receber pedidos como "tira de 0:12 a 0:15", "corta a parte que eu falo X" ou "essa pausa está longa", ajuste só "cortes" (segundos do ORIGINAL) e preserve o resto.
+CORTES À MÃO: a pessoa também corta pelo roteiro (aba Cortes). Ao receber pedidos como "tira de 0:12 a 0:15", "corta a parte que eu falo X" ou "essa pausa está longa", ajuste só "cortes" (segundos do ORIGINAL) e preserve o resto. VELOCIDADE: "acelera a parte X" / "deixa mais rápido de 0:20 a 0:30" → divida o trecho nesses pontos (segundos do ORIGINAL) e ponha "velocidade" (1.25, 1.5 ou 2) só nele; a voz mantém o tom. Ao mexer em cortes, SEMPRE preserve a "velocidade" dos trechos que já tinham.
 
 MARCA E TOM: ${instrucoes}
 
@@ -237,7 +269,11 @@ async function wikimedia(consulta: string, n: number) {
     signal: AbortSignal.timeout(8000),
   });
   const j = await r.json();
-  const limpa = (h: string) => String(h ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const limpa = (h: string) =>
+    String(h ?? "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   const itens = Object.values(j?.query?.pages ?? {})
     .sort((a: any, b: any) => (a.index ?? 0) - (b.index ?? 0))
     .map((p: any) => {
@@ -250,7 +286,12 @@ async function wikimedia(consulta: string, n: number) {
         largura: ii.thumbwidth ?? ii.width,
         altura: ii.thumbheight ?? ii.height,
         lic,
-        credito: `${limpa(p.title).replace(/^File:/, "").replace(/\.[a-z]+$/i, "")} — ${limpa(m.Artist?.value) || "autor"} (${m.LicenseShortName?.value ?? lic}, Wikimedia Commons)`,
+        credito: `${limpa(p.title)
+          .replace(/^File:/, "")
+          .replace(
+            /\.[a-z]+$/i,
+            "",
+          )} — ${limpa(m.Artist?.value) || "autor"} (${m.LicenseShortName?.value ?? lic}, Wikimedia Commons)`,
       };
     })
     .filter((x: any) => x.url && (x.largura ?? 0) >= 600 && /^(pd|cc0|cc-by)/.test(x.lic));
@@ -320,11 +361,18 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
         q: String(args.consulta).slice(0, 100),
         per_page: "5",
         safesearch: "true",
-        ...(video ? {} : { image_type: "photo", ...(orient ? { orientation: orient === "portrait" ? "vertical" : "horizontal" } : {}) }),
+        ...(video
+          ? {}
+          : {
+              image_type: "photo",
+              ...(orient ? { orientation: orient === "portrait" ? "vertical" : "horizontal" } : {}),
+            }),
       });
       try {
         const j = await (
-          await fetch(`https://pixabay.com/api/${video ? "videos/" : ""}?${qs}`, { signal: AbortSignal.timeout(10000) })
+          await fetch(`https://pixabay.com/api/${video ? "videos/" : ""}?${qs}`, {
+            signal: AbortSignal.timeout(10000),
+          })
         ).json();
         for (const h of j.hits ?? []) {
           if (achados.length >= n) break;
@@ -368,7 +416,12 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     if (achados.length < n && args.tipo !== "video") {
       const extra = await wikimedia(args.consulta, n - achados.length).catch(() => []);
       for (const w of extra)
-        achados.push({ url: w.url, nome: `commons-${Date.now()}-${achados.length}.jpg`, credito: w.credito, tipo: "imagem" });
+        achados.push({
+          url: w.url,
+          nome: `commons-${Date.now()}-${achados.length}.jpg`,
+          credito: w.credito,
+          tipo: "imagem",
+        });
     }
   } catch (e) {
     return { erro: `Busca falhou: ${e instanceof Error ? e.message : String(e)}` };
@@ -420,7 +473,8 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       /* pula */
     }
   }
-  if (!salvas.length) return { erro: "Não consegui baixar as imagens encontradas. Use o efeito icones." };
+  if (!salvas.length)
+    return { erro: "Não consegui baixar as imagens encontradas. Use o efeito icones." };
   return { midias: salvas };
 }
 
@@ -637,7 +691,10 @@ Deno.serve(async (req) => {
   const reps = detectarRepeticoes(palavras);
   const trilhas = await listarTrilhas(sb);
   const listaTrilhas = trilhas
-    .map((t: any) => `- id "trilha:${t.id}" — ${t.nome} (${t.base === undefined && t.id.startsWith("base-") ? "vem com o editor" : "marca"}; energia ${t.energia}; ${(t.humor ?? []).join(", ")}${t.bpm ? `; ${t.bpm} bpm` : ""}): ${t.uso}`)
+    .map(
+      (t: any) =>
+        `- id "trilha:${t.id}" — ${t.nome} (${t.base === undefined && t.id.startsWith("base-") ? "vem com o editor" : "marca"}; energia ${t.energia}; ${(t.humor ?? []).join(", ")}${t.bpm ? `; ${t.bpm} bpm` : ""}): ${t.uso}`,
+    )
     .join("\n");
   const contexto = `TRILHAS DISPONÍVEIS:\n${listaTrilhas}\n\nTRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
 
@@ -702,13 +759,11 @@ Deno.serve(async (req) => {
     });
     const txt = await r.text();
     if (!r.ok) {
-      await sb
-        .from("vedit_mensagens")
-        .insert({
-          projeto_id,
-          papel: "sistema",
-          conteudo: `Erro do Claude (${r.status}): ${txt.slice(0, 300)}`,
-        });
+      await sb.from("vedit_mensagens").insert({
+        projeto_id,
+        papel: "sistema",
+        conteudo: `Erro do Claude (${r.status}): ${txt.slice(0, 300)}`,
+      });
       return json({ error: `Claude ${r.status}: ${txt.slice(0, 400)}` }, 502);
     }
     resp = JSON.parse(txt);
@@ -727,8 +782,15 @@ Deno.serve(async (req) => {
       if (c.name === "buscar_midia" && buscas < 3) {
         buscas++;
         resultado = await buscarMidia(sb, projeto_id, c.input ?? {});
-      } else resultado = { erro: "Limite de buscas atingido. Use as mídias que já tem e aplique a edição." };
-      respostas.push({ type: "tool_result", tool_use_id: c.id, content: JSON.stringify(resultado) });
+      } else
+        resultado = {
+          erro: "Limite de buscas atingido. Use as mídias que já tem e aplique a edição.",
+        };
+      respostas.push({
+        type: "tool_result",
+        tool_use_id: c.id,
+        content: JSON.stringify(resultado),
+      });
     }
     conversa.push({ role: "assistant", content: resp.content });
     conversa.push({ role: "user", content: respostas });
@@ -750,6 +812,18 @@ Deno.serve(async (req) => {
     // O modelo salvo não se perde se o Claude esquecer de devolver.
     if (tl.modelo === undefined && proj.timeline?.modelo) tl.modelo = proj.timeline.modelo;
     if (tl.audio === undefined && proj.timeline?.audio) tl.audio = proj.timeline.audio;
+    // Velocidade dos trechos não se perde se o Claude reescrever os cortes sem ela.
+    const velAntigos = ((proj.timeline?.cortes ?? []) as any[]).filter(
+      (c) => c?.velocidade && c.velocidade !== 1,
+    );
+    if (velAntigos.length && Array.isArray(tl.cortes))
+      for (const c of tl.cortes) {
+        if (c.velocidade !== undefined) continue;
+        const v = velAntigos.find(
+          (a) => Math.min(a.ate, c.ate) - Math.max(a.de, c.de) > 0.5 * (c.ate - c.de),
+        );
+        if (v) c.velocidade = v.velocidade;
+      }
     // Nivelamento da trilha escolhida (ganho medido no upload).
     const chave = tl.musica?.midia as string | undefined;
     if (chave?.startsWith("trilha:")) {

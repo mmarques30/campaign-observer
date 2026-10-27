@@ -64,7 +64,10 @@ export const timelineSchema = z.object({
   formato: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
   fps: z.number().default(30),
   // Trechos do original que ficam no vídeo final, em ordem. Vazio = vídeo inteiro.
-  cortes: z.array(intervalo).default([]),
+  // velocidade: acelera (ou desacelera) o trecho. 1 = normal. Voz mantém o tom.
+  cortes: z
+    .array(intervalo.extend({ velocidade: z.number().min(0.5).max(4).optional() }))
+    .default([]),
   // Onde está o rosto da pessoa no quadro (0–1), detectado no navegador. Grafismos desviam dele.
   rosto: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).nullish(),
   // Enquadramento do original dentro do quadro (reenquadrar 16:9 → 9:16).

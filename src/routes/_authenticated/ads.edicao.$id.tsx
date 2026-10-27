@@ -68,7 +68,13 @@ import { duracaoSaida, paraFonte, paraSaida, trechosMantidos } from "@/video/tem
 import { cortarSilencios } from "@/video/automatico";
 import { detectarRepeticoes } from "@/video/repeticoes";
 import { Repeticoes } from "@/components/edicao/Repeticoes";
-import { ajustarBorda, dividirEm, excluirTrecho, pausasLongas } from "@/video/cortes";
+import {
+  ajustarBorda,
+  dividirEm,
+  excluirTrecho,
+  pausasLongas,
+  velocidadeTrecho,
+} from "@/video/cortes";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/$id")({
   component: Editor,
@@ -1055,8 +1061,32 @@ function Editor() {
                         <Scissors className="h-3.5 w-3.5 mr-1" /> Dividir na agulha
                       </Button>
                       <span className="text-muted-foreground font-mono">
-                        {fmtTempo(t.de)}–{fmtTempo(t.ate)} ({(t.ate - t.de).toFixed(1)}s)
+                        {fmtTempo(t.de)}–{fmtTempo(t.ate)} ({(t.ate - t.de).toFixed(1)}s
+                        {t.vel !== 1 ? ` → ${((t.ate - t.de) / t.vel).toFixed(1)}s` : ""})
                       </span>
+                      <span className="ml-2 text-muted-foreground">Velocidade</span>
+                      {[1, 1.25, 1.5, 2].map((v) => (
+                        <Button
+                          key={v}
+                          size="sm"
+                          variant={Math.abs(t.vel - v) < 0.001 ? "default" : "outline"}
+                          className={btn}
+                          title={v === 1 ? "Velocidade normal" : `Acelera este trecho (${v}x)`}
+                          onClick={() =>
+                            setTl(
+                              {
+                                ...tl,
+                                cortes: velocidadeTrecho(trechos, trechoSel, v, duracaoFonte),
+                              },
+                              v === 1
+                                ? `Trecho ${trechoSel + 1} em velocidade normal`
+                                : `Trecho ${trechoSel + 1} acelerado ${v}x`,
+                            )
+                          }
+                        >
+                          {String(v).replace(".", ",")}x
+                        </Button>
+                      ))}
                       <span className="ml-2 text-muted-foreground">Início</span>
                       <Button
                         size="sm"
