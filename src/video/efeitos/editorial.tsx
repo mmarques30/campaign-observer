@@ -4,6 +4,7 @@ import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
 import { Marcado } from "../marcacao";
 import { lista, u, useEntradaSaida, type EfeitoProps } from "./base";
+import { comAlfa } from "./falados";
 
 const VERDE = "#2F4A3A";
 const CREME = "#F3EFE6";
@@ -23,11 +24,11 @@ export function NumeroCapitulo({ p, ctx, dur }: EfeitoProps) {
           position: "absolute",
           top: height * 0.06,
           [lado === "direita" ? "right" : "left"]: width * 0.08,
-          fontFamily: f("Playfair Display", "serif"),
-          fontWeight: 700,
+          fontFamily: f(ctx.tl.marca.fonteSerif, "serif"),
+          fontWeight: 400,
           fontSize: 460 * k,
           lineHeight: 0.85,
-          color: p.cor ?? CREME,
+          color: p.cor ?? ctx.tl.marca.destaque,
           opacity: interpolate(s, [0, 1], [0, 0.95]),
           transform: `translateY(${interpolate(s, [0, 1], [60, 0])}px)`,
           textShadow: "0 20px 60px rgba(0,0,0,.35)",
@@ -44,7 +45,7 @@ export function NumeroCapitulo({ p, ctx, dur }: EfeitoProps) {
             [lado === "direita" ? "right" : "left"]: width * 0.09,
             fontFamily: f("Instrument Serif", "serif"),
             fontSize: 54 * k,
-            color: p.cor ?? CREME,
+            color: p.cor ?? ctx.tl.marca.texto,
             opacity: interpolate(frame, [8, 18], [0, 1], { extrapolateRight: "clamp" }),
             letterSpacing: 1 * k,
           }}
@@ -198,10 +199,14 @@ export function FraseCaixa({ p, ctx, dur }: EfeitoProps) {
           position: "absolute",
           left: "7%",
           right: "7%",
-          top: height * (p.posicao === "superior" ? 0.12 : p.posicao === "inferior" ? 0.6 : 0.42),
-          background: p.cor ?? VERDE,
+          top:
+            p.y != null
+              ? Number(p.y) * height
+              : height * (p.posicao === "superior" ? 0.12 : p.posicao === "inferior" ? 0.6 : 0.42),
+          background: p.cor ?? comAlfa(ctx.tl.marca.fundo, 0.9),
+          border: p.cor ? undefined : `${1.5 * k}px solid ${comAlfa("#ffffff", 0.12)}`,
           padding: `${34 * k}px ${40 * k}px`,
-          borderRadius: 8 * k,
+          borderRadius: 28 * k,
           boxShadow: "0 24px 70px rgba(0,0,0,.4)",
           textAlign: "center",
           transform: `scale(${interpolate(s, [0, 1], [0.9, 1])})`,
@@ -210,18 +215,18 @@ export function FraseCaixa({ p, ctx, dur }: EfeitoProps) {
       >
         <div
           style={{
-            fontFamily: f("Inter"),
+            fontFamily: f(ctx.tl.marca.fonteLegenda),
             fontWeight: 700,
             fontSize: 48 * k,
             lineHeight: 1.25,
-            color: CREME,
+            color: ctx.tl.marca.texto,
           }}
         >
           <Marcado
             texto={texto}
             escala={k}
             destaque={{
-              fontFamily: f("Instrument Serif", "serif"),
+              fontFamily: f(ctx.tl.marca.fonteSerif, "serif"),
               fontStyle: "italic",
               fontWeight: 400,
               fontSize: 64 * k,
@@ -250,10 +255,10 @@ export function ListaEditorial({ p, ctx, dur }: EfeitoProps) {
         {p.titulo && (
           <div
             style={{
-              fontFamily: f("Playfair Display", "serif"),
+              fontFamily: f(ctx.tl.marca.fonteSerif, "serif"),
               fontStyle: "italic",
               fontSize: 60 * k,
-              color: CREME,
+              color: ctx.tl.marca.texto,
               marginBottom: 20 * k,
               textShadow: "0 4px 20px rgba(0,0,0,.5)",
             }}
@@ -277,7 +282,7 @@ export function ListaEditorial({ p, ctx, dur }: EfeitoProps) {
             >
               <span
                 style={{
-                  fontFamily: f("Playfair Display", "serif"),
+                  fontFamily: f(ctx.tl.marca.fonteSerif, "serif"),
                   fontWeight: 700,
                   fontSize: 86 * k,
                   color: ctx.tl.marca.destaque,
@@ -288,11 +293,11 @@ export function ListaEditorial({ p, ctx, dur }: EfeitoProps) {
               </span>
               <span
                 style={{
-                  fontFamily: f("Inter"),
+                  fontFamily: f(ctx.tl.marca.fonteLegenda),
                   fontWeight: 700,
                   fontSize: 42 * k,
-                  color: CREME,
-                  background: "rgba(0,0,0,.45)",
+                  color: ctx.tl.marca.texto,
+                  background: comAlfa(ctx.tl.marca.fundo, 0.7),
                   padding: `${4 * k}px ${14 * k}px`,
                   borderRadius: 8 * k,
                 }}

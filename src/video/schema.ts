@@ -64,10 +64,12 @@ export const timelineSchema = z.object({
   formato: z.enum(["9:16", "4:5", "1:1"]).default("9:16"),
   fps: z.number().default(30),
   // Trechos do original que ficam no vídeo final, em ordem. Vazio = vídeo inteiro.
+  // Sem "ordemLivre" eles tocam na ordem do original; com ela, na ordem da lista (reordenar falas).
   // velocidade: acelera (ou desacelera) o trecho. 1 = normal. Voz mantém o tom.
   cortes: z
     .array(intervalo.extend({ velocidade: z.number().min(0.5).max(4).optional() }))
     .default([]),
+  ordemLivre: z.boolean().default(false),
   // Onde está o rosto da pessoa no quadro (0–1), detectado no navegador. Grafismos desviam dele.
   rosto: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).nullish(),
   // Enquadramento do original dentro do quadro (reenquadrar 16:9 → 9:16).
@@ -200,7 +202,8 @@ export type ReelProps = {
   // nunca engasga e bate exatamente com a legenda. No render, o som é o do vídeo original.
   audioUrl?: string;
   // Voz limpa (leve/media/forte), quando o servidor já gerou. Vale para preview e render.
-  vozUrls?: Partial<Record<"leve" | "media" | "forte", string>>;
+  // leve/media/forte = voz limpa; "audio" = a mesma voz com timbre de áudio de celular (efeito nota-de-voz).
+  vozUrls?: Partial<Record<"leve" | "media" | "forte" | "audio", string>>;
   duracaoFonte: number;
   // id de mídia (upload do projeto) → URL assinada
   midias: Record<string, string>;

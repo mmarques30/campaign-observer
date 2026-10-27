@@ -33,15 +33,20 @@ export function montarBlocos(
     blocos.push({ palavras: atual, ini: atual[0].ini, fim: atual[atual.length - 1].fim });
     atual = [];
   };
-  visiveis.forEach(({ p, idx }, k) => {
+  // Na ordem em que tocam no vídeo final (com ordem livre dos trechos, não é a do original).
+  const tocando = visiveis
+    .map((v) => {
+      const ini = Math.round(paraSaida(trechos, v.p.i) * fps);
+      return { ...v, ini, fim: Math.max(ini + 2, Math.round(paraSaida(trechos, v.p.f) * fps)) };
+    })
+    .sort((a, b) => a.ini - b.ini);
+  tocando.forEach(({ p, idx, ini, fim }, k) => {
     const texto = leg.correcoes[String(idx)] ?? p.p.trim();
     if (!texto) return;
-    const ini = Math.round(paraSaida(trechos, p.i) * fps);
-    const fim = Math.max(ini + 2, Math.round(paraSaida(trechos, p.f) * fps));
     const anterior = atual[atual.length - 1];
-    if (anterior && ini - anterior.fim > fps * 0.6) fechar();
+    if (anterior && (ini - anterior.fim > fps * 0.6 || idx < anterior.idx)) fechar();
     atual.push({ texto: leg.caixaAlta ? texto.toUpperCase() : texto, idx, ini, fim });
-    const prox = visiveis[k + 1];
+    const prox = tocando[k + 1];
     if (atual.length >= porBloco || /[.!?…,;:]$/.test(semMarcas(texto)) || !prox) fechar();
   });
   // Cada bloco fica na tela até o próximo começar (sem piscar), no máx +0,7s.

@@ -41,6 +41,7 @@ import {
   assinar,
   assinarEnvios,
   caminhosVoz,
+  caminhoVozAudio,
   jobVoz,
   NIVEIS_VOZ,
   pedirVozLimpa,
@@ -269,11 +270,17 @@ function Editor() {
         if (u) midias[chave] = u;
       }
       // Voz limpa (3 intensidades), quando o servidor já gerou.
-      let voz: Partial<Record<(typeof NIVEIS_VOZ)[number], string>> | undefined;
+      let voz: Partial<Record<(typeof NIVEIS_VOZ)[number] | "audio", string>> | undefined;
       if (vozQ.data?.status === "pronto") {
         voz = {};
         for (const [n, c] of Object.entries(caminhosVoz(id)))
           voz[n as (typeof NIVEIS_VOZ)[number]] = await assinar(c);
+        // Timbre de áudio de celular (nota de voz). Projetos antigos não têm: segue sem.
+        try {
+          voz.audio = await assinar(caminhoVozAudio(id));
+        } catch {
+          /* sem a versão "áudio" */
+        }
       }
       return { fonte, audio, midias, recorte, voz };
     },

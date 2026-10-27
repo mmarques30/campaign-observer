@@ -183,6 +183,12 @@ export function cadeiaVoz(nivel: "leve" | "media" | "forte", modelo = MODELO_VOZ
   return `aresample=48000,highpass=f=90,arnndn=m=${m},afftdn=nr=14:nf=-40:tn=1,${atraso(0.035)},agate=threshold=0.015:ratio=3:range=0.1:attack=5:release=120,${eq},deesser=i=0.4,${comp},${norm}`;
 }
 export const NIVEIS_VOZ = ["leve", "media", "forte"] as const;
+/** Timbre de áudio de WhatsApp/celular sobre a voz já limpa (efeito "nota de voz"). */
+export const CADEIA_AUDIO =
+  // Faixa de telefone (300–3.400 Hz) com corte íngreme (3 filtros seguidos), médios na frente.
+  "highpass=f=320,highpass=f=320,highpass=f=320,lowpass=f=3300,lowpass=f=3300,lowpass=f=3300," +
+  "equalizer=f=1400:t=q:w=1:g=5,equalizer=f=2400:t=q:w=1.2:g=2," +
+  "acompressor=threshold=0.12:ratio=4:attack=4:release=90:makeup=2,loudnorm=I=-16:TP=-1.5:LRA=7,aresample=48000";
 
 export async function gerarVoz(projetoId: string) {
   const { data: proj, error } = await sbc()
@@ -198,7 +204,7 @@ export async function gerarVoz(projetoId: string) {
   const saidas: string[] = [];
   try {
     await baixar(proj.fonte_path, entrada);
-    for (const nivel of NIVEIS_VOZ) {
+    for (const nivel of [...NIVEIS_VOZ, "audio"] as const) {
       const saida = path.join(os.tmpdir(), `${projetoId}-voz-${nivel}.m4a`);
       saidas.push(saida);
       await execFileP(
@@ -211,7 +217,7 @@ export async function gerarVoz(projetoId: string) {
           entrada,
           "-vn",
           "-af",
-          cadeiaVoz(nivel),
+          nivel === "audio" ? `${cadeiaVoz("media")},${CADEIA_AUDIO}` : cadeiaVoz(nivel),
           "-ac",
           "1",
           "-c:a",
@@ -753,7 +759,11 @@ async function loop(serveUrl: string) {
         vozUrls: p.vozPaths
           ? Object.fromEntries(
               await Promise.all(
-                Object.entries(p.vozPaths).map(async ([k, v]) => [k, await assinar(v)]),
+                Object.entries(p.vozPaths).map(async ([k, v]) => [
+                  k,
+                  // A versão "áudio" (nota de voz) pode não existir em projetos antigos.
+                  k === "audio" ? await assinar(v).catch(() => undefined) : await assinar(v),
+                ]),
               ),
             )
           : undefined,

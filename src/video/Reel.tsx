@@ -260,6 +260,13 @@ export function Reel(bruto: ReelProps) {
   const vozLimpa = tl.audio.limpar ? props.vozUrls?.[tl.audio.intensidade] : undefined;
   const somExterno = vozLimpa ?? (audioSeparado ? props.audioUrl : undefined);
   const volumeVoz = tl.audio.volumeVoz;
+  // Trechos dentro de uma "nota de voz": a voz troca para o timbre de áudio de celular.
+  const notasDeVoz = tl.efeitos.filter((e) => e.tipo === "nota-de-voz" && e.props?.som !== false);
+  const vozDoTrecho = (t: Trecho) => {
+    const meio = (t.de + t.ate) / 2;
+    const emNota = notasDeVoz.some((e) => meio >= e.de && meio <= (e.ate > e.de ? e.ate : e.de));
+    return (emNota && props.vozUrls?.audio) || somExterno;
+  };
 
   // Efeito de transição no início de cada trecho (menos o primeiro).
   const inicioTrechoAtual = [...trechos]
@@ -502,8 +509,8 @@ export function Reel(bruto: ReelProps) {
                     trimBefore={Math.round(t.de * fps)}
                     playbackRate={t.vel}
                     // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
-                    muted={!!somExterno}
-                    volume={somExterno ? undefined : volumeVoz}
+                    muted={!!vozDoTrecho(t)}
+                    volume={vozDoTrecho(t) ? undefined : volumeVoz}
                     pauseWhenBuffering
                     onError={
                       getRemotionEnvironment().isRendering
@@ -517,10 +524,10 @@ export function Reel(bruto: ReelProps) {
                       objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
                     }}
                   />
-                  {somExterno && (
+                  {vozDoTrecho(t) && (
                     <Audio
-                      key={somExterno}
-                      src={somExterno}
+                      key={vozDoTrecho(t)}
+                      src={vozDoTrecho(t)!}
                       trimBefore={Math.round(t.de * fps)}
                       playbackRate={t.vel}
                       volume={volumeVoz}

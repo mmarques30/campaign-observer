@@ -665,6 +665,9 @@ export const caminhosVoz = (projetoId: string) =>
     string
   >;
 
+/** Mesma voz com timbre de áudio de celular (efeito "nota de voz"). Projetos antigos não têm. */
+export const caminhoVozAudio = (projetoId: string) => `${projetoId}/voz-audio.m4a`;
+
 export type JobVoz = {
   id: string;
   status: "fila" | "rodando" | "pronto" | "erro";
@@ -708,7 +711,10 @@ export async function pedirRender(p: Projeto, midias: Midia[]) {
     if (t?.path) props.midiasPaths[chave] = t.path;
   }
   if ((await jobVoz(p.id))?.status === "pronto")
-    (props as Record<string, unknown>).vozPaths = caminhosVoz(p.id);
+    (props as Record<string, unknown>).vozPaths = {
+      ...caminhosVoz(p.id),
+      audio: caminhoVozAudio(p.id),
+    };
   const { error } = await db()
     .from("vedit_renders")
     .insert({ projeto_id: p.id, versao: p.versao, props });
