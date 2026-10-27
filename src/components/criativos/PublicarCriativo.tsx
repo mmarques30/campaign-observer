@@ -32,6 +32,7 @@ import { callEdgeFunction } from "@/lib/ads-mutations";
 import { adPayload, CTAS, novoAnuncio } from "@/components/ads/AnuncioFields";
 import { BUCKET, db } from "@/lib/vedit";
 import type { CriaProjeto } from "@/criativos/design";
+import { EditorLegenda } from "./EditorLegenda";
 
 type Publicacao = {
   id: string;
@@ -235,7 +236,7 @@ export function PublicarCriativo({
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && !ocupado && onFechar()}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Publicar "{projeto.nome}"</DialogTitle>
           <DialogDescription>
@@ -268,11 +269,7 @@ export function PublicarCriativo({
                 {demais && "O Instagram aceita no máximo 10 slides por carrossel."}
               </div>
             )}
-            <div className="space-y-1">
-              <Label>Legenda</Label>
-              <Textarea rows={6} value={legenda} onChange={(e) => setLegenda(e.target.value)} />
-              <p className="text-[11px] text-muted-foreground text-right">{legenda.length}/2200</p>
-            </div>
+            <EditorLegenda projetoId={projeto.id} valor={legenda} onChange={setLegenda} />
             <div className="grid grid-cols-2 gap-2">
               {(["agendar", "agora"] as const).map((q) => (
                 <Button

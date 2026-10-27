@@ -4,6 +4,7 @@
 //   descrever_foto { foto_id }                  → descrição curta da foto (para escolher as certas depois)
 //   referencia { url, username? }               → cria a referência e põe o download na fila do servidor de vídeo
 //   liberar_pendentes { id }                    → dispara os criativos que esperavam a referência
+//   legendas { projeto_id, pedido? }            → 3 opções de legenda para o post (abordagens diferentes)
 //   analisar_referencia { id }                  → (re)analisa uma referência (imagens já no bucket)
 // O trabalho pesado roda em segundo plano (status "gerando"/"analisando"); a tela acompanha pelo banco.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -245,6 +246,65 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
   await liberarPendentes(sb, id);
 }
 
+// ---------- legenda ----------
+async function gerarLegendas(sb: any, projetoId: string, pedido: string) {
+  const { data: p } = await sb.from("cria_projetos").select("*").eq("id", projetoId).single();
+  if (!p) throw new Error("projeto não encontrado");
+  const { data: marca } = await sb
+    .from("vedit_marcas")
+    .select("instrucoes")
+    .order("padrao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const slides = (p.design?.slides ?? [])
+    .map(
+      (s: any, i: number) =>
+        `Slide ${i + 1} (${s.layout}): ${[
+          s.rotulo,
+          s.titulo,
+          s.subtitulo,
+          s.texto,
+          ...(s.itens ?? []),
+        ]
+          .filter(Boolean)
+          .join(" | ")}`,
+    )
+    .join("\n");
+  const j = await claude(
+    sb,
+    {
+      max_tokens: 3000,
+      messages: [
+        {
+          role: "user",
+          content: `Escreva 3 opções de legenda de Instagram para este ${p.tipo === "unico" ? "post" : "carrossel"} da Mariana Marques (IAplicada, IA aplicada a negócios). Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
+${p.briefing ? `Briefing: ${p.briefing}\n` : ""}${marca?.instrucoes ? `Tom da marca: ${marca.instrucoes}\n` : ""}
+CONTEÚDO DOS SLIDES:
+${slides}
+${p.design?.legendaPost ? `\nLEGENDA ATUAL (não repita): ${p.design.legendaPost}\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
+Regras:
+- Cada opção com uma abordagem diferente: "Direta" (resultado/benefício logo de cara), "História" (bastidor ou caso curto em 1ª pessoa) e "Conversa" (abre com pergunta ou opinião que puxa comentário).
+- A 1ª linha é o gancho (é o que aparece antes do "mais"): específica, até 12 palavras, sem repetir a capa palavra por palavra.
+- Parágrafos de 1 a 3 linhas com linha em branco entre eles; 60 a 160 palavras no total.
+- Complementa o carrossel (contexto, por que importa, o próximo passo); não resume slide por slide.
+- CTA no fim igual ao do último slide (se ele pede para comentar uma palavra, use a mesma palavra).
+- Hashtags: no máximo 3, só se forem relevantes, na última linha. Nada de bloco de hashtags.
+- Português do Brasil, direto, sem clichês de IA ("no mundo de hoje", "revolucionar", "desbloqueie", "jornada"), sem "PME" (use "empresa").
+- Sem emojis, a não ser que o pedido da Mariana peça.
+Responda só com JSON: {"opcoes":[{"titulo":"Direta","texto":"..."},{"titulo":"História","texto":"..."},{"titulo":"Conversa","texto":"..."}]}`,
+        },
+      ],
+    },
+    "cria-legenda",
+  );
+  const r = jsonDe(textoDe(j));
+  const opcoes = (r?.opcoes ?? [])
+    .filter((o: any) => o?.texto)
+    .map((o: any) => ({ titulo: String(o.titulo ?? "Opção"), texto: String(o.texto).trim() }));
+  if (!opcoes.length) throw new Error("não consegui gerar as legendas, tente de novo");
+  return opcoes;
+}
+
 // ---------- design ----------
 const GUIA = `Você é o diretor de arte e copywriter da IAplicada (Mariana Marques, IA aplicada a negócios), criando carrosséis e posts únicos para o Instagram no nível dos melhores criadores (Diego Almeida, Rony Meisler, Bruno Okamoto).
 
@@ -253,7 +313,7 @@ O design é um JSON. Você o grava com a ferramenta salvar_design (sempre o desi
  "tema": {"fundo":"#hex","texto":"#hex","destaque":"#hex","marca":"#hex","claro":"#hex","textoClaro":"#hex","fonteTitulo":"Anton","fonteTexto":"Inter"},
  "autor": {"nome":"Mariana Marques","arroba":"marimarquescb","foto":"<id de foto de rosto para o avatar>","verificado":true},
  "mostrarNumeracao": true,
- "legendaPost": "legenda sugerida para o post, com CTA e 3-5 hashtags",
+ "legendaPost": "legenda sugerida para o post: 1ª linha que prende, parágrafos curtos, CTA igual ao do último slide e no máximo 3 hashtags no fim",
  "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%" } ]
 }
 
@@ -561,6 +621,10 @@ Deno.serve(async (req) => {
       await liberarPendentes(sb, String(body.id ?? ""));
       return json({ ok: true });
     }
+    if (body.acao === "legendas")
+      return json({
+        opcoes: await gerarLegendas(sb, String(body.projeto_id ?? ""), String(body.pedido ?? "")),
+      });
     if (body.acao === "analisar_referencia") {
       emSegundoPlano(analisarReferencia(sb, body.id));
       return json({ ok: true });
