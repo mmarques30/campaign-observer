@@ -80,6 +80,14 @@ function Editor() {
   const player = useRef<PlayerRef>(null);
   // O Player monta depois (o Preview espera o cliente): avisa quando a ref existe para ligar a agulha.
   const [playerPronto, setPlayerPronto] = useState(false);
+  // Avisa o painel quando o preview começa a tocar (a comparação de voz para sozinha).
+  useEffect(() => {
+    const p = player.current;
+    if (!p) return;
+    const avisar = () => window.dispatchEvent(new Event("vedit-preview-play"));
+    p.addEventListener("play", avisar);
+    return () => p.removeEventListener("play", avisar);
+  }, [playerPronto]);
   const refPlayer = (p: PlayerRef | null) => {
     (player as React.MutableRefObject<PlayerRef | null>).current = p;
     setPlayerPronto(!!p);
@@ -761,6 +769,7 @@ function Editor() {
                   await pedirVozLimpa(id);
                   await vozQ.refetch();
                 },
+                pausarPreview: () => player.current?.pause(),
               }}
               amostra={{
                 url: urlsQ.data?.fonte,

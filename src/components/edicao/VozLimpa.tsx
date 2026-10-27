@@ -17,6 +17,8 @@ export type VozProps = {
   urls?: Partial<Record<Nivel, string>>;
   original?: string; // áudio da transcrição (sem tratamento)
   pedir: () => Promise<void>;
+  // Pausa o preview: a comparação toca a voz sozinha (com o preview tocando junto ficava em eco).
+  pausarPreview?: () => void;
 };
 
 const NIVEIS: { v: Nivel; nome: string; dica: string }[] = [
@@ -33,6 +35,7 @@ export function VozLimpa({
   urls,
   original,
   pedir,
+  pausarPreview,
 }: VozProps & { tl: Timeline; setTl: (t: Timeline, resumo: string) => void; agora: number }) {
   const [pedindo, setPedindo] = useState(false);
   const [tocando, setTocando] = useState<string | null>(null);
@@ -41,7 +44,18 @@ export function VozLimpa({
   const set = (patch: Partial<Timeline["audio"]>, resumo: string) =>
     setTl({ ...tl, audio: { ...a, ...patch } }, resumo);
 
-  useEffect(() => () => audio.current?.pause(), []);
+  useEffect(() => {
+    // Deu play no preview: para a comparação (senão as duas vozes tocam juntas).
+    const parar = () => {
+      audio.current?.pause();
+      setTocando(null);
+    };
+    window.addEventListener("vedit-preview-play", parar);
+    return () => {
+      window.removeEventListener("vedit-preview-play", parar);
+      audio.current?.pause();
+    };
+  }, []);
 
   function ouvir(qual: string, url?: string) {
     audio.current?.pause();
@@ -49,10 +63,18 @@ export function VozLimpa({
       setTocando(null);
       return;
     }
+    pausarPreview?.();
     const el = new Audio(url);
     audio.current = el;
-    el.currentTime = Math.max(0, agora);
-    void el.play();
+    // A posição só vale depois de carregar os metadados (antes disso o salto é ignorado).
+    el.addEventListener(
+      "loadedmetadata",
+      () => {
+        el.currentTime = Math.max(0, agora);
+        void el.play().catch(() => {});
+      },
+      { once: true },
+    );
     setTocando(qual);
     const parar = () => {
       el.pause();
