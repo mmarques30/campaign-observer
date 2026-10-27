@@ -1,6 +1,7 @@
 // publicar-agendados — publica no Instagram o que está na tabela publicacoes (criativos e vídeos).
 //   GET (cron a cada 5 min) ou POST { acao: "processar" } → publica o que já venceu
 //   POST { acao: "conta" }                                  → qual perfil publica (nada é publicado)
+//   POST { acao: "metricas", ids? }                         → atualiza alcance, curtidas, salvamentos…
 //   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
 // O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
 // Reel pode ficar processando e é concluído na rodada seguinte (status "publicando" + container_id).
@@ -178,6 +179,66 @@ async function publicar(sb: any, p: any) {
   }
 }
 
+// ---------- métricas ----------
+const CONJUNTOS = [
+  ["reach", "views", "likes", "comments", "shares", "saved", "total_interactions"],
+  ["reach", "likes", "comments", "shares", "saved", "total_interactions"],
+  ["reach", "likes", "comments", "saved"],
+];
+async function medirUma(sb: any, token: string, p: any) {
+  const base = await graph("GET", p.ig_media_id, token, {
+    fields: "like_count,comments_count,permalink,media_type,thumbnail_url,media_url",
+  }).catch(() => ({}));
+  const m: Record<string, number> = {};
+  const extras = p.tipo === "reel" ? ["ig_reels_avg_watch_time"] : [];
+  for (const c of CONJUNTOS) {
+    try {
+      const j = await graph("GET", `${p.ig_media_id}/insights`, token, {
+        metric: [...c, ...extras].join(","),
+      });
+      for (const d of j.data ?? [])
+        m[d.name] = Number(d.values?.[0]?.value ?? d.total_value?.value ?? 0);
+      break;
+    } catch (_) {
+      if (extras.length) extras.length = 0; // tenta de novo sem as de Reel
+    }
+  }
+  if (m.likes === undefined && base.like_count !== undefined) m.likes = base.like_count;
+  if (m.comments === undefined && base.comments_count !== undefined)
+    m.comments = base.comments_count;
+  const upd: Record<string, unknown> = { metricas: m, metricas_em: new Date().toISOString() };
+  if (base.permalink && !p.permalink) upd.permalink = base.permalink;
+  if (!p.thumb && (base.thumbnail_url || base.media_url))
+    upd.thumb = base.thumbnail_url || base.media_url;
+  await sb.from("publicacoes").update(upd).eq("id", p.id);
+  return m;
+}
+
+/** Atualiza as métricas do Instagram das publicações (as pedidas, ou as mais desatualizadas). */
+async function atualizarMetricas(sb: any, ids?: string[]) {
+  const token = await tokenMeta(sb);
+  let q = sb
+    .from("publicacoes")
+    .select("id, ig_media_id, tipo, permalink, thumb")
+    .eq("status", "publicado")
+    .eq("destino", "instagram")
+    .not("ig_media_id", "is", null);
+  if (ids?.length) q = q.in("id", ids);
+  else
+    q = q
+      .gte("publicado_em", new Date(Date.now() - 90 * 86400000).toISOString())
+      .or(`metricas_em.is.null,metricas_em.lt.${new Date(Date.now() - 3 * 3600000).toISOString()}`)
+      .order("metricas_em", { ascending: true, nullsFirst: true })
+      .limit(15);
+  const { data } = await q;
+  let n = 0;
+  for (const p of data ?? []) {
+    await medirUma(sb, token, p).catch(() => null);
+    n++;
+  }
+  return n;
+}
+
 /** Pega a publicação para si (evita publicar duas vezes se duas rodadas se cruzarem). */
 async function pegar(sb: any, id: string) {
   const { data } = await sb
@@ -238,7 +299,12 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   try {
-    if (req.method === "GET") return json({ ok: true, resultados: await processar(sb) });
+    if (req.method === "GET") {
+      const resultados = await processar(sb);
+      // Métricas: a cada rodada, as mais desatualizadas (cada uma é revista a cada ~3 h).
+      const medidas = await atualizarMetricas(sb).catch(() => 0);
+      return json({ ok: true, resultados, medidas });
+    }
     const b = await req.json().catch(() => ({}));
     if (b.acao === "conta") {
       // Para a tela mostrar em qual perfil vai sair (nada é publicado).
@@ -247,6 +313,11 @@ Deno.serve(async (req) => {
       const info = await graph("GET", ig, token, { fields: "username" });
       return json({ ok: true, ig_user_id: ig, username: info.username ?? null });
     }
+    if (b.acao === "metricas")
+      return json({
+        ok: true,
+        medidas: await atualizarMetricas(sb, Array.isArray(b.ids) ? b.ids : undefined),
+      });
     if (b.acao === "agora") {
       const p = await pegar(sb, String(b.id ?? ""));
       if (!p) return json({ error: "publicação não encontrada ou já publicada" }, 409);

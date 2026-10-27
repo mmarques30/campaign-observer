@@ -208,6 +208,21 @@ export function PublicarCriativo({
         }),
       });
       if (!res.ok) throw new Error(res.error ?? "falha ao criar o anúncio");
+      // Entra no painel Publicados com o vínculo ao anúncio (métricas vêm da sincronização do Meta).
+      await db()
+        .from("publicacoes")
+        .insert({
+          origem: "criativo",
+          ref_id: projeto.id,
+          nome: ad.nome || projeto.nome,
+          tipo: paths.length > 1 ? "carrossel" : "imagem",
+          destino: "anuncio",
+          midias: paths,
+          legenda: ad.texto,
+          status: "publicado",
+          publicado_em: new Date().toISOString(),
+          meta_ad_id: res.meta_ad_id ?? null,
+        });
       toast.success("Anúncio criado PAUSADO no Meta. Revise e ative em Anúncios.");
       onFechar();
     } catch (e) {

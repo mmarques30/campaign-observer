@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -42,6 +44,10 @@ export function Publicar({
   const [legenda, setLegenda] = useState("");
   const [trial, setTrial] = useState(false);
   const [confirmarIg, setConfirmarIg] = useState(false);
+  const [quando, setQuando] = useState<"agora" | "agendar">("agora");
+  const [data, setData] = useState(() =>
+    format(new Date(Date.now() + 24 * 3600 * 1000), "yyyy-MM-dd'T'HH:mm"),
+  );
 
   const adsets = useQuery({
     queryKey: ["mads", "adsets-para-edicao"],
@@ -82,6 +88,20 @@ export function Publicar({
         ad: adPayload({ ...ad, formato: "video", midiasBucketUrls: [r.url] }),
       });
       if (!res.ok) throw new Error(res.error ?? "falha ao criar o anúncio");
+      await db()
+        .from("publicacoes")
+        .insert({
+          origem: "video",
+          ref_id: projeto.id,
+          nome: ad.nome || projeto.nome,
+          tipo: "reel",
+          destino: "anuncio",
+          midias: projeto.render_path ? [projeto.render_path] : [],
+          legenda: ad.texto,
+          status: "publicado",
+          publicado_em: new Date().toISOString(),
+          meta_ad_id: res.meta_ad_id ?? null,
+        });
       toast.success("Anúncio criado PAUSADO no Meta. Revise e ative em Anúncios.");
       onFechar();
     } catch (e) {
@@ -92,36 +112,80 @@ export function Publicar({
   }
 
   async function publicarIg() {
+    if (!projeto.render_path) return toast.error("Renderize o vídeo antes de publicar.");
+    const quandoData = quando === "agora" || trial ? new Date() : new Date(data);
+    if (quando === "agendar" && !trial && !(quandoData.getTime() > Date.now() + 60_000))
+      return toast.error("Escolha um horário no futuro.");
     setOcupado(true);
     try {
-      const r = await callEdgeFunction("vedit-publicar", {
-        projeto_id: projeto.id,
-        acao: "instagram",
-        legenda,
-        trial,
-      });
-      if (r.error) throw new Error(r.error);
-      if (r.publicado) toast.success("Publicado no Instagram.");
-      else {
-        toast.info("O Instagram ainda está processando. Vou conferir de novo em 30s.");
-        setTimeout(async () => {
-          const s = await callEdgeFunction("vedit-publicar", {
-            projeto_id: projeto.id,
-            acao: "status_instagram",
-            container_id: r.container_id,
-            ig_user_id: r.ig_user_id,
+      if (trial) {
+        // Trial Reel sai direto (a fila não tem essa opção); o histórico e o fim do processamento
+        // ficam com a fila (status "publicando" + container).
+        const r = await callEdgeFunction("vedit-publicar", {
+          projeto_id: projeto.id,
+          acao: "instagram",
+          legenda,
+          trial,
+        });
+        if (r.error) throw new Error(r.error);
+        await db()
+          .from("publicacoes")
+          .insert({
+            origem: "video",
+            ref_id: projeto.id,
+            nome: projeto.nome,
+            tipo: "reel",
+            midias: [projeto.render_path],
+            legenda,
+            status: r.publicado ? "publicado" : "publicando",
+            publicado_em: r.publicado ? new Date().toISOString() : null,
+            ig_media_id: r.ig_media_id ?? null,
+            container_id: r.container_id ?? null,
+            container_em: r.container_id ? new Date().toISOString() : null,
           });
-          if (s.publicado) toast.success("Publicado no Instagram.");
-          else
-            toast.warning(`Ainda processando (${s.status ?? "?"}). Confira no app do Instagram.`);
-        }, 30_000);
+        toast.success(
+          r.publicado
+            ? "Publicado como Trial Reel."
+            : "Enviado; o Instagram está processando e o sistema conclui sozinho.",
+        );
+      } else {
+        const id = crypto.randomUUID();
+        const { error } = await db()
+          .from("publicacoes")
+          .insert({
+            id,
+            origem: "video",
+            ref_id: projeto.id,
+            nome: projeto.nome,
+            tipo: "reel",
+            midias: [projeto.render_path],
+            legenda,
+            agendado_para: quandoData.toISOString(),
+          });
+        if (error) throw new Error(error.message);
+        if (quando === "agora") {
+          const r = await callEdgeFunction("publicar-agendados", { acao: "agora", id });
+          if (r.error) throw new Error(r.error);
+          toast.success(
+            r.publicado
+              ? "Publicado no Instagram."
+              : "Enviado; o Instagram está processando e o sistema conclui sozinho.",
+          );
+        } else
+          toast.success(
+            `Agendado para ${format(quandoData, "dd/MM 'às' HH:mm", { locale: ptBR })}. Acompanhe em Publicados.`,
+          );
       }
       await db()
         .from("vedit_mensagens")
         .insert({
           projeto_id: projeto.id,
           papel: "sistema",
-          conteudo: trial ? "Enviado como Trial Reel." : "Enviado para o Instagram.",
+          conteudo: trial
+            ? "Enviado como Trial Reel."
+            : quando === "agendar"
+              ? `Reel agendado para ${format(quandoData, "dd/MM HH:mm")}.`
+              : "Enviado para o Instagram.",
         });
       onFechar();
     } catch (e) {
@@ -242,15 +306,45 @@ export function Publicar({
               </div>
               <Switch checked={trial} onCheckedChange={setTrial} />
             </div>
+            {!trial && (
+              <div className="grid grid-cols-2 gap-2">
+                {(["agora", "agendar"] as const).map((q) => (
+                  <Button
+                    key={q}
+                    type="button"
+                    size="sm"
+                    variant={quando === q ? "default" : "outline"}
+                    onClick={() => setQuando(q)}
+                  >
+                    {q === "agora" ? "Publicar agora" : "Agendar"}
+                  </Button>
+                ))}
+              </div>
+            )}
+            {!trial && quando === "agendar" && (
+              <div className="space-y-1">
+                <Label>Data e hora</Label>
+                <Input
+                  type="datetime-local"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Sai no horário marcado (até 5 min de diferença), mesmo com o sistema fechado.
+                </p>
+              </div>
+            )}
             {!confirmarIg ? (
               <Button className="w-full" onClick={() => setConfirmarIg(true)} disabled={ocupado}>
                 <Instagram className="h-4 w-4 mr-2" />
-                Publicar no Instagram
+                {quando === "agendar" && !trial ? "Agendar no Instagram" : "Publicar no Instagram"}
               </Button>
             ) : (
               <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 space-y-2">
                 <div className="text-sm">
-                  Isso publica de verdade no perfil{trial ? " como Trial Reel" : ""}. Confirma?
+                  {quando === "agendar" && !trial
+                    ? `Vai publicar sozinho em ${format(new Date(data), "dd/MM 'às' HH:mm", { locale: ptBR })}. Confirma?`
+                    : `Isso publica de verdade no perfil${trial ? " como Trial Reel" : ""}. Confirma?`}
                 </div>
                 <div className="flex gap-2">
                   <Button className="flex-1" onClick={publicarIg} disabled={ocupado}>
