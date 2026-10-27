@@ -561,8 +561,110 @@ async function processarCriaReferencia(jobId: string, refId: string, url: string
   }
 }
 
+/**
+ * Carrossel com música: o Instagram só aceita música (em alta) pela API em Reels. Os slides viram
+ * um vídeo 9:16 (cada slide inteiro no centro, com fundo desfocado dele mesmo) e a publicação
+ * segue para a fila como Reel com a música escolhida.
+ */
+async function gerarSlideshow(jobId: string, publicacaoId: string) {
+  const { data: p, error } = await sbc()
+    .from("publicacoes")
+    .select("*")
+    .eq("id", publicacaoId)
+    .single();
+  if (error || !p) throw new Error("publicação não encontrada");
+  const pasta = path.join(os.tmpdir(), `slides-${jobId}`);
+  await fs.mkdir(pasta, { recursive: true });
+  try {
+    const imgs: string[] = [];
+    for (let i = 0; i < (p.midias ?? []).length; i++) {
+      const local = path.join(pasta, `s${String(i).padStart(2, "0")}.jpg`);
+      await baixar(p.midias[i], local);
+      imgs.push(local);
+    }
+    if (!imgs.length) throw new Error("sem slides para montar o vídeo");
+    const seg = Math.min(8, Math.max(1.5, Number(p.slides_seg ?? 3)));
+    const sys = process.env.FFMPEG_SISTEMA ?? "ffmpeg";
+    const entradas = imgs.flatMap((f) => ["-loop", "1", "-t", String(seg), "-i", f]);
+    const filtros = imgs
+      .map(
+        (_, i) =>
+          `[${i}:v]split[a${i}][b${i}];` +
+          `[a${i}]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=40:2,eq=brightness=-0.12[bg${i}];` +
+          `[b${i}]scale=1080:1920:force_original_aspect_ratio=decrease[fg${i}];` +
+          `[bg${i}][fg${i}]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=30,format=yuv420p[v${i}]`,
+      )
+      .join(";");
+    const concat = `${imgs.map((_, i) => `[v${i}]`).join("")}concat=n=${imgs.length}:v=1:a=0[v]`;
+    const saida = path.join(pasta, "reel.mp4");
+    const total = seg * imgs.length;
+    await execFileP(
+      sys,
+      [
+        "-y",
+        "-loglevel",
+        "error",
+        ...entradas,
+        "-f",
+        "lavfi",
+        "-t",
+        String(total),
+        "-i",
+        "anullsrc=r=48000:cl=stereo",
+        "-filter_complex",
+        `${filtros};${concat}`,
+        "-map",
+        "[v]",
+        "-map",
+        `${imgs.length}:a`,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-t",
+        String(total),
+        "-movflags",
+        "+faststart",
+        saida,
+      ],
+      { maxBuffer: 1 << 24 },
+    );
+    const destino = `criativos/publicacoes/${publicacaoId}.mp4`;
+    const up = await sbc()
+      .storage.from(BUCKET)
+      .upload(destino, await fs.readFile(saida), { contentType: "video/mp4", upsert: true });
+    if (up.error) throw new Error(up.error.message);
+    await sbc()
+      .from("publicacoes")
+      .update({ midias: [destino], tipo: "reel", status: "agendado", erro: null })
+      .eq("id", publicacaoId);
+    // Já está na hora (publicar agora): publica em seguida; senão o cron publica no horário.
+    if (new Date(p.agendado_para).getTime() <= Date.now() + 60_000)
+      await chamarFuncao("publicar-agendados", { acao: "agora", id: publicacaoId }).catch((e) =>
+        console.error("[slideshow] publicar", e),
+      );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await sbc()
+      .from("publicacoes")
+      .update({ status: "erro", erro: `montar o vídeo dos slides: ${msg}`.slice(0, 500) })
+      .eq("id", publicacaoId);
+    throw e;
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+}
+
 /** Tipos leves que rodam numa fila paralela, sem esperar o render terminar. */
-const JOBS_RAPIDOS = ["baixar", "referencia", "cria_referencia"];
+const JOBS_RAPIDOS = ["baixar", "referencia", "cria_referencia", "slideshow"];
 
 async function rodarJobs(tipos?: string[]): Promise<boolean> {
   const { data, error } = tipos
@@ -584,6 +686,8 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
         String(job.params?.referencia_id),
         String(job.params?.url ?? ""),
       );
+    else if (job.tipo === "slideshow")
+      await gerarSlideshow(job.id, String(job.params?.publicacao_id));
     else if (job.tipo === "cria_referencia")
       await processarCriaReferencia(
         job.id,

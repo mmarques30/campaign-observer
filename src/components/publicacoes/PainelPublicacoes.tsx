@@ -46,7 +46,7 @@ type Pub = {
   legenda: string;
   agendado_para: string;
   publicado_em: string | null;
-  status: "agendado" | "publicando" | "publicado" | "erro" | "cancelado";
+  status: "preparando" | "agendado" | "publicando" | "publicado" | "erro" | "cancelado";
   erro: string | null;
   permalink: string | null;
   thumb: string | null;
@@ -69,6 +69,10 @@ type AdMet = {
 };
 
 const STATUS: Record<Pub["status"], { rotulo: string; cor: string }> = {
+  preparando: {
+    rotulo: "Montando vídeo",
+    cor: "bg-violet-500/15 text-violet-700 border-violet-500/30",
+  },
   agendado: { rotulo: "Agendado", cor: "bg-sky-500/15 text-sky-700 border-sky-500/30" },
   publicando: { rotulo: "Publicando", cor: "bg-amber-500/15 text-amber-700 border-amber-500/30" },
   publicado: {
@@ -112,7 +116,11 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
   const pubs = useQuery({
     queryKey: ["publicacoes", origem],
     refetchInterval: (q) =>
-      (q.state.data as Pub[] | undefined)?.some((p) => p.status === "publicando") ? 5000 : 60_000,
+      (q.state.data as Pub[] | undefined)?.some((p) =>
+        ["publicando", "preparando"].includes(p.status),
+      )
+        ? 5000
+        : 60_000,
     queryFn: async () => {
       const { data, error } = await db()
         .from("publicacoes")
@@ -155,7 +163,8 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
     let l = pubs.data ?? [];
     if (filtro === "instagram") l = l.filter((p) => p.destino === "instagram");
     if (filtro === "anuncio") l = l.filter((p) => p.destino === "anuncio");
-    if (filtro === "agendados") l = l.filter((p) => ["agendado", "publicando"].includes(p.status));
+    if (filtro === "agendados")
+      l = l.filter((p) => ["preparando", "agendado", "publicando"].includes(p.status));
     if (filtro === "erros") l = l.filter((p) => p.status === "erro");
     if (ordem === "engajamento")
       l = [...l].sort((a, b) => (engajamento(b.metricas) ?? -1) - (engajamento(a.metricas) ?? -1));

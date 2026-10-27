@@ -1,13 +1,15 @@
 // publicar-agendados — publica no Instagram o que está na tabela publicacoes (criativos e vídeos).
 //   GET (cron a cada 5 min) ou POST { acao: "processar" } → publica o que já venceu
 //   POST { acao: "conta" }                                  → qual perfil publica (nada é publicado)
+//   POST { acao: "musicas", busca? }                        → músicas do Instagram (em alta sem busca)
+//   POST { acao: "previa", audio_id }                       → link para ouvir a música antes de escolher
 //   POST { acao: "metricas", ids? }                         → atualiza alcance, curtidas, salvamentos…
 //   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
 // O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
 // Reel pode ficar processando e é concluído na rodada seguinte (status "publicando" + container_id).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const V = "v20.0";
+const V = "v22.0"; // a API de áudio (músicas em alta) está documentada a partir da v22
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -139,6 +141,16 @@ async function publicar(sb: any, p: any) {
           video_url: urls[0],
           caption: p.legenda ?? "",
           share_to_feed: "true",
+          // Música do Instagram (em alta ou buscada): só Reels aceitam pela API.
+          ...(p.audio?.audio_id
+            ? {
+                audio_configuration: JSON.stringify({
+                  audio_id: String(p.audio.audio_id),
+                  audio_volume: Math.round(Number(p.audio.audio_volume ?? 100)),
+                  video_volume: Math.round(Number(p.audio.video_volume ?? 100)),
+                }),
+              }
+            : {}),
         })
       ).id;
     } else if (p.tipo === "carrossel" && urls.length > 1) {
@@ -312,6 +324,38 @@ Deno.serve(async (req) => {
       const ig = await contaInstagram(sb, token);
       const info = await graph("GET", ig, token, { fields: "username" });
       return json({ ok: true, ig_user_id: ig, username: info.username ?? null });
+    }
+    if (b.acao === "musicas") {
+      // Sem busca = músicas em alta. Só as liberadas para uso por terceiros aparecem.
+      const token = await tokenMeta(sb);
+      const ig = await contaInstagram(sb, token);
+      const busca = String(b.busca ?? "").trim();
+      const j = await graph("GET", "ig_audio", token, {
+        audio_type: "music",
+        user_id: ig,
+        ...(busca ? { search_query: busca } : {}),
+      });
+      const musicas = (j.audio ?? j.data ?? []).map((a: any) => ({
+        audio_id: String(a.audio_id ?? a.id),
+        titulo: a.title ?? "",
+        artista: a.display_artist ?? "",
+        duracao: a.duration_in_ms ? Math.round(a.duration_in_ms / 1000) : null,
+        capa: a.cover_artwork_thumbnail_uri ?? a.cover_artwork_thumbnail_url ?? null,
+        previa: a.download_url ?? null,
+      }));
+      return json({ ok: true, musicas });
+    }
+    if (b.acao === "previa") {
+      // Prévia (link temporário) e capa de uma música, para ouvir antes de escolher.
+      const token = await tokenMeta(sb);
+      const ig = await contaInstagram(sb, token);
+      const a = await graph("GET", String(b.audio_id ?? ""), token, { user_id: ig });
+      return json({
+        ok: true,
+        previa: a.download_url ?? null,
+        capa: a.cover_artwork_thumbnail_url ?? a.cover_artwork_thumbnail_uri ?? null,
+        link: a.on_platform_audio_preview_link ?? null,
+      });
     }
     if (b.acao === "metricas")
       return json({
