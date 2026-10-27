@@ -129,6 +129,12 @@ export const timelineSchema = z.object({
       abaixarPara: z.number().min(0.05).max(1).default(0.3),
       ganho: z.number().min(0.1).max(4).default(1), // normalização da faixa
       inicio: z.number().min(0).default(0), // segundo da faixa onde começa
+      // Segundo da faixa onde o trecho usado acaba (null = fim do arquivo). O trecho repete.
+      fim: z.number().min(0).nullable().default(null),
+      // Onde a música entra e sai no vídeo final (segundos; ate null = até o fim do vídeo).
+      de: z.number().min(0).default(0),
+      ate: z.number().min(0).nullable().default(null),
+      repetir: z.boolean().default(true), // repete o trecho até o fim (com transição suave)
       fade: z.boolean().default(true),
     })
     .default({}),
