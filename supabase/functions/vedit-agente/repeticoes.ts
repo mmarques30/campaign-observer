@@ -29,7 +29,7 @@ export function normalizar(p: string) {
   return p
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]/g, "");
 }
 

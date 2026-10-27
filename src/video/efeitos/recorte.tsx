@@ -11,8 +11,16 @@ import {
   useVideoConfig,
 } from "remotion";
 import { f } from "../fontes";
-import { paraSaida } from "../tempo";
-import { aoErrar, Midia, ruido, u, useEntradaSaida, type EfeitoCtx, type EfeitoProps } from "./base";
+import { duracaoTrecho, paraSaida } from "../tempo";
+import {
+  aoErrar,
+  Midia,
+  ruido,
+  u,
+  useEntradaSaida,
+  type EfeitoCtx,
+  type EfeitoProps,
+} from "./base";
 
 /**
  * Vídeo que respeita os cortes da edição dentro de um efeito: o quadro 0 do efeito é o instante
@@ -36,12 +44,12 @@ export function VideoNosCortes({
   return (
     <>
       {ctx.trechos
-        .filter((t) => t.saidaDe < fim && t.saidaDe + (t.ate - t.de) > inicio)
+        .filter((t) => t.saidaDe < fim && t.saidaDe + duracaoTrecho(t) > inicio)
         .map((t, i) => (
           <Sequence
             key={i}
             from={Math.round((t.saidaDe - inicio) * fps)}
-            durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
+            durationInFrames={Math.max(1, Math.round(duracaoTrecho(t) * fps))}
             layout="none"
           >
             <AbsoluteFill>
@@ -50,6 +58,7 @@ export function VideoNosCortes({
                 muted
                 transparent
                 trimBefore={Math.round(t.de * fps)}
+                playbackRate={t.vel}
                 style={s}
                 onError={aoErrar()}
               />
@@ -82,7 +91,12 @@ export function Pessoa({
         filter: [b?.filter, filtro].filter(Boolean).join(" ") || undefined,
       }}
     >
-      <VideoNosCortes ctx={ctx} src={ctx.recorteUrl} dur={dur} style={{ objectPosition: b?.objectPosition }} />
+      <VideoNosCortes
+        ctx={ctx}
+        src={ctx.recorteUrl}
+        dur={dur}
+        style={{ objectPosition: b?.objectPosition }}
+      />
     </AbsoluteFill>
   );
 }
@@ -225,7 +239,11 @@ export function MolduraQuebrada({ p, ctx, dur }: EfeitoProps) {
           }}
         >
           <div style={{ position: "absolute", left: 0, right: 0, top: -height * topo, height }}>
-            <Midia ctx={ctx} tempo={ctx.deFonte} style={{ objectPosition: ctx.estiloBase?.objectPosition }} />
+            <Midia
+              ctx={ctx}
+              tempo={ctx.deFonte}
+              style={{ objectPosition: ctx.estiloBase?.objectPosition }}
+            />
           </div>
         </div>
       </AbsoluteFill>
@@ -251,7 +269,12 @@ export function Vertigo({ p, ctx, dur }: EfeitoProps) {
         }}
       >
         {ctx.fonteUrl && (
-          <VideoNosCortes ctx={ctx} src={ctx.fonteUrl} dur={dur} style={{ objectPosition: b?.objectPosition }} />
+          <VideoNosCortes
+            ctx={ctx}
+            src={ctx.fonteUrl}
+            dur={dur}
+            style={{ objectPosition: b?.objectPosition }}
+          />
         )}
       </AbsoluteFill>
       <Pessoa ctx={ctx} dur={dur} />

@@ -160,6 +160,30 @@ export function VozLimpa({
 
       {pronto && (
         <>
+          {a.limpar ? (
+            <div className="rounded-md border border-emerald-600/40 bg-emerald-600/10 px-2 py-1.5 text-[11px] space-y-1">
+              <div className="font-medium text-emerald-700 dark:text-emerald-400">
+                Voz limpa aplicada no vídeo todo ({NIVEIS.find((n) => n.v === a.intensidade)?.nome})
+              </div>
+              <div className="text-muted-foreground">
+                Vale para o preview e para o vídeo renderizado.{" "}
+                <button
+                  className="underline hover:text-foreground"
+                  onClick={() => set({ limpar: false }, "Voz original")}
+                >
+                  Voltar à voz original
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              className="w-full h-8 text-xs"
+              onClick={() => set({ limpar: true }, "Voz limpa aplicada no vídeo todo")}
+            >
+              <Mic className="h-3.5 w-3.5 mr-1.5" /> Aplicar voz limpa no vídeo todo
+            </Button>
+          )}
           <div
             className={cn("grid grid-cols-3 gap-1", !a.limpar && "opacity-50 pointer-events-none")}
           >

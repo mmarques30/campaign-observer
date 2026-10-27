@@ -19,7 +19,7 @@ import { EFEITO_POR_TIPO } from "./catalogo";
 import { urlSom } from "./sons";
 import { urlTrilhaBase } from "./trilhas";
 import { normalizarTimeline, type ReelProps } from "./schema";
-import { janelaFrames, paraSaida, trechosMantidos, type Trecho } from "./tempo";
+import { duracaoTrecho, janelaFrames, paraSaida, trechosMantidos, type Trecho } from "./tempo";
 
 const FILTRO_LOOK: Record<string, string> = {
   natural: "none",
@@ -460,7 +460,7 @@ export function Reel(bruto: ReelProps) {
                 <Sequence
                   key={i}
                   from={Math.round(t.saidaDe * fps)}
-                  durationInFrames={Math.max(1, Math.round((t.ate - t.de) * fps))}
+                  durationInFrames={Math.max(1, Math.round(duracaoTrecho(t) * fps))}
                   name={`Trecho ${i + 1}`}
                   // Pré-monta o próximo trecho 1s antes: o <video> já chega carregado no corte.
                   premountFor={fps}
@@ -471,6 +471,7 @@ export function Reel(bruto: ReelProps) {
                     key={props.fonteUrl}
                     src={props.fonteUrl}
                     trimBefore={Math.round(t.de * fps)}
+                    playbackRate={t.vel}
                     // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
                     muted={!!somExterno}
                     volume={somExterno ? undefined : volumeVoz}
@@ -492,6 +493,7 @@ export function Reel(bruto: ReelProps) {
                       key={somExterno}
                       src={somExterno}
                       trimBefore={Math.round(t.de * fps)}
+                      playbackRate={t.vel}
                       volume={volumeVoz}
                     />
                   )}
@@ -504,7 +506,7 @@ export function Reel(bruto: ReelProps) {
               props.fonteUrl &&
               trechos.slice(1).map((t, k) => {
                 const ant = trechos[k];
-                const d = Math.min(8, Math.round((t.ate - t.de) * fps) - 1);
+                const d = Math.min(8, Math.round(duracaoTrecho(t) * fps) - 1);
                 if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
                   return null;
                 return (
@@ -591,7 +593,8 @@ export function Reel(bruto: ReelProps) {
             </Sequence>
           ))
         ) : (
-          <Audio src={urlMusica} trimBefore={inicioMusica} volume={(f) => volumeMusica(f)} />
+          // Duração ainda desconhecida: repete com o loop do player (volume já protegido).
+          <Audio src={urlMusica} loop trimBefore={inicioMusica} volume={(f) => volumeMusica(f)} />
         ))}
       {tl.sfx.map((s, i) => (
         <Sequence
@@ -652,6 +655,6 @@ function useDuracaoAudio(url?: string) {
 export function calcularDuracao(props: Pick<ReelProps, "timeline" | "duracaoFonte">, fps = 30) {
   const tr = trechosMantidos(normalizarTimeline(props.timeline).timeline, props.duracaoFonte);
   const u = tr[tr.length - 1];
-  const s = u ? u.saidaDe + (u.ate - u.de) : props.duracaoFonte;
+  const s = u ? u.saidaDe + duracaoTrecho(u) : props.duracaoFonte;
   return Math.max(fps, Math.round(s * fps));
 }

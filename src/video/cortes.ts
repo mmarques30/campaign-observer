@@ -8,21 +8,48 @@ type Corte = Timeline["cortes"][number];
 const MIN_TRECHO = 0.12; // trecho menor que isso vira um "piscar" e sai
 const RESPIRO = 0.12; // silêncio que sobra de cada lado de um corte feito pelo roteiro
 
-/** Ordena, une sobreposições e descarta pedacinhos. */
+// Velocidade do trecho (só grava quando foge do normal).
+const velDe = (c: { velocidade?: number; vel?: number }) => {
+  const v = c.velocidade ?? c.vel ?? 1;
+  return v && Math.abs(v - 1) > 0.001 ? { velocidade: v } : {};
+};
+
+/** Ordena, une sobreposições (de mesma velocidade) e descarta pedacinhos. */
 export function limparCortes(cortes: Corte[], duracao: number): Corte[] {
   const fim = duracao || Infinity;
   const ord = cortes
-    .map((c) => ({ de: Math.max(0, c.de), ate: Math.min(fim, c.ate) }))
+    .map((c) => ({ de: Math.max(0, c.de), ate: Math.min(fim, c.ate), ...velDe(c) }))
     .filter((c) => c.ate - c.de >= MIN_TRECHO)
     .sort((a, b) => a.de - b.de);
   const out: Corte[] = [];
   for (const c of ord) {
     const u = out[out.length - 1];
-    if (u && c.de <= u.ate + 0.02) u.ate = Math.max(u.ate, c.ate);
-    else out.push({ de: +c.de.toFixed(3), ate: +c.ate.toFixed(3) });
+    const mesma = (u?.velocidade ?? 1) === (c.velocidade ?? 1);
+    if (u && c.de <= u.ate + 0.02 && mesma) u.ate = Math.max(u.ate, c.ate);
+    else if (u && c.de < u.ate) {
+      if (c.ate - u.ate >= MIN_TRECHO)
+        out.push({ ...c, de: +u.ate.toFixed(3), ate: +c.ate.toFixed(3) });
+    } else out.push({ ...c, de: +c.de.toFixed(3), ate: +c.ate.toFixed(3) });
   }
   for (const c of out) c.ate = +c.ate.toFixed(3);
   return out;
+}
+
+/** Muda a velocidade do trecho idx (1 = normal). */
+export function velocidadeTrecho(
+  trechos: Trecho[],
+  idx: number,
+  velocidade: number,
+  duracao: number,
+): Corte[] {
+  return limparCortes(
+    trechos.map((t, k) => ({
+      de: t.de,
+      ate: t.ate,
+      ...velDe({ velocidade: k === idx ? velocidade : t.vel }),
+    })),
+    duracao,
+  );
 }
 
 const base = (cortes: Corte[], duracao: number) =>
@@ -39,8 +66,8 @@ export function removerIntervalo(
   for (const c of base(cortes, duracao)) {
     if (ate <= c.de || de >= c.ate) out.push(c);
     else {
-      if (de > c.de) out.push({ de: c.de, ate: de });
-      if (ate < c.ate) out.push({ de: ate, ate: c.ate });
+      if (de > c.de) out.push({ ...c, de: c.de, ate: de });
+      if (ate < c.ate) out.push({ ...c, de: ate, ate: c.ate });
     }
   }
   return limparCortes(out, duracao);
@@ -143,7 +170,7 @@ export function ajustarBorda(
 ): Corte[] {
   const t = trechos[idx];
   if (!t) return cortes;
-  const atual = trechos.map((x) => ({ de: x.de, ate: x.ate }));
+  const atual = trechos.map((x) => ({ de: x.de, ate: x.ate, ...velDe(x) }));
   const novo = { ...atual[idx] };
   if (borda === "de")
     novo.de = Math.max(
@@ -162,7 +189,7 @@ export function ajustarBorda(
 /** Tira o trecho inteiro da edição. */
 export function excluirTrecho(trechos: Trecho[], idx: number, duracao: number): Corte[] {
   return limparCortes(
-    trechos.filter((_, k) => k !== idx).map((t) => ({ de: t.de, ate: t.ate })),
+    trechos.filter((_, k) => k !== idx).map((t) => ({ de: t.de, ate: t.ate, ...velDe(t) })),
     duracao,
   );
 }
@@ -197,10 +224,10 @@ export function dividirEm(
     .flatMap((x) =>
       x === tr
         ? [
-            { de: x.de, ate: melhor - 0.02 },
-            { de: melhor + 0.02, ate: x.ate },
+            { de: x.de, ate: melhor - 0.02, ...velDe(x) },
+            { de: melhor + 0.02, ate: x.ate, ...velDe(x) },
           ]
-        : [{ de: x.de, ate: x.ate }],
+        : [{ de: x.de, ate: x.ate, ...velDe(x) }],
     )
     .filter((c) => c.ate - c.de >= MIN_TRECHO);
   return { cortes: limparCortes(novos, duracao), ok: true };
