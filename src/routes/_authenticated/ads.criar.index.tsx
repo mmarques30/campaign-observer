@@ -326,7 +326,7 @@ function Criativos() {
       )}
 
       <Dialog open={aberto} onOpenChange={(o) => !criando && setAberto(o)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[94vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo criativo</DialogTitle>
             <DialogDescription>
@@ -334,189 +334,193 @@ function Criativos() {
               (mais se precisar criar fotos novas).
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
-              {(
-                [
-                  ["carrossel", "Carrossel", GalleryHorizontalEnd, "5 a 9 slides"],
-                  ["unico", "Post único", Square, "1 imagem"],
-                ] as const
-              ).map(([v, l, I, d]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setTipo(v)}
-                  className={cn(
-                    "rounded-lg border p-3 text-left flex items-center gap-3",
-                    tipo === v ? "border-primary bg-primary/5" : "hover:bg-muted",
-                  )}
-                >
-                  <I className="h-5 w-5 text-primary" />
-                  <div>
-                    <div className="text-sm font-medium">{l}</div>
-                    <div className="text-xs text-muted-foreground">{d}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="space-y-1.5">
-              <Label>Briefing {roteiro.trim() ? "(opcional com roteiro)" : ""}</Label>
-              <Textarea
-                rows={roteiro.trim() ? 3 : 5}
-                value={briefing}
-                onChange={(e) => setBriefing(e.target.value)}
-                placeholder={
-                  "Tema, mensagem principal, para quem e o que a pessoa deve fazer no fim.\nEx.: 5 automações com IA que todo dono de clínica deveria ter. Público: donos de clínicas. CTA: comentar AUTOMAÇÃO para receber o guia."
-                }
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Roteiro (opcional)</Label>
-              <Textarea
-                rows={roteiro.trim() ? 9 : 3}
-                value={roteiro}
-                onChange={(e) => setRoteiro(e.target.value)}
-                placeholder={
-                  'Cole o texto pronto. Cada bloco vira um slide, na ordem (separe com linha em branco ou "Slide 1:", "Slide 2:"…).\nO Claude mantém as suas palavras e encaixa cada parte no slide equivalente da referência.'
-                }
-              />
-              {roteiro.trim() && tipo === "carrossel" && (
-                <p className="text-xs text-muted-foreground">
-                  {
-                    roteiro
-                      .trim()
-                      .split(/\n\s*\n|\n(?=\s*(?:slide\s*\d+|\d+[.)-])\s)/i)
-                      .filter((b) => b.trim()).length
-                  }{" "}
-                  blocos no roteiro
-                  {refEscolhida?.analise?.estrutura?.length
-                    ? ` · a referência tem ${refEscolhida.analise.estrutura.length} slides`
-                    : ""}
-                </p>
-              )}
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="space-y-1">
-                <Label className="text-xs">Formato</Label>
-                <Select value={formato} onValueChange={(v) => setFormato(v as Formato)}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="4:5">4:5 (feed)</SelectItem>
-                    <SelectItem value="1:1">1:1</SelectItem>
-                    <SelectItem value="9:16">9:16 (stories)</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["carrossel", "Carrossel", GalleryHorizontalEnd, "5 a 9 slides"],
+                    ["unico", "Post único", Square, "1 imagem"],
+                  ] as const
+                ).map(([v, l, I, d]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setTipo(v)}
+                    className={cn(
+                      "rounded-lg border p-3 text-left flex items-center gap-3",
+                      tipo === v ? "border-primary bg-primary/5" : "hover:bg-muted",
+                    )}
+                  >
+                    <I className="h-5 w-5 text-primary" />
+                    <div>
+                      <div className="text-sm font-medium">{l}</div>
+                      <div className="text-xs text-muted-foreground">{d}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Objetivo</Label>
-                <Select
-                  value={objetivo}
-                  onValueChange={(v) => setObjetivo(v as "organico" | "anuncio")}
-                >
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="organico">Orgânico</SelectItem>
-                    <SelectItem value="anuncio">Anúncio</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Nome (opcional)</Label>
-                <Input className="h-9" value={nome} onChange={(e) => setNome(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Referência (o modelo a seguir, slide a slide)</Label>
-              <Select value={referencia} onValueChange={setReferencia}>
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhuma">Sem referência (o Claude escolhe)</SelectItem>
-                  {(refs.data ?? []).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>
-                      {r.status === "pronta"
-                        ? (r.analise?.estilo ?? "Referência")
-                        : r.status === "baixando"
-                          ? "Nova referência · baixando slides…"
-                          : "Nova referência · analisando…"}
-                      {r.autor ? ` · @${r.autor}` : ""}
-                      {r.imagens?.length ? ` · ${r.imagens.length} slides` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2">
-                <Input
-                  className="h-9"
-                  value={linkRef}
-                  onChange={(e) => setLinkRef(e.target.value)}
-                  placeholder="ou cole o link de um post do Instagram como referência"
+              <div className="space-y-1.5">
+                <Label>Briefing {roteiro.trim() ? "(opcional com roteiro)" : ""}</Label>
+                <Textarea
+                  rows={roteiro.trim() ? 4 : 7}
+                  value={briefing}
+                  onChange={(e) => setBriefing(e.target.value)}
+                  placeholder={
+                    "Tema, mensagem principal, para quem e o que a pessoa deve fazer no fim.\nEx.: 5 automações com IA que todo dono de clínica deveria ter. Público: donos de clínicas. CTA: comentar AUTOMAÇÃO para receber o guia."
+                  }
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 shrink-0"
-                  onClick={() => void usarLink()}
-                  disabled={buscandoRef || !linkRef.trim()}
-                >
-                  {buscandoRef ? (
-                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                  ) : (
-                    <Link2 className="h-4 w-4 mr-1.5" />
-                  )}
-                  Usar link
-                </Button>
               </div>
-              {refEscolhida && refEscolhida.status !== "pronta" && (
-                <p className="text-xs text-muted-foreground">
-                  A referência ainda está sendo lida. Pode clicar em Criar: o Claude espera ela
-                  ficar pronta e então monta o criativo.
-                </p>
-              )}
+              <div className="space-y-1.5">
+                <Label>Roteiro (opcional)</Label>
+                <Textarea
+                  rows={roteiro.trim() ? 12 : 6}
+                  value={roteiro}
+                  onChange={(e) => setRoteiro(e.target.value)}
+                  placeholder={
+                    'Cole o texto pronto. Cada bloco vira um slide, na ordem (separe com linha em branco ou "Slide 1:", "Slide 2:"…).\nO Claude mantém as suas palavras e encaixa cada parte no slide equivalente da referência.'
+                  }
+                />
+                {roteiro.trim() && tipo === "carrossel" && (
+                  <p className="text-xs text-muted-foreground">
+                    {
+                      roteiro
+                        .trim()
+                        .split(/\n\s*\n|\n(?=\s*(?:slide\s*\d+|\d+[.)-])\s)/i)
+                        .filter((b) => b.trim()).length
+                    }{" "}
+                    blocos no roteiro
+                    {refEscolhida?.analise?.estrutura?.length
+                      ? ` · a referência tem ${refEscolhida.analise.estrutura.length} slides`
+                      : ""}
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">
-                Fotos que quer usar (opcional
-                {escolhidas.length ? ` · ${escolhidas.length} escolhidas` : ""})
-              </Label>
-              {minhas.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  Sem fotos na biblioteca.{" "}
-                  <Link to="/ads/criar/fotos" className="underline">
-                    Suba algumas em Minhas fotos
-                  </Link>
-                  .
-                </p>
-              ) : (
-                <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {minhas.map((f) => {
-                    const on = escolhidas.includes(f.id);
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() =>
-                          setEscolhidas((l) => (on ? l.filter((x) => x !== f.id) : [...l, f.id]))
-                        }
-                        className={cn(
-                          "relative h-20 w-16 rounded-md overflow-hidden border shrink-0",
-                          on && "ring-2 ring-primary",
-                        )}
-                      >
-                        <img src={f.url} className="h-full w-full object-cover" loading="lazy" />
-                        {on && (
-                          <Check className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground p-0.5" />
-                        )}
-                      </button>
-                    );
-                  })}
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Formato</Label>
+                  <Select value={formato} onValueChange={(v) => setFormato(v as Formato)}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="4:5">4:5 (feed)</SelectItem>
+                      <SelectItem value="1:1">1:1</SelectItem>
+                      <SelectItem value="9:16">9:16 (stories)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Objetivo</Label>
+                  <Select
+                    value={objetivo}
+                    onValueChange={(v) => setObjetivo(v as "organico" | "anuncio")}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="organico">Orgânico</SelectItem>
+                      <SelectItem value="anuncio">Anúncio</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Nome (opcional)</Label>
+                  <Input className="h-9" value={nome} onChange={(e) => setNome(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Referência (o modelo a seguir, slide a slide)</Label>
+                <Select value={referencia} onValueChange={setReferencia}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhuma">Sem referência (o Claude escolhe)</SelectItem>
+                    {(refs.data ?? []).map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.status === "pronta"
+                          ? (r.analise?.estilo ?? "Referência")
+                          : r.status === "baixando"
+                            ? "Nova referência · baixando slides…"
+                            : "Nova referência · analisando…"}
+                        {r.autor ? ` · @${r.autor}` : ""}
+                        {r.imagens?.length ? ` · ${r.imagens.length} slides` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2">
+                  <Input
+                    className="h-9"
+                    value={linkRef}
+                    onChange={(e) => setLinkRef(e.target.value)}
+                    placeholder="ou cole o link de um post do Instagram como referência"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 shrink-0"
+                    onClick={() => void usarLink()}
+                    disabled={buscandoRef || !linkRef.trim()}
+                  >
+                    {buscandoRef ? (
+                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-1.5" />
+                    )}
+                    Usar link
+                  </Button>
+                </div>
+                {refEscolhida && refEscolhida.status !== "pronta" && (
+                  <p className="text-xs text-muted-foreground">
+                    A referência ainda está sendo lida. Pode clicar em Criar: o Claude espera ela
+                    ficar pronta e então monta o criativo.
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">
+                  Fotos que quer usar (opcional
+                  {escolhidas.length ? ` · ${escolhidas.length} escolhidas` : ""})
+                </Label>
+                {minhas.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Sem fotos na biblioteca.{" "}
+                    <Link to="/ads/criar/fotos" className="underline">
+                      Suba algumas em Minhas fotos
+                    </Link>
+                    .
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto pr-1">
+                    {minhas.map((f) => {
+                      const on = escolhidas.includes(f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() =>
+                            setEscolhidas((l) => (on ? l.filter((x) => x !== f.id) : [...l, f.id]))
+                          }
+                          className={cn(
+                            "relative h-20 w-16 rounded-md overflow-hidden border shrink-0",
+                            on && "ring-2 ring-primary",
+                          )}
+                        >
+                          <img src={f.url} className="h-full w-full object-cover" loading="lazy" />
+                          {on && (
+                            <Check className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground p-0.5" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
