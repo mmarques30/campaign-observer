@@ -90,10 +90,11 @@ export type CriaProjeto = {
   formato: Formato;
   objetivo: "organico" | "anuncio";
   briefing: string | null;
+  roteiro: string | null;
   referencia_id: string | null;
   design: unknown;
   versao: number;
-  status: "rascunho" | "gerando" | "pronto" | "erro";
+  status: "rascunho" | "aguardando" | "gerando" | "pronto" | "erro";
   erro: string | null;
   created_at: string;
   updated_at: string;
@@ -128,7 +129,7 @@ export type CriaReferencia = {
     dicas?: string[];
     prompt_para_criador?: string;
   } | null;
-  status: "nova" | "analisando" | "pronta" | "erro";
+  status: "nova" | "baixando" | "analisando" | "pronta" | "erro";
   erro: string | null;
   created_at: string;
 };

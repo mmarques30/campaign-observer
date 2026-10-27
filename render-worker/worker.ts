@@ -461,8 +461,108 @@ async function processarReferencia(jobId: string, refId: string, url: string) {
   }
 }
 
+/**
+ * Referência de criativo (post/carrossel do Instagram): o yt-dlp traz as imagens de cada slide
+ * (sem baixar vídeo), sobem para criativos/referencias/ e o cria-agente analisa.
+ */
+async function processarCriaReferencia(jobId: string, refId: string, url: string) {
+  const patch = (p: Record<string, unknown>) =>
+    sbc().from("cria_referencias").update(p).eq("id", refId);
+  const pasta = path.join(os.tmpdir(), `cref-${jobId}`);
+  await fs.mkdir(pasta, { recursive: true });
+  try {
+    if (!/^https?:\/\//.test(url)) throw new Error("link inválido");
+    const args = [
+      "--no-warnings",
+      "--no-progress",
+      "--skip-download",
+      "--ignore-no-formats-error",
+      "--write-thumbnail",
+      "--write-info-json",
+      "-o",
+      path.join(pasta, "s-%(autonumber)03d.%(ext)s"),
+      url,
+    ];
+    let ultimoErro = "";
+    for (let t = 0; t < 3; t++) {
+      try {
+        await execFileP(process.env.YTDLP ?? "yt-dlp", args, { maxBuffer: 1 << 24 });
+        ultimoErro = "";
+        break;
+      } catch (e) {
+        ultimoErro = e instanceof Error ? e.message : String(e);
+        // 429 do Instagram: espera e tenta de novo.
+        await new Promise((ok) => setTimeout(ok, 8000 * (t + 1)));
+      }
+    }
+    let arquivos = (await fs.readdir(pasta))
+      .filter((f) => /\.(jpe?g|png|webp|heic)$/i.test(f))
+      .sort();
+    if (!arquivos.length)
+      throw new Error(
+        ultimoErro
+          ? `não consegui abrir o post (${ultimoErro.split("\n").find((l) => /ERROR/.test(l)) ?? "Instagram recusou"})`
+          : "o post não tem imagens",
+      );
+    arquivos = arquivos.slice(0, 15);
+    const sys = process.env.FFMPEG_SISTEMA ?? "ffmpeg";
+    const imagens: string[] = [];
+    for (let i = 0; i < arquivos.length; i++) {
+      const origem = path.join(pasta, arquivos[i]);
+      const jpg = path.join(pasta, `final-${i}.jpg`);
+      // Normaliza para JPEG de até 1080px de largura (o Claude e o navegador abrem sem surpresa).
+      await execFileP(sys, [
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        origem,
+        "-vf",
+        "scale='min(1080,iw)':-2",
+        "-q:v",
+        "3",
+        jpg,
+      ]);
+      const destino = `criativos/referencias/${refId}-${String(i + 1).padStart(2, "0")}.jpg`;
+      const up = await sbc()
+        .storage.from(BUCKET)
+        .upload(destino, await fs.readFile(jpg), { contentType: "image/jpeg", upsert: true });
+      if (up.error) throw new Error(up.error.message);
+      imagens.push(destino);
+    }
+    const infos = (await fs.readdir(pasta)).filter((f) => f.endsWith(".info.json")).sort();
+    let autor: string | null = null;
+    let legenda: string | null = null;
+    if (infos.length) {
+      const info = JSON.parse(await fs.readFile(path.join(pasta, infos[0]), "utf8"));
+      autor = (info.channel || info.uploader_id || info.uploader || null) as string | null;
+      legenda = (info.description || info.title || null) as string | null;
+    }
+    const { data: atual } = await sbc()
+      .from("cria_referencias")
+      .select("autor, legenda")
+      .eq("id", refId)
+      .single();
+    await patch({
+      imagens,
+      autor: atual?.autor ?? autor,
+      legenda: atual?.legenda ?? legenda,
+      status: "analisando",
+      erro: null,
+    });
+    await chamarFuncao("cria-agente", { acao: "analisar_referencia", id: refId });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await patch({ status: "erro", erro: msg.slice(0, 500) });
+    await chamarFuncao("cria-agente", { acao: "liberar_pendentes", id: refId }).catch(() => {});
+    throw e;
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+}
+
 /** Tipos leves que rodam numa fila paralela, sem esperar o render terminar. */
-const JOBS_RAPIDOS = ["baixar", "referencia"];
+const JOBS_RAPIDOS = ["baixar", "referencia", "cria_referencia"];
 
 async function rodarJobs(tipos?: string[]): Promise<boolean> {
   const { data, error } = tipos
@@ -480,6 +580,12 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
     else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
     else if (job.tipo === "referencia")
       await processarReferencia(
+        job.id,
+        String(job.params?.referencia_id),
+        String(job.params?.url ?? ""),
+      );
+    else if (job.tipo === "cria_referencia")
+      await processarCriaReferencia(
         job.id,
         String(job.params?.referencia_id),
         String(job.params?.url ?? ""),

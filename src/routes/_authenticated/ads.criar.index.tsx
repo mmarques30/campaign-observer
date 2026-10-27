@@ -39,6 +39,7 @@ import {
   Check,
   GalleryHorizontalEnd,
   ImagePlus,
+  Link2,
   Loader2,
   Plus,
   Square,
@@ -55,6 +56,8 @@ import {
 } from "@/criativos/design";
 import { cn } from "@/lib/utils";
 
+const LINK_POST = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reel|reels|tv)\/[A-Za-z0-9_-]+/i;
+
 export const Route = createFileRoute("/_authenticated/ads/criar/")({
   validateSearch: (s: Record<string, unknown>): { ref?: string } =>
     typeof s.ref === "string" ? { ref: s.ref } : {},
@@ -63,6 +66,7 @@ export const Route = createFileRoute("/_authenticated/ads/criar/")({
 
 const STATUS: Record<string, string> = {
   rascunho: "Rascunho",
+  aguardando: "Lendo referência",
   gerando: "Criando",
   pronto: "Pronto",
   erro: "Erro",
@@ -79,7 +83,10 @@ function Criativos() {
   const [formato, setFormato] = useState<Formato>("4:5");
   const [objetivo, setObjetivo] = useState<"organico" | "anuncio">("organico");
   const [briefing, setBriefing] = useState("");
+  const [roteiro, setRoteiro] = useState("");
   const [referencia, setReferencia] = useState<string>("nenhuma");
+  const [linkRef, setLinkRef] = useState("");
+  const [buscandoRef, setBuscandoRef] = useState(false);
   const [escolhidas, setEscolhidas] = useState<string[]>([]);
   const [criando, setCriando] = useState(false);
   const [excluir, setExcluir] = useState<CriaProjeto | null>(null);
@@ -106,7 +113,9 @@ function Criativos() {
       return (data ?? []) as CriaProjeto[];
     },
     refetchInterval: (q) =>
-      (q.state.data as CriaProjeto[] | undefined)?.some((p) => p.status === "gerando")
+      (q.state.data as CriaProjeto[] | undefined)?.some((p) =>
+        ["gerando", "aguardando"].includes(p.status),
+      )
         ? 5000
         : false,
   });
@@ -116,30 +125,74 @@ function Criativos() {
       ((
         await db()
           .from("cria_referencias")
-          .select("id, autor, analise, status")
-          .eq("status", "pronta")
+          .select("id, autor, analise, status, imagens")
+          .neq("status", "erro")
           .order("created_at", { ascending: false })
           .limit(40)
-      ).data ?? []) as Pick<CriaReferencia, "id" | "autor" | "analise" | "status">[],
+      ).data ?? []) as Pick<CriaReferencia, "id" | "autor" | "analise" | "status" | "imagens">[],
+    refetchInterval: (q) =>
+      (q.state.data as Pick<CriaReferencia, "status">[] | undefined)?.some(
+        (r) => r.status !== "pronta",
+      )
+        ? 4000
+        : false,
   });
+  const refEscolhida = (refs.data ?? []).find((r) => r.id === referencia);
+
+  /** Link colado aqui mesmo: vira referência (o servidor baixa os slides e o Claude analisa). */
+  async function usarLink(): Promise<string | null> {
+    const url = linkRef.trim();
+    if (!url) return null;
+    if (!LINK_POST.test(url)) {
+      toast.error("Cole o link de um post ou carrossel do Instagram.");
+      return null;
+    }
+    setBuscandoRef(true);
+    try {
+      const r = (await chamarAgente({ acao: "referencia", url })) as {
+        referencia?: { id: string };
+      };
+      const id = r.referencia?.id ?? null;
+      if (id) {
+        setReferencia(id);
+        setLinkRef("");
+        await qc.invalidateQueries({ queryKey: ["cria", "referencias-curto"] });
+      }
+      return id;
+    } catch (e) {
+      toast.error((e as Error).message);
+      return null;
+    } finally {
+      setBuscandoRef(false);
+    }
+  }
 
   async function criar() {
-    if (!briefing.trim())
-      return toast.error("Escreva o briefing: tema, mensagem principal e para quem.");
+    if (!briefing.trim() && !roteiro.trim())
+      return toast.error("Escreva o briefing ou cole o roteiro.");
     setCriando(true);
     try {
+      let refId = referencia !== "nenhuma" ? referencia : null;
+      if (linkRef.trim()) {
+        const novo = await usarLink();
+        if (!novo) return;
+        refId = novo;
+      }
       const fotosTxt = escolhidas.length
         ? `\nUse prioritariamente estas fotos: ${escolhidas.join(", ")}.`
         : "";
       const { data, error } = await db()
         .from("cria_projetos")
         .insert({
-          nome: nome.trim() || briefing.trim().split("\n")[0].slice(0, 60),
+          nome:
+            nome.trim() ||
+            (briefing.trim() || roteiro.trim()).split("\n")[0].replace(/\*/g, "").slice(0, 60),
           tipo,
           formato,
           objetivo,
           briefing: briefing.trim() + fotosTxt,
-          referencia_id: referencia !== "nenhuma" ? referencia : null,
+          roteiro: roteiro.trim() || null,
+          referencia_id: refId,
         })
         .select("id")
         .single();
@@ -307,15 +360,40 @@ function Criativos() {
               ))}
             </div>
             <div className="space-y-1.5">
-              <Label>Briefing</Label>
+              <Label>Briefing {roteiro.trim() ? "(opcional com roteiro)" : ""}</Label>
               <Textarea
-                rows={5}
+                rows={roteiro.trim() ? 3 : 5}
                 value={briefing}
                 onChange={(e) => setBriefing(e.target.value)}
                 placeholder={
                   "Tema, mensagem principal, para quem e o que a pessoa deve fazer no fim.\nEx.: 5 automações com IA que todo dono de clínica deveria ter. Público: donos de clínicas. CTA: comentar AUTOMAÇÃO para receber o guia."
                 }
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Roteiro (opcional)</Label>
+              <Textarea
+                rows={roteiro.trim() ? 9 : 3}
+                value={roteiro}
+                onChange={(e) => setRoteiro(e.target.value)}
+                placeholder={
+                  'Cole o texto pronto. Cada bloco vira um slide, na ordem (separe com linha em branco ou "Slide 1:", "Slide 2:"…).\nO Claude mantém as suas palavras e encaixa cada parte no slide equivalente da referência.'
+                }
+              />
+              {roteiro.trim() && tipo === "carrossel" && (
+                <p className="text-xs text-muted-foreground">
+                  {
+                    roteiro
+                      .trim()
+                      .split(/\n\s*\n|\n(?=\s*(?:slide\s*\d+|\d+[.)-])\s)/i)
+                      .filter((b) => b.trim()).length
+                  }{" "}
+                  blocos no roteiro
+                  {refEscolhida?.analise?.estrutura?.length
+                    ? ` · a referência tem ${refEscolhida.analise.estrutura.length} slides`
+                    : ""}
+                </p>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div className="space-y-1">
@@ -352,7 +430,7 @@ function Criativos() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Referência de estilo</Label>
+              <Label className="text-xs">Referência (o modelo a seguir, slide a slide)</Label>
               <Select value={referencia} onValueChange={setReferencia}>
                 <SelectTrigger className="h-9">
                   <SelectValue />
@@ -361,12 +439,45 @@ function Criativos() {
                   <SelectItem value="nenhuma">Sem referência (o Claude escolhe)</SelectItem>
                   {(refs.data ?? []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
-                      {r.analise?.estilo ?? "Referência"}
+                      {r.status === "pronta"
+                        ? (r.analise?.estilo ?? "Referência")
+                        : r.status === "baixando"
+                          ? "Nova referência · baixando slides…"
+                          : "Nova referência · analisando…"}
                       {r.autor ? ` · @${r.autor}` : ""}
+                      {r.imagens?.length ? ` · ${r.imagens.length} slides` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <div className="flex gap-2">
+                <Input
+                  className="h-9"
+                  value={linkRef}
+                  onChange={(e) => setLinkRef(e.target.value)}
+                  placeholder="ou cole o link de um post do Instagram como referência"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 shrink-0"
+                  onClick={() => void usarLink()}
+                  disabled={buscandoRef || !linkRef.trim()}
+                >
+                  {buscandoRef ? (
+                    <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  ) : (
+                    <Link2 className="h-4 w-4 mr-1.5" />
+                  )}
+                  Usar link
+                </Button>
+              </div>
+              {refEscolhida && refEscolhida.status !== "pronta" && (
+                <p className="text-xs text-muted-foreground">
+                  A referência ainda está sendo lida. Pode clicar em Criar: o Claude espera ela
+                  ficar pronta e então monta o criativo.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">
