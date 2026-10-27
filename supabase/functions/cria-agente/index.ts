@@ -2,14 +2,14 @@
 //   criar     { projeto_id }                    → monta o design a partir do briefing, fotos e referência
 //   mensagem  { projeto_id, texto, slide_id? }  → ajusta o design pelo chat
 //   descrever_foto { foto_id }                  → descrição curta da foto (para escolher as certas depois)
-//   referencia { url, username? }               → baixa as imagens de um post/carrossel do Instagram e analisa
+//   referencia { url, username? }               → cria a referência e põe o download na fila do servidor de vídeo
+//   liberar_pendentes { id }                    → dispara os criativos que esperavam a referência
 //   analisar_referencia { id }                  → (re)analisa uma referência (imagens já no bucket)
 // O trabalho pesado roda em segundo plano (status "gerando"/"analisando"); a tela acompanha pelo banco.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5";
 const BUCKET = "video-edicao";
-const V = "v20.0";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -132,65 +132,64 @@ async function descreverFoto(sb: any, id: string) {
 }
 
 // ---------- referências ----------
-async function token(sb: any) {
-  const { data } = await sb.rpc("get_secret", { secret_name: "META_ADS_TOKEN" });
-  const t = data ?? Deno.env.get("META_ACCESS_TOKEN");
-  if (!t) throw new Error("META_ADS_TOKEN não encontrado");
-  return t as string;
-}
-async function igUserId(sb: any, tk: string) {
-  const fixo = Deno.env.get("IG_USER_ID");
-  if (fixo) return fixo;
-  const { data } = await sb.rpc("get_secret", { secret_name: "META_IG_ACCOUNT_ID" });
-  if (data) return data as string;
-  const r = await fetch(
-    `https://graph.facebook.com/${V}/me/accounts?fields=instagram_business_account&access_token=${tk}`,
-  );
-  const j = await r.json();
-  const id = (j.data ?? []).find((p: any) => p.instagram_business_account)
-    ?.instagram_business_account?.id;
-  if (!id) throw new Error("conta Instagram business não encontrada");
-  return id as string;
+// O link é baixado pelo servidor de vídeo (yt-dlp, job "cria_referencia"), que sobe as imagens
+// do carrossel e chama analisar_referencia. Não depende da API oficial nem do @ da conta.
+const LINK_POST = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reel|reels|tv)\/[A-Za-z0-9_-]+/i;
+
+async function novaReferencia(sb: any, url: string, autor: string) {
+  const bruto = url.trim();
+  if (!LINK_POST.test(bruto))
+    throw new Error("cole o link de um post do Instagram (instagram.com/p/...)");
+  const limpo = bruto.split("?")[0].replace(/\/?$/, "/");
+  const { data: ja } = await sb
+    .from("cria_referencias")
+    .select("*")
+    .eq("url", limpo)
+    .neq("status", "erro")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (ja?.[0]) return ja[0];
+  const { data, error } = await sb
+    .from("cria_referencias")
+    .insert({
+      url: limpo,
+      autor: autor.replace(/^@/, "").trim() || null,
+      imagens: [],
+      status: "baixando",
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  const job = await sb
+    .from("vedit_jobs")
+    .insert({ tipo: "cria_referencia", params: { referencia_id: data.id, url: limpo } });
+  if (job.error) {
+    await sb
+      .from("cria_referencias")
+      .update({ status: "erro", erro: job.error.message })
+      .eq("id", data.id);
+    throw new Error(job.error.message);
+  }
+  return data;
 }
 
-async function baixarPost(sb: any, url: string, username: string) {
-  const codigo = url.match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1];
-  if (!codigo) throw new Error("link de post inválido");
-  const user = username.replace(/^@/, "").trim();
-  if (!user) throw new Error("informe o @ da conta que publicou");
-  const tk = await token(sb);
-  const ig = await igUserId(sb, tk);
-  let alvo: any = null;
-  let after = "";
-  for (let pag = 0; pag < 6 && !alvo; pag++) {
-    const qs = new URLSearchParams({
-      fields: `business_discovery.username(${user}){username,media.limit(40)${after ? `.after(${after})` : ""}{id,caption,media_type,permalink,media_url,thumbnail_url,like_count,comments_count,children{media_type,media_url,thumbnail_url}}}`,
-      access_token: tk,
-    });
-    const j = await (await fetch(`https://graph.facebook.com/${V}/${ig}?${qs}`)).json();
-    if (j.error) throw new Error(j.error.message);
-    const media = j.business_discovery?.media;
-    alvo = (media?.data ?? []).find((m: any) => String(m.permalink ?? "").includes(codigo));
-    after = media?.paging?.cursors?.after ?? "";
-    if (!after) break;
+/** Criativos que esperavam esta referência: dispara a criação (cada um numa chamada nova). */
+async function liberarPendentes(sb: any, refId: string) {
+  const { data } = await sb
+    .from("cria_projetos")
+    .select("id")
+    .eq("referencia_id", refId)
+    .eq("status", "aguardando");
+  for (const p of data ?? []) {
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/cria-agente`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ acao: "criar", projeto_id: p.id }),
+    }).catch(() => {});
   }
-  if (!alvo) throw new Error(`não achei esse post nas publicações recentes de @${user}`);
-  const urls: string[] = (alvo.children?.data ?? [alvo])
-    .map((c: any) => (c.media_type === "VIDEO" ? c.thumbnail_url : c.media_url))
-    .filter(Boolean)
-    .slice(0, 12);
-  if (!urls.length) throw new Error("o Instagram não liberou as imagens deste post");
-  const paths: string[] = [];
-  for (let i = 0; i < urls.length; i++) {
-    const r = await fetch(urls[i], { signal: AbortSignal.timeout(30000) });
-    if (!r.ok) continue;
-    const path = `criativos/referencias/${codigo}-${String(i + 1).padStart(2, "0")}.jpg`;
-    const up = await sb.storage
-      .from(BUCKET)
-      .upload(path, await r.blob(), { contentType: "image/jpeg", upsert: true });
-    if (!up.error) paths.push(path);
-  }
-  return { paths, autor: user, legenda: alvo.caption ?? null, curtidas: alvo.like_count ?? null };
 }
 
 async function analisarReferencia(sb: any, id: string) {
@@ -243,6 +242,7 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
       .update({ status: "erro", erro: String((e as Error).message).slice(0, 500) })
       .eq("id", id);
   }
+  await liberarPendentes(sb, id);
 }
 
 // ---------- design ----------
@@ -271,13 +271,15 @@ Regras de qualidade:
 - **palavra** destaca na cor de destaque. Use em 1-3 palavras-chave por slide, nunca em frases inteiras.
 - Capa: gancho forte e específico (número, promessa, curiosidade, contraste). Nada genérico.
 - Um assunto por slide, no máximo ~45 palavras por slide. Texto em português do Brasil, direto, sem clichês de IA ("no mundo de hoje", "revolucionar", "desbloqueie").
-- Carrossel: 5 a 9 slides, começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto ou foto).
+- Carrossel: 5 a 9 slides (com ROTEIRO, quantos o roteiro pedir, até 15), começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto ou foto).
 - Varie layouts com ritmo, mas mantenha a mesma identidade (cores e fontes) do começo ao fim.
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
 - Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real.
 - Para conferir uma foto antes de usar, chame ver_fotos.
 - Fontes disponíveis: Anton, Archivo Black, Bricolage Grotesque, Inter, Montserrat, DM Mono, Instrument Serif, Playfair Display, Fraunces, Caveat.
-- Se houver referência, siga a estrutura, o ritmo e o acabamento dela (não copie texto).
+- ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
+- REFERÊNCIA (quando houver) é o molde, slide a slide: o slide N do criativo segue o papel, o layout e a densidade de texto do slide N da referência ("estrutura" e "layouts" da análise e as imagens dela). Se o conteúdo tiver mais slides que a referência, repita o padrão dos slides do meio; se tiver menos, mantenha capa, miolo e fechamento. Copie o acabamento (tipografia, cores, caixa alta, posição da foto, numeração), nunca o texto.
+- Sem roteiro, escreva o conteúdo a partir do briefing (e do molde da referência, se houver).
 - Em ajustes pelo chat, mude só o que foi pedido e preserve o resto (ids dos slides inclusive).
 Depois de salvar, responda em 1-3 frases curtas o que fez (sem listar slide por slide).`;
 
@@ -363,7 +365,11 @@ async function contexto(sb: any, p: any) {
       .limit(1)
       .maybeSingle(),
     p.referencia_id
-      ? sb.from("cria_referencias").select("autor, analise").eq("id", p.referencia_id).maybeSingle()
+      ? sb
+          .from("cria_referencias")
+          .select("autor, analise, imagens")
+          .eq("id", p.referencia_id)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     sb
       .from("cria_mensagens")
@@ -382,7 +388,7 @@ async function contexto(sb: any, p: any) {
     texto: `PROJETO: ${p.nome}
 Tipo: ${p.tipo === "unico" ? "post único (1 slide)" : "carrossel"} · Formato ${p.formato} · Objetivo: ${p.objetivo === "anuncio" ? "anúncio pago (clareza e CTA)" : "orgânico (salvamentos e compartilhamentos)"}
 Briefing: ${p.briefing || "(sem briefing)"}
-
+${p.roteiro ? `\nROTEIRO da Mariana (distribua slide a slide, nesta ordem, sem perder nada):\n"""\n${p.roteiro}\n"""\n` : ""}
 MARCA (padrão do editor de vídeo): ${JSON.stringify(marca?.marca ?? {})}${marca?.instrucoes ? `\nInstruções da marca: ${marca.instrucoes}` : ""}
 
 ${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
@@ -392,10 +398,11 @@ ${lista || "(vazia: faça sem fotos ou gere do zero)"}
 DESIGN ATUAL:
 ${JSON.stringify(p.design ?? {})}`,
     historico: (msgs ?? []).reverse(),
+    imagensRef: (ref?.data?.analise ? (ref.data.imagens ?? []) : []) as string[],
   };
 }
 
-async function rodar(sb: any, projetoId: string, pedido: string) {
+async function rodar(sb: any, projetoId: string, pedido: string, verReferencia = false) {
   const { data: p } = await sb.from("cria_projetos").select("*").eq("id", projetoId).single();
   if (!p) throw new Error("projeto não encontrado");
   try {
@@ -405,10 +412,26 @@ async function rodar(sb: any, projetoId: string, pedido: string) {
       .slice(0, -1)
       .map((m: any) => `${m.papel === "usuario" ? "Mariana" : "Você"}: ${m.conteudo}`)
       .join("\n");
+    const principal = `${ctx.texto}${conversa ? `\n\nCONVERSA ANTERIOR:\n${conversa}` : ""}\n\nPEDIDO AGORA: ${pedido}`;
+    // Na criação, o Claude vê os slides da referência (o molde), não só a análise em texto.
+    const imgsRef = verReferencia
+      ? (
+          await Promise.all(ctx.imagensRef.slice(0, 10).map((x: string) => imagemBloco(sb, x)))
+        ).filter(Boolean)
+      : [];
     const messages: any[] = [
       {
         role: "user",
-        content: `${ctx.texto}${conversa ? `\n\nCONVERSA ANTERIOR:\n${conversa}` : ""}\n\nPEDIDO AGORA: ${pedido}`,
+        content: imgsRef.length
+          ? [
+              {
+                type: "text",
+                text: `Slides da REFERÊNCIA, em ordem (${imgsRef.length}). Use como molde visual e de estrutura, sem copiar o texto:`,
+              },
+              ...imgsRef,
+              { type: "text", text: principal },
+            ]
+          : principal,
       },
     ];
     let salvou = false;
@@ -526,21 +549,17 @@ Deno.serve(async (req) => {
       return json({ descricao: await descreverFoto(sb, body.foto_id) });
 
     if (body.acao === "referencia") {
-      const post = await baixarPost(sb, String(body.url ?? ""), String(body.username ?? ""));
-      const { data, error } = await sb
-        .from("cria_referencias")
-        .insert({
-          url: body.url,
-          autor: post.autor,
-          legenda: post.legenda,
-          imagens: post.paths,
-          status: "analisando",
-        })
-        .select("*")
-        .single();
-      if (error) throw new Error(error.message);
-      emSegundoPlano(analisarReferencia(sb, data.id));
-      return json({ referencia: data });
+      const referencia = await novaReferencia(
+        sb,
+        String(body.url ?? ""),
+        String(body.username ?? ""),
+      );
+      return json({ referencia });
+    }
+    // O servidor de vídeo não conseguiu baixar: solta quem estava esperando.
+    if (body.acao === "liberar_pendentes") {
+      await liberarPendentes(sb, String(body.id ?? ""));
+      return json({ ok: true });
     }
     if (body.acao === "analisar_referencia") {
       emSegundoPlano(analisarReferencia(sb, body.id));
@@ -551,7 +570,7 @@ Deno.serve(async (req) => {
       const id = String(body.projeto_id ?? "");
       const { data: p } = await sb
         .from("cria_projetos")
-        .select("id, status, tipo, updated_at")
+        .select("id, status, tipo, updated_at, referencia_id, roteiro")
         .eq("id", id)
         .single();
       if (!p) return json({ error: "projeto não encontrado" }, 404);
@@ -561,10 +580,42 @@ Deno.serve(async (req) => {
         return json({ error: "O Claude ainda está trabalhando neste criativo." }, 409);
       let pedido: string;
       if (body.acao === "criar") {
+        let comRef = false;
+        // Referência ainda baixando/analisando: o criativo espera e é disparado quando ela fica pronta.
+        if (p.referencia_id) {
+          const { data: ref } = await sb
+            .from("cria_referencias")
+            .select("status, created_at")
+            .eq("id", p.referencia_id)
+            .maybeSingle();
+          const recente = ref && Date.now() - new Date(ref.created_at).getTime() < 10 * 60 * 1000;
+          if (ref && ["nova", "baixando", "analisando"].includes(ref.status) && recente) {
+            if (p.status !== "aguardando")
+              await sb.from("cria_mensagens").insert({
+                projeto_id: id,
+                papel: "sistema",
+                conteudo: "Lendo a referência antes de montar…",
+              });
+            await sb
+              .from("cria_projetos")
+              .update({ status: "aguardando", erro: null, updated_at: new Date().toISOString() })
+              .eq("id", id);
+            return json({ ok: true, aguardando: true });
+          }
+          comRef = ref?.status === "pronta";
+          if (!comRef)
+            await sb.from("cria_mensagens").insert({
+              projeto_id: id,
+              papel: "sistema",
+              conteudo: "Não consegui ler a referência; vou montar sem ela.",
+            });
+        }
         pedido =
           p.tipo === "unico"
-            ? "Crie o post único a partir do briefing."
-            : "Crie o carrossel completo a partir do briefing.";
+            ? `Crie o post único a partir ${p.roteiro ? "do ROTEIRO" : "do briefing"}${comRef ? ", no modelo da REFERÊNCIA" : ""}.`
+            : p.roteiro
+              ? `Crie o carrossel distribuindo o ROTEIRO slide a slide${comRef ? ", no molde da REFERÊNCIA (slide N segue o slide N dela)" : ""}. Use o briefing como contexto.`
+              : `Crie o carrossel completo a partir do briefing${comRef ? ", no molde da REFERÊNCIA (slide N segue o slide N dela)" : ""}.`;
         await sb
           .from("cria_mensagens")
           .insert({ projeto_id: id, papel: "sistema", conteudo: "Montando o criativo…" });
@@ -582,7 +633,7 @@ Deno.serve(async (req) => {
         .from("cria_projetos")
         .update({ status: "gerando", erro: null, updated_at: new Date().toISOString() })
         .eq("id", id);
-      emSegundoPlano(rodar(sb, id, pedido));
+      emSegundoPlano(rodar(sb, id, pedido, body.acao === "criar"));
       return json({ ok: true });
     }
     return json({ error: "ação desconhecida" }, 400);

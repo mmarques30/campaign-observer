@@ -17,6 +17,7 @@ export const Route = createFileRoute("/_authenticated/ads/criar/referencias")({
 });
 
 type RefComUrls = CriaReferencia & { urls: string[] };
+const LINK_POST = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reel|reels|tv)\/[A-Za-z0-9_-]+/i;
 
 function ReferenciasCriativos() {
   const qc = useQueryClient();
@@ -47,20 +48,20 @@ function ReferenciasCriativos() {
       }));
     },
     refetchInterval: (q) =>
-      (q.state.data as RefComUrls[] | undefined)?.some((r) => r.status === "analisando")
+      (q.state.data as RefComUrls[] | undefined)?.some((r) =>
+        ["baixando", "analisando"].includes(r.status),
+      )
         ? 4000
         : false,
   });
   const recarregar = () => qc.invalidateQueries({ queryKey: ["cria", "referencias"] });
 
   async function porLink() {
-    if (!/instagram\.com\/(p|reel)\//.test(link))
-      return toast.error("Cole o link de um post do Instagram.");
-    if (!conta.trim()) return toast.error("Informe o @ de quem publicou.");
+    if (!LINK_POST.test(link)) return toast.error("Cole o link de um post do Instagram.");
     setOcupado("link");
     try {
       await chamarAgente({ acao: "referencia", url: link.trim(), username: conta.trim() });
-      toast.success("Imagens baixadas. A análise leva uns 30 segundos.");
+      toast.success("Buscando os slides. Em cerca de 1 minuto a análise aparece aqui.");
       setLink("");
       setConta("");
       recarregar();
@@ -124,7 +125,8 @@ function ReferenciasCriativos() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Adicionar referência</CardTitle>
           <CardDescription>
-            Pelo link (contas profissionais) ou subindo os prints dos slides em ordem.
+            Cole o link do post ou carrossel (o sistema baixa todos os slides) ou suba os prints em
+            ordem.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row gap-2">
@@ -137,7 +139,7 @@ function ReferenciasCriativos() {
           <Input
             value={conta}
             onChange={(e) => setConta(e.target.value)}
-            placeholder="@conta"
+            placeholder="@conta (opcional)"
             className="md:w-44"
           />
           <Button onClick={porLink} disabled={!!ocupado}>
@@ -194,6 +196,14 @@ function ReferenciasCriativos() {
                   </div>
                   {r.autor && <Badge variant="outline">@{r.autor}</Badge>}
                   <Badge variant="secondary">{r.urls.length} slides</Badge>
+                  {r.status === "baixando" && (
+                    <Badge
+                      className="bg-sky-500/15 text-sky-700 border-sky-500/30"
+                      variant="outline"
+                    >
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Baixando slides
+                    </Badge>
+                  )}
                   {r.status === "analisando" && (
                     <Badge
                       className="bg-amber-500/15 text-amber-700 border-amber-500/30"
@@ -208,7 +218,7 @@ function ReferenciasCriativos() {
                       className="text-red-600 border-red-500/40"
                       title={r.erro ?? ""}
                     >
-                      Erro na análise
+                      {r.urls.length ? "Erro na análise" : "Não consegui baixar"}
                     </Badge>
                   )}
                   <div className="ml-auto flex gap-1.5">
@@ -231,9 +241,15 @@ function ReferenciasCriativos() {
                       className="h-8 w-8"
                       title="Analisar de novo"
                       onClick={async () => {
-                        await chamarAgente({ acao: "analisar_referencia", id: r.id }).catch((e) =>
-                          toast.error(e.message),
-                        );
+                        try {
+                          // Sem imagens (o download falhou): baixa de novo pelo link.
+                          if (!r.imagens?.length && r.url) {
+                            await db().from("cria_referencias").delete().eq("id", r.id);
+                            await chamarAgente({ acao: "referencia", url: r.url });
+                          } else await chamarAgente({ acao: "analisar_referencia", id: r.id });
+                        } catch (e) {
+                          toast.error((e as Error).message);
+                        }
                         recarregar();
                       }}
                     >
@@ -258,6 +274,7 @@ function ReferenciasCriativos() {
                     </Button>
                   </div>
                 </div>
+                {r.status === "erro" && r.erro && <p className="text-xs text-red-600">{r.erro}</p>}
                 {a && (
                   <div className="grid gap-3 md:grid-cols-2 text-sm">
                     <div className="space-y-2">

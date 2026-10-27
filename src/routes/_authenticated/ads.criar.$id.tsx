@@ -106,10 +106,12 @@ function EditorCriativo() {
       return data as CriaProjeto;
     },
     refetchInterval: (q) =>
-      (q.state.data as CriaProjeto | undefined)?.status === "gerando" ? 3000 : false,
+      ["gerando", "aguardando"].includes((q.state.data as CriaProjeto | undefined)?.status ?? "")
+        ? 3000
+        : false,
   });
   const p = proj.data;
-  const gerando = p?.status === "gerando";
+  const gerando = p?.status === "gerando" || p?.status === "aguardando";
 
   const msgs = useQuery({
     queryKey: ["cria", "mensagens", id],
@@ -249,7 +251,8 @@ function EditorCriativo() {
         <Badge variant="outline">{p.formato}</Badge>
         {gerando && (
           <Badge variant="outline" className="bg-amber-500/15 text-amber-700 border-amber-500/30">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" /> O Claude está criando
+            <Loader2 className="h-3 w-3 mr-1 animate-spin" />{" "}
+            {p.status === "aguardando" ? "Lendo a referência" : "O Claude está criando"}
           </Badge>
         )}
         <div className="ml-auto flex gap-2">
