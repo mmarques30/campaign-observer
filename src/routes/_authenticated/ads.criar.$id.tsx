@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { SlideEscalado, SlideView } from "@/components/criativos/SlideView";
 import { EscolherFoto } from "@/components/criativos/EscolherFoto";
+import { PublicarCriativo } from "@/components/criativos/PublicarCriativo";
 import { BotaoVoz } from "@/components/BotaoVoz";
 import {
   baixarPngs,
@@ -90,6 +91,7 @@ function EditorCriativo() {
   const [msg, setMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [publicar, setPublicar] = useState(false);
   const versaoVista = useRef(-1);
   const nos = useRef<(HTMLDivElement | null)[]>([]);
   const fimChat = useRef<HTMLDivElement>(null);
@@ -188,6 +190,23 @@ function EditorCriativo() {
       ]);
     } catch (e) {
       toast.error((e as Error).message);
+    }
+  }
+
+  /** PNGs dos slides como estão na tela (para publicar). */
+  async function gerarImagens() {
+    if (!design || !p) throw new Error("criativo sem slides");
+    nos.current = [];
+    setExportando(true);
+    try {
+      for (let i = 0; i < 40 && nos.current.filter(Boolean).length < slides.length; i++)
+        await new Promise((ok) => setTimeout(ok, 50));
+      return await exportarPngs(
+        nos.current.slice(0, slides.length).filter(Boolean) as HTMLElement[],
+        p.formato,
+      );
+    } finally {
+      setExportando(false);
     }
   }
 
@@ -293,6 +312,9 @@ function EditorCriativo() {
               <Download className="h-4 w-4 mr-1.5" />
             )}
             {slides.length > 1 ? "Baixar PNGs (.zip)" : "Baixar PNG"}
+          </Button>
+          <Button size="sm" onClick={() => setPublicar(true)} disabled={!slides.length || gerando}>
+            <Send className="h-4 w-4 mr-1.5" /> Publicar
           </Button>
         </div>
       </div>
@@ -839,6 +861,15 @@ function EditorCriativo() {
           </Tabs>
         </Card>
       </div>
+
+      <PublicarCriativo
+        projeto={p}
+        legendaInicial={design?.legendaPost ?? ""}
+        totalSlides={slides.length}
+        gerarImagens={gerarImagens}
+        aberto={publicar}
+        onFechar={() => setPublicar(false)}
+      />
 
       {/* Slides em tamanho real, fora da tela, só para exportar. */}
       {exportando &&

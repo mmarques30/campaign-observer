@@ -1,0 +1,259 @@
+// publicar-agendados — publica no Instagram o que está na tabela publicacoes (criativos e vídeos).
+//   GET (cron a cada 5 min) ou POST { acao: "processar" } → publica o que já venceu
+//   POST { acao: "conta" }                                  → qual perfil publica (nada é publicado)
+//   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
+// O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
+// Reel pode ficar processando e é concluído na rodada seguinte (status "publicando" + container_id).
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const V = "v20.0";
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+const json = (d: unknown, s = 200) =>
+  new Response(JSON.stringify(d), {
+    status: s,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+const BUCKET = "video-edicao";
+
+async function tokenMeta(sb: any): Promise<string> {
+  const { data } = await sb.rpc("get_secret", { secret_name: "META_ADS_TOKEN" });
+  const t = typeof data === "string" ? data : data?.secret;
+  return String(t || Deno.env.get("META_ACCESS_TOKEN") || "").replace(/^"|"$/g, "");
+}
+
+async function graph(
+  method: string,
+  path: string,
+  token: string,
+  params: Record<string, string> = {},
+) {
+  const url = new URL(`https://graph.facebook.com/${V}/${path}`);
+  const init: RequestInit = { method };
+  if (method === "GET")
+    for (const [k, v] of Object.entries({ ...params, access_token: token }))
+      url.searchParams.set(k, v);
+  else {
+    init.headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    init.body = new URLSearchParams({ ...params, access_token: token }).toString();
+  }
+  const r = await fetch(url, init);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error)
+    throw new Error(`Instagram: ${j.error?.error_user_msg || j.error?.message || r.status}`);
+  return j;
+}
+
+let igCache: string | null = null;
+async function contaInstagram(sb: any, token: string) {
+  if (igCache) return igCache;
+  let id = Deno.env.get("IG_USER_ID") || "";
+  if (!id) {
+    const { data } = await sb.rpc("get_secret", { secret_name: "META_IG_ACCOUNT_ID" });
+    id = String((typeof data === "string" ? data : data?.secret) || "").replace(/^"|"$/g, "");
+  }
+  if (!id) {
+    const j = await graph("GET", "me/accounts", token, {
+      fields: "instagram_business_account",
+      limit: "50",
+    }).catch(() => null);
+    id =
+      (j?.data ?? []).find((p: any) => p.instagram_business_account)?.instagram_business_account
+        ?.id ?? "";
+  }
+  if (!id) {
+    const { data: c } = await sb
+      .from("mads_creatives")
+      .select("meta_instagram_actor_id")
+      .not("meta_instagram_actor_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    id = c?.meta_instagram_actor_id ?? "";
+  }
+  if (!id) throw new Error("conta do Instagram não configurada (IG_USER_ID)");
+  igCache = id;
+  return id;
+}
+
+async function assinar(sb: any, path: string) {
+  const { data, error } = await sb.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 3);
+  if (error || !data) throw new Error(`arquivo não encontrado: ${path}`);
+  return data.signedUrl as string;
+}
+
+async function esperar(token: string, container: string, tentativas: number) {
+  for (let i = 0; i < tentativas; i++) {
+    const st = await graph("GET", container, token, { fields: "status_code,status" });
+    if (st.status_code === "FINISHED") return "FINISHED";
+    if (st.status_code === "ERROR" || st.status_code === "EXPIRED")
+      throw new Error(`o Instagram recusou a mídia (${st.status || st.status_code})`);
+    await new Promise((ok) => setTimeout(ok, 4000));
+  }
+  return "IN_PROGRESS";
+}
+
+async function concluir(sb: any, p: any, token: string, ig: string, container: string) {
+  const pub = await graph("POST", `${ig}/media_publish`, token, { creation_id: container });
+  const info = await graph("GET", pub.id, token, { fields: "permalink" }).catch(() => ({}));
+  const agora = new Date().toISOString();
+  await sb
+    .from("publicacoes")
+    .update({
+      status: "publicado",
+      ig_media_id: pub.id,
+      permalink: info.permalink ?? null,
+      publicado_em: agora,
+      erro: null,
+    })
+    .eq("id", p.id);
+  if (p.origem === "video")
+    await sb
+      .from("vedit_projetos")
+      .update({ ig_media_id: pub.id, publicado_em: agora, status: "publicado" })
+      .eq("id", p.ref_id);
+  return { publicado: true, permalink: info.permalink ?? null };
+}
+
+async function publicar(sb: any, p: any) {
+  const token = await tokenMeta(sb);
+  const ig = await contaInstagram(sb, token);
+  try {
+    // Reel que ficou processando na rodada anterior.
+    if (p.container_id) {
+      const st = await esperar(token, p.container_id, 3);
+      if (st !== "FINISHED") return { publicado: false, processando: true };
+      return await concluir(sb, p, token, ig, p.container_id);
+    }
+    const urls = await Promise.all((p.midias ?? []).map((m: string) => assinar(sb, m)));
+    if (!urls.length) throw new Error("sem mídia para publicar");
+    let container: string;
+    if (p.tipo === "reel") {
+      container = (
+        await graph("POST", `${ig}/media`, token, {
+          media_type: "REELS",
+          video_url: urls[0],
+          caption: p.legenda ?? "",
+          share_to_feed: "true",
+        })
+      ).id;
+    } else if (p.tipo === "carrossel" && urls.length > 1) {
+      if (urls.length > 10) throw new Error("o Instagram aceita no máximo 10 slides por carrossel");
+      const filhos: string[] = [];
+      for (const u of urls)
+        filhos.push(
+          (await graph("POST", `${ig}/media`, token, { image_url: u, is_carousel_item: "true" }))
+            .id,
+        );
+      for (const f of filhos) await esperar(token, f, 10);
+      container = (
+        await graph("POST", `${ig}/media`, token, {
+          media_type: "CAROUSEL",
+          children: filhos.join(","),
+          caption: p.legenda ?? "",
+        })
+      ).id;
+    } else {
+      container = (
+        await graph("POST", `${ig}/media`, token, { image_url: urls[0], caption: p.legenda ?? "" })
+      ).id;
+    }
+    await sb
+      .from("publicacoes")
+      .update({ container_id: container, container_em: new Date().toISOString() })
+      .eq("id", p.id);
+    const st = await esperar(token, container, p.tipo === "reel" ? 20 : 15);
+    if (st !== "FINISHED") return { publicado: false, processando: true };
+    return await concluir(sb, p, token, ig, container);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    await sb
+      .from("publicacoes")
+      .update({ status: "erro", erro: msg.slice(0, 500) })
+      .eq("id", p.id);
+    throw e;
+  }
+}
+
+/** Pega a publicação para si (evita publicar duas vezes se duas rodadas se cruzarem). */
+async function pegar(sb: any, id: string) {
+  const { data } = await sb
+    .from("publicacoes")
+    .update({ status: "publicando", erro: null })
+    .eq("id", id)
+    .in("status", ["agendado", "erro"])
+    .select("*")
+    .maybeSingle();
+  return data;
+}
+
+async function processar(sb: any) {
+  const agora = new Date().toISOString();
+  const { data: vencidas } = await sb
+    .from("publicacoes")
+    .select("id")
+    .eq("status", "agendado")
+    .lte("agendado_para", agora)
+    .order("agendado_para")
+    .limit(5);
+  // Reels que ficaram processando.
+  const { data: pendentes } = await sb
+    .from("publicacoes")
+    .select("*")
+    .eq("status", "publicando")
+    .not("container_id", "is", null)
+    // Só as que ninguém está esperando agora (a chamada que criou o container espera até ~80s).
+    .lt("container_em", new Date(Date.now() - 3 * 60 * 1000).toISOString())
+    .limit(5);
+  const res: unknown[] = [];
+  for (const v of vencidas ?? []) {
+    const p = await pegar(sb, v.id);
+    if (!p) continue;
+    res.push(await publicar(sb, p).catch((e) => ({ erro: String(e?.message ?? e) })));
+  }
+  for (const p of pendentes ?? []) {
+    await sb
+      .from("publicacoes")
+      .update({ tentativas: (p.tentativas ?? 0) + 1 })
+      .eq("id", p.id);
+    if ((p.tentativas ?? 0) > 12) {
+      await sb
+        .from("publicacoes")
+        .update({ status: "erro", erro: "o Instagram não terminou de processar o vídeo" })
+        .eq("id", p.id);
+      continue;
+    }
+    res.push(await publicar(sb, p).catch((e) => ({ erro: String(e?.message ?? e) })));
+  }
+  return res;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const sb = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  try {
+    if (req.method === "GET") return json({ ok: true, resultados: await processar(sb) });
+    const b = await req.json().catch(() => ({}));
+    if (b.acao === "conta") {
+      // Para a tela mostrar em qual perfil vai sair (nada é publicado).
+      const token = await tokenMeta(sb);
+      const ig = await contaInstagram(sb, token);
+      const info = await graph("GET", ig, token, { fields: "username" });
+      return json({ ok: true, ig_user_id: ig, username: info.username ?? null });
+    }
+    if (b.acao === "agora") {
+      const p = await pegar(sb, String(b.id ?? ""));
+      if (!p) return json({ error: "publicação não encontrada ou já publicada" }, 409);
+      return json({ ok: true, ...(await publicar(sb, p)) });
+    }
+    return json({ ok: true, resultados: await processar(sb) });
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
