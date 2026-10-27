@@ -473,6 +473,11 @@ function Editor() {
           (chaveMusica.startsWith("trilha:") ? "Música" : "Música enviada"),
         duracao: durMusica,
         inicio: tl?.musica.inicio ?? 0,
+        fim: tl?.musica.fim ?? null,
+        de: tl?.musica.de ?? 0,
+        ate: tl?.musica.ate ?? null,
+        repetir: tl?.musica.repetir !== false,
+        url: urlMusicaTl ?? null,
       }
     : null;
 
@@ -482,9 +487,13 @@ function Editor() {
   useEffect(() => {
     const d = urlsQ.data;
     if (!d) return;
-    const lista = [d.fonte, d.audio, ...Object.values(d.voz ?? {})].filter(
-      (u): u is string => !!u && !locais[u.split("?")[0]],
-    );
+    // A música também vai para a memória: cada repetição do trecho é um salto no arquivo.
+    const lista = [
+      d.fonte,
+      d.audio,
+      ...Object.values(d.voz ?? {}),
+      chaveMusica ? (d.midias[chaveMusica] ?? urlTrilhaBase(chaveMusica)) : undefined,
+    ].filter((u): u is string => !!u && !locais[u.split("?")[0]]);
     if (!lista.length) return;
     let vivo = true;
     void (async () => {
@@ -542,7 +551,9 @@ function Editor() {
               : urlsQ.data.voz,
             recorteUrl: urlsQ.data.recorte,
             duracaoFonte,
-            midias: urlsQ.data.midias,
+            midias: Object.fromEntries(
+              Object.entries(urlsQ.data.midias).map(([k, v]) => [k, local(v)!]),
+            ),
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -989,6 +1000,9 @@ function Editor() {
                   );
                 }}
                 musica={musicaInfo}
+                onMusica={(patch, resumo) =>
+                  setTl({ ...tl, musica: { ...tl.musica, ...patch } }, resumo)
+                }
                 blocoSelecionado={blocoSel}
                 onSelecionarBloco={(idxs) => {
                   setBlocoSel(idxs);

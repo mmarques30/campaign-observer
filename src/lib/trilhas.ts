@@ -16,13 +16,38 @@ export type Trilha = TrilhaInfo & {
 const MANIFESTO = "trilhas/biblioteca.json";
 
 async function lerManifesto(): Promise<Trilha[]> {
+  // Uma falha de leitura aqui fazia o próximo "salvar" apagar as outras faixas: agora para.
   const { data, error } = await supabase.storage.from(BUCKET).download(MANIFESTO);
-  if (error || !data) return [];
-  try {
-    return JSON.parse(await data.text()) as Trilha[];
-  } catch {
-    return [];
+  let lista: Trilha[] = [];
+  if (data) {
+    try {
+      lista = JSON.parse(await data.text()) as Trilha[];
+    } catch {
+      throw new Error("Não consegui ler a biblioteca de músicas. Tente de novo.");
+    }
+  } else if (error && !/not.?found|404|does not exist/i.test(error.message))
+    throw new Error(`Não consegui ler a biblioteca de músicas: ${error.message}`);
+  // Faixas que estão no bucket mas saíram do manifesto voltam para a lista.
+  const { data: arquivos } = await supabase.storage.from(BUCKET).list("trilhas", { limit: 500 });
+  const conhecidos = new Set(lista.map((t) => t.path));
+  let n = 0;
+  for (const a of arquivos ?? []) {
+    if (!/\.(mp3|m4a|wav|ogg|aac)$/i.test(a.name)) continue;
+    const path = `trilhas/${a.name}`;
+    if (conhecidos.has(path)) continue;
+    n++;
+    lista.push({
+      id: a.name.replace(/\.[^.]+$/, ""),
+      nome: `Música salva ${n}`,
+      humor: ["corporativo"],
+      energia: "media",
+      uso: "Recuperada da biblioteca",
+      ganho: 1,
+      path,
+      licenca: null,
+    } as Trilha);
   }
+  return lista;
 }
 async function gravarManifesto(lista: Trilha[]) {
   const blob = new Blob([JSON.stringify(lista, null, 1)], { type: "application/json" });

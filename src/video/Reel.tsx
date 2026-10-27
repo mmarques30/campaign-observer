@@ -212,20 +212,44 @@ export function Reel(bruto: ReelProps) {
     return out;
   }, [falando, durationInFrames, fps, tl.musica.abaixarNaVoz, tl.musica.abaixarPara]);
   // Música: duração do arquivo para repetir em blocos; volume sempre um número válido.
-  const duracaoMusica = useDuracaoAudio(urlMusica);
+  const [duracaoMusica, falhouDuracao] = useDuracaoAudio(urlMusica);
+  // Onde a música entra e sai no vídeo (quadros do vídeo final).
+  const deMusica = Math.min(
+    Math.max(0, durationInFrames - fps),
+    Math.max(0, Math.round((tl.musica.de ?? 0) * fps)),
+  );
+  const ateMusica =
+    tl.musica.ate != null
+      ? Math.min(durationInFrames, Math.max(deMusica + fps, Math.round(tl.musica.ate * fps)))
+      : durationInFrames;
+  // Trecho da faixa usado: [inicio, fim] em quadros do arquivo.
   const inicioMusica = Math.round(tl.musica.inicio * fps);
-  const blocoMusica = duracaoMusica
-    ? Math.max(fps, Math.floor(duracaoMusica * fps) - inicioMusica)
-    : null;
-  // Cruzamento entre repetições: até 1,5 s (no máximo 1/4 da música).
+  const fimArquivo = duracaoMusica ? Math.floor(duracaoMusica * fps) : null;
+  const fimMusica =
+    fimArquivo == null
+      ? null
+      : tl.musica.fim != null
+        ? Math.min(fimArquivo, Math.max(inicioMusica + fps, Math.round(tl.musica.fim * fps)))
+        : fimArquivo;
+  const blocoMusica = fimMusica != null ? Math.max(fps, fimMusica - inicioMusica) : null;
+  // Cruzamento entre repetições: até 1,5 s (no máximo 1/4 do trecho).
   const cruzaMusica = blocoMusica
     ? Math.max(1, Math.min(Math.round(fps * 1.5), Math.floor(blocoMusica / 4)))
     : 1;
   const passoMusica = blocoMusica ? Math.max(fps, blocoMusica - cruzaMusica) : fps;
+  const repeticoes = blocoMusica
+    ? tl.musica.repetir === false
+      ? 1
+      : Math.max(1, Math.ceil((ateMusica - deMusica - cruzaMusica) / passoMusica))
+    : 0;
+  // Fim real do som: sem repetir, a música para quando o trecho acaba (ou no "ate").
+  const fimSom = blocoMusica
+    ? Math.min(ateMusica, deMusica + (repeticoes - 1) * passoMusica + blocoMusica)
+    : ateMusica;
   const volumeMusica = (bruto: number) => {
     const f = Math.min(durationInFrames - 1, Math.max(0, Math.floor(Number(bruto) || 0)));
-    const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
-    const fadeOut = tl.musica.fade ? Math.min(1, (durationInFrames - f) / (fps * 1.5)) : 1;
+    const fadeIn = tl.musica.fade ? Math.min(1, (f - deMusica) / (fps * 0.8)) : 1;
+    const fadeOut = tl.musica.fade ? Math.min(1, (fimSom - f) / (fps * 1.5)) : 1;
     const v =
       tl.musica.volume * tl.musica.ganho * (duck[f] ?? 1) * Math.max(0, Math.min(fadeIn, fadeOut));
     return Number.isFinite(v) ? Math.max(0, v) : 0;
@@ -584,11 +608,14 @@ export function Reel(bruto: ReelProps) {
       {urlMusica &&
         (blocoMusica ? (
           // Cada repetição entra antes da anterior acabar e as duas se cruzam (sem "pulo" na volta).
-          Array.from({ length: Math.ceil(durationInFrames / passoMusica) }, (_, k) => (
+          Array.from({ length: repeticoes }, (_, k) => (
             <Sequence
               key={`mus${k}`}
-              from={k * passoMusica}
-              durationInFrames={blocoMusica}
+              from={deMusica + k * passoMusica}
+              durationInFrames={Math.max(
+                1,
+                Math.min(blocoMusica, fimSom - (deMusica + k * passoMusica)),
+              )}
               name={`Música ${k + 1}`}
             >
               <Audio
@@ -597,12 +624,12 @@ export function Reel(bruto: ReelProps) {
                 volume={(f) => {
                   const g = Math.max(0, Math.floor(Number(f) || 0));
                   const entra = k > 0 ? Math.min(1, g / cruzaMusica) : 1;
-                  const ultimo = (k + 1) * passoMusica >= durationInFrames;
+                  const ultimo = k === repeticoes - 1;
                   const sai = ultimo
                     ? 1
                     : Math.min(1, Math.max(0, (blocoMusica - g) / cruzaMusica));
                   return (
-                    volumeMusica(k * passoMusica + g) *
+                    volumeMusica(deMusica + k * passoMusica + g) *
                     Math.sin((Math.PI / 2) * entra) *
                     Math.sin((Math.PI / 2) * sai)
                   );
@@ -610,10 +637,17 @@ export function Reel(bruto: ReelProps) {
               />
             </Sequence>
           ))
-        ) : (
-          // Duração ainda desconhecida: repete com o loop do player (volume já protegido).
-          <Audio src={urlMusica} loop trimBefore={inicioMusica} volume={(f) => volumeMusica(f)} />
-        ))}
+        ) : getRemotionEnvironment().isRendering && duracaoMusica === null && falhouDuracao ? (
+          // Render sem conseguir medir a faixa: repete com o loop (volume já protegido).
+          <Sequence from={deMusica} durationInFrames={ateMusica - deMusica} name="Música">
+            <Audio
+              src={urlMusica}
+              loop
+              trimBefore={inicioMusica}
+              volume={(f) => volumeMusica(deMusica + f)}
+            />
+          </Sequence>
+        ) : null)}
       {tl.sfx.map((s, i) => (
         <Sequence
           key={`sfx${i}`}
@@ -642,10 +676,12 @@ class SemQuebrar extends Component<{ nome: string; children: ReactNode }, { erro
 }
 
 /** Duração (s) de um arquivo de áudio; segura o render até saber (para repetir a música em blocos). */
-function useDuracaoAudio(url?: string) {
+function useDuracaoAudio(url?: string): [number | null, boolean] {
   const [dur, setDur] = useState<number | null>(null);
+  const [falhou, setFalhou] = useState(false);
   useEffect(() => {
     setDur(null);
+    setFalhou(false);
     if (!url || typeof document === "undefined") return;
     const h = delayRender(`Duração da música`, { timeoutInMilliseconds: 20000 });
     const el = document.createElement("audio");
@@ -654,7 +690,9 @@ function useDuracaoAudio(url?: string) {
     const fim = (d: number | null) => {
       if (feito) return;
       feito = true;
-      setDur(d && Number.isFinite(d) && d > 1 ? d : null);
+      const ok = !!d && Number.isFinite(d) && d > 1;
+      setDur(ok ? d : null);
+      setFalhou(!ok);
       continueRender(h);
     };
     el.onloadedmetadata = () => fim(el.duration);
@@ -667,7 +705,7 @@ function useDuracaoAudio(url?: string) {
       el.removeAttribute("src");
     };
   }, [url]);
-  return dur;
+  return [dur, falhou];
 }
 
 export function calcularDuracao(props: Pick<ReelProps, "timeline" | "duracaoFonte">, fps = 30) {

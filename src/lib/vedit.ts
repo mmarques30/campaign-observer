@@ -703,9 +703,8 @@ export async function pedirRender(p: Projeto, midias: Midia[]) {
   // Trilha da biblioteca da marca: o worker assina pelo caminho no bucket.
   const chave = (p.timeline as any)?.musica?.midia as string | undefined;
   if (chave?.startsWith("trilha:") && !chave.startsWith("trilha:base-")) {
-    const { data } = await supabase.storage.from(BUCKET).download("trilhas/biblioteca.json");
-    const lista = data ? (JSON.parse(await data.text()) as { id: string; path?: string }[]) : [];
-    const t = lista.find((x) => `trilha:${x.id}` === chave);
+    const { listarTrilhas } = await import("@/lib/trilhas");
+    const t = (await listarTrilhas()).find((x) => `trilha:${x.id}` === chave);
     if (t?.path) props.midiasPaths[chave] = t.path;
   }
   if ((await jobVoz(p.id))?.status === "pronto")

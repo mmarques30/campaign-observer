@@ -52,6 +52,28 @@ async function listarTrilhas(sb: any) {
   } catch (_) {
     /* sem biblioteca ainda */
   }
+  // Faixas que estão no bucket mas saíram do manifesto continuam valendo.
+  try {
+    const { data: arqs } = await sb.storage.from("video-edicao").list("trilhas", { limit: 500 });
+    const conhecidos = new Set(marca.map((t: any) => t.path));
+    let n = 0;
+    for (const a of arqs ?? []) {
+      if (!/\.(mp3|m4a|wav|ogg|aac)$/i.test(a.name) || conhecidos.has(`trilhas/${a.name}`))
+        continue;
+      n++;
+      marca.push({
+        id: a.name.replace(/\.[^.]+$/, ""),
+        nome: `Música salva ${n}`,
+        humor: ["corporativo"],
+        energia: "media",
+        uso: "Faixa da marca",
+        ganho: 1,
+        path: `trilhas/${a.name}`,
+      });
+    }
+  } catch (_) {
+    /* sem listagem */
+  }
   return [...TRILHAS_BASE, ...marca];
 }
 
@@ -169,7 +191,7 @@ FORMATO DA TIMELINE
   "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "tamanho": 0.5–1.8 (1 = padrão; "legenda maior/menor" → ±0.15), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
   "efeitos": [{"id": "e1", "tipo": "<tipo do catálogo>", "de": s, "ate": s, "props": {...}}],
   "sfx": [{"em": s, "som": "whoosh|swipe|pop|click|ding|sucesso|riser|impacto|obturador|digitar|glitch|papel", "volume": 0–1}],
-  "musica": {"midia": "trilha:<id>" (lista TRILHAS DISPONÍVEIS) | "<id de áudio enviado>" | null, "volume": 0.08–0.3, "abaixarNaVoz": true, "abaixarPara": 0.2–0.5, "fade": true},
+  "musica": {"midia": "trilha:<id>" (lista TRILHAS DISPONÍVEIS) | "<id de áudio enviado>" | null, "volume": 0.08–0.3, "abaixarNaVoz": true, "abaixarPara": 0.2–0.5, "fade": true, "inicio": s da faixa onde o trecho começa, "fim": s da faixa onde acaba | null, "de": s do vídeo onde a música entra, "ate": s do vídeo onde sai | null, "repetir": true},
   "visual": {"look": "natural|quente|frio|cinema|pb|vivo", "grao": 0–1, "vinheta": 0–1, "barraProgresso": bool, "transicao": "nenhuma|suave|escurecer|desfoque|zoom-suave|flash|chicote|glitch|zoom" (suave = dissolve curto entre os cortes; escurecer = passa rápido pelo preto; desfoque = desfoca e volta; zoom-suave = aproximação leve; "transição suave/sem ser só zoom" → "suave"),
              "brilho": 0.5–1.6 (1 = original), "contraste": 0.5–1.6, "saturacao": 0–2, "temperatura": -1 (frio) … 1 (quente), "sombras": 0–1 (clareia rosto escuro), "nitidez": 0–1},   // /luz mexe só nestes; ajustes sutis (±0.05–0.2) ficam naturais
   "audio": {"limpar": true, "intensidade": "leve"|"media"|"forte", "volumeVoz": 0.3–1},  // voz limpa (ruído de fundo fora); "barulho"/"ruído" → intensidade mais forte
@@ -828,10 +850,22 @@ Deno.serve(async (req) => {
     const chave = tl.musica?.midia as string | undefined;
     if (chave?.startsWith("trilha:")) {
       const t = trilhas.find((x: any) => `trilha:${x.id}` === chave);
+      // Faixa que não está na lista: mantém a anterior em vez de deixar o vídeo sem música.
       if (t) tl.musica.ganho = t.ganho ?? 1;
-      else tl.musica.midia = null;
+      else
+        tl.musica = {
+          ...(proj.timeline?.musica ?? {}),
+          ...tl.musica,
+          midia: proj.timeline?.musica?.midia ?? null,
+        };
       if (typeof tl.musica.volume === "number") tl.musica.volume = Math.min(0.3, tl.musica.volume);
     }
+    // Ajustes manuais da música (trecho, entrada/saída, repetir) não se perdem se o Claude
+    // reescrever a música sem eles e continuar com a mesma faixa.
+    const musAntiga = proj.timeline?.musica;
+    if (tl.musica && musAntiga && tl.musica.midia === musAntiga.midia)
+      for (const k of ["inicio", "fim", "de", "ate", "repetir"])
+        if (tl.musica[k] === undefined && musAntiga[k] !== undefined) tl.musica[k] = musAntiga[k];
     (tl.efeitos ?? []).forEach((e: any, i: number) => {
       if (!e.id) e.id = `e${Date.now().toString(36)}${i}`;
     });
