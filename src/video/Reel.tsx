@@ -2,6 +2,8 @@ import {
   AbsoluteFill,
   Easing,
   Audio,
+  continueRender,
+  delayRender,
   getRemotionEnvironment,
   interpolate,
   OffthreadVideo,
@@ -10,7 +12,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { useMemo } from "react";
+import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 import { garantirFontes } from "./fontes";
 import { Legenda } from "./legenda";
 import { EFEITO_POR_TIPO } from "./catalogo";
@@ -209,6 +211,20 @@ export function Reel(bruto: ReelProps) {
     }
     return out;
   }, [falando, durationInFrames, fps, tl.musica.abaixarNaVoz, tl.musica.abaixarPara]);
+  // Música: duração do arquivo para repetir em blocos; volume sempre um número válido.
+  const duracaoMusica = useDuracaoAudio(urlMusica);
+  const inicioMusica = Math.round(tl.musica.inicio * fps);
+  const blocoMusica = duracaoMusica
+    ? Math.max(fps, Math.floor(duracaoMusica * fps) - inicioMusica)
+    : null;
+  const volumeMusica = (bruto: number) => {
+    const f = Math.min(durationInFrames - 1, Math.max(0, Math.floor(Number(bruto) || 0)));
+    const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
+    const fadeOut = tl.musica.fade ? Math.min(1, (durationInFrames - f) / (fps * 1.5)) : 1;
+    const v =
+      tl.musica.volume * tl.musica.ganho * (duck[f] ?? 1) * Math.max(0, Math.min(fadeIn, fadeOut));
+    return Number.isFinite(v) ? Math.max(0, v) : 0;
+  };
   // Preview: áudio do WAV (leve, exato com a legenda) e vídeo mudo. Render: áudio do vídeo.
   const audioSeparado = !!props.audioUrl && !getRemotionEnvironment().isRendering;
   // Voz limpa (quando já foi gerada) manda no som, no preview e no render.
@@ -293,7 +309,9 @@ export function Reel(bruto: ReelProps) {
         );
         return (
           <Sequence key={e.id} from={ini} durationInFrames={dur} name={`${def.nome}`}>
-            <Comp p={e.props ?? {}} dur={dur} ctx={{ ...ctxBase, deFonte: e.de }} />
+            <SemQuebrar nome={def.nome}>
+              <Comp p={e.props ?? {}} dur={dur} ctx={{ ...ctxBase, deFonte: e.de }} />
+            </SemQuebrar>
           </Sequence>
         );
       });
@@ -553,21 +571,28 @@ export function Reel(bruto: ReelProps) {
         />
       )}
 
-      {/* Áudio: música com ducking + efeitos sonoros */}
-      {urlMusica && (
-        <Audio
-          src={urlMusica}
-          loop
-          trimBefore={Math.round(tl.musica.inicio * fps)}
-          volume={(f) => {
-            const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
-            const fadeOut = tl.musica.fade ? Math.min(1, (durationInFrames - f) / (fps * 1.5)) : 1;
-            return (
-              tl.musica.volume * tl.musica.ganho * duck[f] * Math.max(0, Math.min(fadeIn, fadeOut))
-            );
-          }}
-        />
-      )}
+      {/* Áudio: música com ducking + efeitos sonoros.
+          A música repete em blocos do tamanho dela (não usa o "loop" do player: na volta do loop
+          o volume era calculado num quadro fracionado, dava NaN e o preview travava). */}
+      {urlMusica &&
+        (blocoMusica ? (
+          Array.from({ length: Math.ceil(durationInFrames / blocoMusica) }, (_, k) => (
+            <Sequence
+              key={`mus${k}`}
+              from={k * blocoMusica}
+              durationInFrames={blocoMusica}
+              name={`Música ${k + 1}`}
+            >
+              <Audio
+                src={urlMusica}
+                trimBefore={inicioMusica}
+                volume={(f) => volumeMusica(k * blocoMusica + f)}
+              />
+            </Sequence>
+          ))
+        ) : (
+          <Audio src={urlMusica} trimBefore={inicioMusica} volume={(f) => volumeMusica(f)} />
+        ))}
       {tl.sfx.map((s, i) => (
         <Sequence
           key={`sfx${i}`}
@@ -579,6 +604,49 @@ export function Reel(bruto: ReelProps) {
       ))}
     </AbsoluteFill>
   );
+}
+
+/** Um grafismo com erro some naquele trecho em vez de derrubar o vídeo inteiro (preview e render). */
+class SemQuebrar extends Component<{ nome: string; children: ReactNode }, { erro: boolean }> {
+  state = { erro: false };
+  static getDerivedStateFromError() {
+    return { erro: true };
+  }
+  componentDidCatch(e: unknown) {
+    console.warn(`[vedit] efeito "${this.props.nome}" com erro, pulado:`, e);
+  }
+  render() {
+    return this.state.erro ? null : this.props.children;
+  }
+}
+
+/** Duração (s) de um arquivo de áudio; segura o render até saber (para repetir a música em blocos). */
+function useDuracaoAudio(url?: string) {
+  const [dur, setDur] = useState<number | null>(null);
+  useEffect(() => {
+    setDur(null);
+    if (!url || typeof document === "undefined") return;
+    const h = delayRender(`Duração da música`, { timeoutInMilliseconds: 20000 });
+    const el = document.createElement("audio");
+    el.preload = "metadata";
+    let feito = false;
+    const fim = (d: number | null) => {
+      if (feito) return;
+      feito = true;
+      setDur(d && Number.isFinite(d) && d > 1 ? d : null);
+      continueRender(h);
+    };
+    el.onloadedmetadata = () => fim(el.duration);
+    el.onerror = () => fim(null);
+    const t = setTimeout(() => fim(null), 15000);
+    el.src = url;
+    return () => {
+      clearTimeout(t);
+      fim(null);
+      el.removeAttribute("src");
+    };
+  }, [url]);
+  return dur;
 }
 
 export function calcularDuracao(props: Pick<ReelProps, "timeline" | "duracaoFonte">, fps = 30) {
