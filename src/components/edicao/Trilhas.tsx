@@ -29,6 +29,7 @@ export function Trilhas({
   onAjustarBorda,
   blocoSelecionado,
   onSelecionarBloco,
+  musica,
 }: {
   tl: Timeline;
   palavras: Palavra[];
@@ -44,6 +45,8 @@ export function Trilhas({
   onAjustarBorda?: (i: number, borda: "de" | "ate", delta: number) => void;
   blocoSelecionado?: number[] | null; // índices das palavras do bloco de legenda selecionado
   onSelecionarBloco?: (idxs: number[] | null) => void;
+  // Música de fundo: nome e duração do arquivo (para marcar onde ela recomeça).
+  musica?: { nome: string; duracao: number | null; inicio: number } | null;
 }) {
   const fps = 30;
   const total = Math.max(1, duracaoSaida(trechos));
@@ -243,6 +246,39 @@ export function Trilhas({
                 />
               );
             }),
+            "h-5",
+          )}
+          {linha(
+            "Música",
+            musica ? (
+              <div
+                className="absolute top-1 bottom-1 left-0 rounded-sm bg-violet-500/50 overflow-hidden"
+                style={{ width: pos(total) }}
+                title={`${musica.nome} — toca o vídeo todo${musica.duracao ? `, repetindo a cada ${Math.round(musica.duracao)}s` : ""}`}
+              >
+                <span className="absolute left-1 top-0 text-[10px] leading-4 text-white/90 truncate max-w-full pointer-events-none">
+                  {musica.nome}
+                  {musica.duracao ? ` · ${Math.round(musica.duracao)}s, repete` : ""}
+                </span>
+                {musica.duracao &&
+                  (() => {
+                    const bloco = Math.max(1, musica.duracao - musica.inicio);
+                    const passo = Math.max(1, bloco - Math.min(1.5, bloco / 4));
+                    return Array.from({ length: Math.floor(total / passo) }, (_, k) => (
+                      <div
+                        key={k}
+                        className="absolute top-0 bottom-0 w-px bg-white/70"
+                        style={{ left: pos((k + 1) * passo) }}
+                        title="A música recomeça aqui (com transição suave)"
+                      />
+                    ));
+                  })()}
+              </div>
+            ) : (
+              <span className="absolute left-1 top-0 text-[10px] leading-4 text-muted-foreground">
+                sem música
+              </span>
+            ),
             "h-5",
           )}
           {linha(
