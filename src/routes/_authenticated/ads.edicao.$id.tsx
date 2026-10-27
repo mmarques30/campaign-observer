@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { baixarFonte, NOME_RECORTE, prepararRecorte, suportaRecorte } from "@/lib/recorte";
 import { listarTrilhas, urlTrilha } from "@/lib/trilhas";
+import { urlTrilhaBase } from "@/video/trilhas";
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import { Preview } from "@/components/edicao/Preview";
 import { Chat } from "@/components/edicao/Chat";
@@ -443,6 +444,37 @@ function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proj?.id, urlsQ.data?.fonte]);
   const rostoProj = (proj as any)?.rosto ?? null;
+
+  // Música de fundo para a linha do tempo: nome da trilha e duração do arquivo.
+  const chaveMusica = tl?.musica.midia ?? null;
+  const trilhasQ = useQuery({
+    queryKey: ["vedit", "trilhas"],
+    queryFn: listarTrilhas,
+    staleTime: 60_000,
+    enabled: !!chaveMusica,
+  });
+  const urlMusicaTl = chaveMusica
+    ? (urlsQ.data?.midias[chaveMusica] ?? urlTrilhaBase(chaveMusica))
+    : undefined;
+  const [durMusica, setDurMusica] = useState<number | null>(null);
+  useEffect(() => {
+    setDurMusica(null);
+    if (!urlMusicaTl) return;
+    const el = document.createElement("audio");
+    el.preload = "metadata";
+    el.onloadedmetadata = () => setDurMusica(Number.isFinite(el.duration) ? el.duration : null);
+    el.src = urlMusicaTl;
+    return () => el.removeAttribute("src");
+  }, [urlMusicaTl]);
+  const musicaInfo = chaveMusica
+    ? {
+        nome:
+          trilhasQ.data?.find((t) => `trilha:${t.id}` === chaveMusica)?.nome ??
+          (chaveMusica.startsWith("trilha:") ? "Música" : "Música enviada"),
+        duracao: durMusica,
+        inicio: tl?.musica.inicio ?? 0,
+      }
+    : null;
 
   // Preview: baixa o vídeo leve e os áudios UMA vez para a memória. Cada corte do vídeo é um salto;
   // pela rede, cada salto vira um novo pedido ao servidor e o preview trava em cortes curtos.
@@ -937,6 +969,7 @@ function Editor() {
                     `Trecho ${i + 1}: ${borda === "de" ? "início" : "fim"} ${d > 0 ? "+" : ""}${d.toFixed(1)}s (arrastando)`,
                   );
                 }}
+                musica={musicaInfo}
                 blocoSelecionado={blocoSel}
                 onSelecionarBloco={(idxs) => {
                   setBlocoSel(idxs);

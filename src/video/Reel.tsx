@@ -217,6 +217,11 @@ export function Reel(bruto: ReelProps) {
   const blocoMusica = duracaoMusica
     ? Math.max(fps, Math.floor(duracaoMusica * fps) - inicioMusica)
     : null;
+  // Cruzamento entre repetições: até 1,5 s (no máximo 1/4 da música).
+  const cruzaMusica = blocoMusica
+    ? Math.max(1, Math.min(Math.round(fps * 1.5), Math.floor(blocoMusica / 4)))
+    : 1;
+  const passoMusica = blocoMusica ? Math.max(fps, blocoMusica - cruzaMusica) : fps;
   const volumeMusica = (bruto: number) => {
     const f = Math.min(durationInFrames - 1, Math.max(0, Math.floor(Number(bruto) || 0)));
     const fadeIn = tl.musica.fade ? Math.min(1, f / (fps * 0.8)) : 1;
@@ -578,17 +583,30 @@ export function Reel(bruto: ReelProps) {
           o volume era calculado num quadro fracionado, dava NaN e o preview travava). */}
       {urlMusica &&
         (blocoMusica ? (
-          Array.from({ length: Math.ceil(durationInFrames / blocoMusica) }, (_, k) => (
+          // Cada repetição entra antes da anterior acabar e as duas se cruzam (sem "pulo" na volta).
+          Array.from({ length: Math.ceil(durationInFrames / passoMusica) }, (_, k) => (
             <Sequence
               key={`mus${k}`}
-              from={k * blocoMusica}
+              from={k * passoMusica}
               durationInFrames={blocoMusica}
               name={`Música ${k + 1}`}
             >
               <Audio
                 src={urlMusica}
                 trimBefore={inicioMusica}
-                volume={(f) => volumeMusica(k * blocoMusica + f)}
+                volume={(f) => {
+                  const g = Math.max(0, Math.floor(Number(f) || 0));
+                  const entra = k > 0 ? Math.min(1, g / cruzaMusica) : 1;
+                  const ultimo = (k + 1) * passoMusica >= durationInFrames;
+                  const sai = ultimo
+                    ? 1
+                    : Math.min(1, Math.max(0, (blocoMusica - g) / cruzaMusica));
+                  return (
+                    volumeMusica(k * passoMusica + g) *
+                    Math.sin((Math.PI / 2) * entra) *
+                    Math.sin((Math.PI / 2) * sai)
+                  );
+                }}
               />
             </Sequence>
           ))
