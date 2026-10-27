@@ -5,17 +5,9 @@ import { FONTES } from "@/video/fontes";
 import { ESTILOS_LEGENDA, LOOKS, TRANSICOES, normalizarTimeline } from "@/video/schema";
 import type { Analise, Referencia } from "@/lib/referencias";
 
-const PALETA_REFERENCIA = [
-  "composicao",
-  "mockup",
-  "cards-flutuantes",
-  "icones",
-  "broll",
-  "dividir",
-  "reagir",
-  "fundo-imagem",
-  "cta-final",
-];
+// Ao seguir referência, todo o visual sai da composição livre (cards, telas, ícones e imagens
+// viram elementos dela): os modelos prontos (cards-flutuantes, mockup, broll…) destoavam.
+const PALETA_REFERENCIA = ["composicao", "cta-final"];
 
 const valido = <T extends string>(lista: readonly T[], v?: string | null): T | undefined =>
   v && (lista as readonly string[]).includes(v) ? (v as T) : undefined;
@@ -76,7 +68,8 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
     .slice(0, 14)
     .map(
       (t) =>
-        `- ${t.nome} (${t.de}s–${t.ate}s, ${t.categoria}): ${t.como_reproduzir}${t.efeito_nosso ? ` → nosso: ${t.efeito_nosso}` : ""}`,
+        // O "efeito_nosso" da análise apontava para modelos prontos; aqui tudo vira composição.
+        `- ${t.nome} (${t.de}s–${t.ate}s, ${t.categoria}): ${t.como_reproduzir} → faça como elementos da /composicao`,
     )
     .join("\n");
   const pedido = enviarAoClaude(
@@ -98,12 +91,12 @@ ${JSON.stringify(a.layouts).slice(0, 6000)}`
 REGRAS AO SEGUIR A REFERÊNCIA:
 1. Copie só a FORMA: layout, grafismos, tipografia, cores, ritmo, transições e posição da legenda. NUNCA copie textos, marcas, nomes de produto, @, assunto ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo e da nossa marca.
 2. Não encurte o vídeo. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas.
-3. Os efeitos antigos foram apagados. Use /composicao (o visual da referência), /mockup e /cards para telas e cards, /icones para ilustrações, objetos e apps, MÍDIA REAL (/broll em janela ou tela cheia, /dividir, /reagir, /fundo-imagem, ou elemento "midia" dentro da /composicao) para as técnicas de imagem da referência, e /cta-final no fim. NÃO use palavra-gigante, letreiro, colagem, rabisco, partículas nem outros modelos prontos.
+3. Os efeitos antigos foram apagados. TODO o visual é feito com /composicao (composição livre, elemento por elemento, no desenho da referência): cards, listas, telas de app, números, ícones e imagens são ELEMENTOS da composição (caixa, texto, icone, midia, linha, brilho, pessoa). NÃO use nenhum modelo pronto: nada de cards-flutuantes, mockup, icones, broll, dividir, reagir, fundo-imagem, palavra-gigante, letreiro, colagem, rabisco ou partículas. Só /cta-final no fim, como último efeito.
 4. A pessoa NUNCA some da tela. Em /composicao use fundo "nenhum" (grafismos sobre o vídeo, no espaço livre) ou, para telas de UI com fundo sólido, inclua obrigatoriamente um elemento {"tipo":"pessoa"} num card arredondado (ex.: x 0.06, y 0.5, w 0.88, h 0.44) como na referência. Fundo sólido sem "pessoa" vira só escurecer.
-5. IMAGENS DA REFERÊNCIA (obrigatório): para CADA técnica de categoria "midia" acima (ilustrações, fotos, prints, b-roll, janelinhas, tela dividida), proponha a equivalente com o assunto DESTE vídeo, no mesmo momento relativo e no mesmo formato:
-   - ilustração, objeto, app ou logo → /icones (entrando na palavra exata) ou ícone dentro da /composicao;
-   - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 3 buscas) e use os ids devolvidos em /broll (janela, como na referência, ou tela cheia por 1–2 s), /fundo-imagem ou elemento "midia" da composição;
-   - print ou gravação de tela → mídia enviada deste vídeo em /dividir ou /mockup; sem print enviado, /mockup desenhando a tela com caixas e textos.
+5. IMAGENS DA REFERÊNCIA (obrigatório): para CADA técnica de categoria "midia" acima (ilustrações, fotos, prints, b-roll, janelinhas, tela dividida), coloque a equivalente com o assunto DESTE vídeo, no mesmo momento relativo, como elemento da /composicao com o mesmo acabamento da referência (tamanho, posição, cantos arredondados, borda, sombra, giro, entrada):
+   - ilustração, objeto, app ou logo → elemento {"tipo":"icone"} (ex.: planilha, whatsapp, dinheiro) entrando na palavra exata;
+   - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 3 buscas) e use o id devolvido num elemento {"tipo":"midia","midia":"<id>"} (janela com borda e raio, como na referência, ou grande atrás dos textos);
+   - print ou gravação de tela → mídia enviada deste vídeo num elemento "midia"; sem print enviado, desenhe a tela com caixas e textos dentro da composição.
    Use só ids de MÍDIAS ENVIADAS ou devolvidos por buscar_midia (id inventado é descartado). Nada de molduras vazias. Na resposta, diga em uma frase quais imagens você colocou e em que momento.
 6. Ritmo: no máximo um grafismo a cada 5–8 segundos, cada um com 2–4 s, e o vídeo respirando entre eles (você falando sem nada por cima).
 7. Nada em cima do rosto: o sistema desvia, mas planeje no espaço livre (acima da cabeça ou terço inferior, sem cobrir a legenda).
