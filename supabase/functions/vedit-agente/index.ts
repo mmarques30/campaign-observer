@@ -869,6 +869,29 @@ Deno.serve(async (req) => {
     (tl.efeitos ?? []).forEach((e: any, i: number) => {
       if (!e.id) e.id = `e${Date.now().toString(36)}${i}`;
     });
+    // Mídia com id que não existe neste vídeo (inventado ou de outro projeto) viraria moldura vazia:
+    // o elemento sai da composição e o efeito de mídia sem arquivo nem trecho ("tempo") é descartado.
+    const { data: midiasAgora } = await sb
+      .from("vedit_midias")
+      .select("id")
+      .eq("projeto_id", projeto_id);
+    const idsMidia = new Set((midiasAgora ?? []).map((m: any) => m.id));
+    const ok = (id: unknown) => typeof id === "string" && idsMidia.has(id);
+    if (Array.isArray(tl.efeitos))
+      tl.efeitos = tl.efeitos.filter((e: any) => {
+        const pr = e?.props ?? {};
+        if (e?.tipo === "composicao" && Array.isArray(pr.elementos))
+          pr.elementos = pr.elementos.filter((el: any) => el?.tipo !== "midia" || ok(el.midia));
+        if (Array.isArray(pr.midias)) pr.midias = pr.midias.filter(ok);
+        const precisa = ["broll", "dividir", "reagir", "fundo-imagem", "tela-verde"].includes(
+          e?.tipo,
+        );
+        if (!precisa) {
+          if (pr.midia !== undefined && !ok(pr.midia)) delete pr.midia;
+          return true;
+        }
+        return ok(pr.midia) || typeof pr.tempo === "number";
+      });
     versao += 1;
     upd.timeline = tl;
     upd.versao = versao;
