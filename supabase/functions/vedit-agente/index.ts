@@ -186,6 +186,7 @@ FORMATO DA TIMELINE
 {
   "versao": 1, "formato": "9:16"|"4:5"|"1:1", "fps": 30,
   "cortes": [{"de": s, "ate": s, "velocidade"?: 1.25|1.5|2}],  // trechos que FICAM, em ordem. [] = vídeo inteiro. velocidade acelera o trecho (omitida = normal)
+  "ordemLivre"?: true,  // com true os trechos tocam NA ORDEM DA LISTA (dá para puxar o CTA do fim para o segundo 29, por exemplo); sem ele, na ordem do original. Se já estiver true, mantenha e preserve a ordem dos cortes.
   "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
   "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
   "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto", "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "tamanho": 0.5–1.8 (1 = padrão; "legenda maior/menor" → ±0.15), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
@@ -231,6 +232,8 @@ ESTILO VISUAL DESTE VÍDEO: "${estilo}". Siga as regras desse estilo (lista em E
 
 MODELO DE EDIÇÃO: se timeline.modelo existir, a pessoa salvou esse padrão de um vídeo que aprovou. Mantenha legenda, posição/altura, look, transição, zoom e música como estão na timeline (não troque sem ela pedir), use de preferência os tipos de efeito em timeline.modelo.efeitos (na mesma ordem de preferência) e mire em ~timeline.modelo.ritmo efeitos por minuto. Siga timeline.modelo.notas. Sempre devolva "modelo" igual ao recebido.
 
+MUDAR A ORDEM: "o CTA sai do segundo 47 e vai pro 29", "começa pela parte X" → ponha "ordemLivre": true e escreva os cortes na ordem em que devem TOCAR (o trecho do CTA no meio da lista). Os efeitos continuam em segundos do ORIGINAL.
+ÁUDIO / GESTO: fala que imita um áudio ou relato ("olha esse processo: quando o cliente entra…") → efeito "nota-de-voz" com de/ate exatamente no relato (a voz ganha timbre de áudio sozinha). Lista falada com a pessoa apontando → "lista-apontada" (um card por item, no instante da fala). Nunca monte essas duas coisas com "composicao".
 CORTES À MÃO: a pessoa também corta pelo roteiro (aba Cortes). Ao receber pedidos como "tira de 0:12 a 0:15", "corta a parte que eu falo X" ou "essa pausa está longa", ajuste só "cortes" (segundos do ORIGINAL) e preserve o resto. VELOCIDADE: "acelera a parte X" / "deixa mais rápido de 0:20 a 0:30" → divida o trecho nesses pontos (segundos do ORIGINAL) e ponha "velocidade" (1.25, 1.5 ou 2) só nele; a voz mantém o tom. Ao mexer em cortes, SEMPRE preserve a "velocidade" dos trechos que já tinham.
 
 MARCA E TOM: ${instrucoes}
@@ -834,6 +837,8 @@ Deno.serve(async (req) => {
     // O modelo salvo não se perde se o Claude esquecer de devolver.
     if (tl.modelo === undefined && proj.timeline?.modelo) tl.modelo = proj.timeline.modelo;
     if (tl.audio === undefined && proj.timeline?.audio) tl.audio = proj.timeline.audio;
+    // Ordem livre dos trechos (CTA puxado para o meio, por ex.) não se perde se o Claude esquecer.
+    if (tl.ordemLivre === undefined && proj.timeline?.ordemLivre) tl.ordemLivre = true;
     // Velocidade dos trechos não se perde se o Claude reescrever os cortes sem ela.
     const velAntigos = ((proj.timeline?.cortes ?? []) as any[]).filter(
       (c) => c?.velocidade && c.velocidade !== 1,

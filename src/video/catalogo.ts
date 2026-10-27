@@ -30,6 +30,8 @@ import { Contorno, MolduraQuebrada, TextoAtras, TrocaFundo, Vertigo } from "./ef
 import { ICONES, Icones } from "./efeitos/icones";
 import { CardsFlutuantes, Mockup } from "./efeitos/mockup";
 import { Composicao } from "./efeitos/composicao";
+import { ListaApontada, NotaDeVoz } from "./efeitos/falados";
+import { ICONES_PH } from "./efeitos/icones-ph";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -52,6 +54,43 @@ export type EfeitoDef = {
 };
 
 export const EFEITOS: EfeitoDef[] = [
+  {
+    tipo: "nota-de-voz",
+    comando: "/audio",
+    nome: "Fala vira áudio (nota de voz)",
+    categoria: "interface",
+    descricao:
+      "O trecho falado vira um áudio tocando: balão escuro com botão, onda andando com a voz, tempo correndo e a transcrição aparecendo dentro do balão. A voz desse trecho troca para timbre de áudio de celular. A pessoa continua aparecendo atrás. Sem logo de app.",
+    quandoUsar:
+      'Quando a pessoa "lê" ou imita um áudio/relato ("olha esse processo: quando o cliente entra…", "o cliente me mandou isso"). de/ate = exatamente o trecho do relato (início da 1ª palavra ao fim da última). NÃO monte isso com composição livre.',
+    params:
+      "posicao?: 'inferior'(padrão)|'centro'|'superior', rotulo?: texto curto acima da onda (opcional), transcricao?: false (sem texto), som?: false (mantém a voz normal)",
+    duracaoPadrao: 8,
+    escondeLegenda: true,
+    disponivel: true,
+    componente: NotaDeVoz,
+  },
+  {
+    tipo: "lista-apontada",
+    comando: "/apontar",
+    nome: "Lista que segue o dedo",
+    categoria: "interface",
+    descricao:
+      "Cada item da fala entra onde a pessoa aponta: card com ícone + situação + etapa, no instante em que ela fala dele. Um item por vez (o anterior sai quando o próximo entra), nas cores da marca.",
+    quandoUsar:
+      'Lista falada com gesto ("o cliente entrou, é o gatilho; os documentos chegaram, é a entrada…"). Prefira a lista-editorial quando não há gesto. Um efeito cobre a lista inteira (de = 1º item, ate = fim do último).',
+    params: `itens: [{texto: situação curta ('O cliente entrou'), etapa?: rótulo ('Gatilho'), icone?: ícone Phosphor embutido (${Object.keys(
+      ICONES_PH,
+    )
+      .map((n) => "ph:" + n)
+      .join(
+        ", ",
+      )}), de: s do original em que o item entra, x?, y?: âncora 0–1 do card (fora do rosto), lado?: 'direita'|'esquerda'|'centro', px?, py?: ponta do dedo 0–1 (pulso no instante)}], numerar?: false`,
+    duracaoPadrao: 10,
+    escondeLegenda: true,
+    disponivel: true,
+    componente: ListaApontada,
+  },
   {
     tipo: "icones",
     comando: "/icone",
@@ -468,10 +507,11 @@ export const EFEITOS: EfeitoDef[] = [
     comando: "/caixa",
     nome: "Frase em caixa",
     categoria: "texto",
-    descricao: "Frase em caixa verde-musgo, com a palavra entre *asteriscos* em serifa itálica.",
+    descricao:
+      "Frase em caixa nas cores da marca, com a palavra entre *asteriscos* em serifa itálica.",
     quandoUsar: "Promessa ou frase de efeito no meio do vídeo.",
     params:
-      "texto (*x* = serifa itálica; aceita também **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [cor]x[/]), posicao: 'superior'|'centro'|'inferior', cor?",
+      "texto (*x* = serifa itálica; aceita também **negrito**, _itálico_, __sublinhado__, ~~riscado~~, [cor]x[/]), posicao: 'superior'|'centro'|'inferior', y?: 0–1 (altura exata do topo da caixa; use para não cobrir o rosto nem a legenda), cor?",
     duracaoPadrao: 3,
     somPadrao: "pop",
     disponivel: true,
