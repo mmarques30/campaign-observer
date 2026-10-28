@@ -200,7 +200,14 @@ function Fluxo({ v, c }: { v: Extract<Visual, { tipo: "fluxo" }>; c: Cores }) {
     >
       <svg width={W} height={H} style={{ position: "absolute", inset: 0 }}>
         <defs>
-          <linearGradient id="fx-liga" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient
+            id="fx-liga"
+            gradientUnits="userSpaceOnUse"
+            x1="0"
+            y1={yNos + nodeH}
+            x2="0"
+            y2={yCentro}
+          >
             <stop offset="0" stopColor={c.hi} stopOpacity={0.35} />
             <stop offset="1" stopColor={c.hi} stopOpacity={1} />
           </linearGradient>
