@@ -5,6 +5,7 @@ import { forwardRef, useEffect, useRef, useState, type CSSProperties, type React
 import { Bookmark, Send, UserPlus } from "lucide-react";
 import { FORMATOS, type Design, type Formato, type Slide } from "@/criativos/design";
 import type { FotoComUrl } from "@/lib/criativos";
+import { BotaoSlide, VisualSlide } from "./Visuais";
 
 type Props = {
   slide: Slide;
@@ -485,7 +486,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         )}
         <div
           style={{
-            fontSize: ajusta(s.titulo, 84, 56, 30),
+            fontSize: ajusta(s.titulo, s.visual ? 72 : 84, 50, 30),
             fontWeight: 900,
             lineHeight: 1.05,
             letterSpacing: -2,
@@ -493,7 +494,16 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         >
           <Rico t={s.titulo ?? ""} cor={cores.hi} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+        {s.visual && s.texto && (
+          <div
+            style={{ fontSize: ajusta(s.texto, 38, 30, 120), lineHeight: 1.35, color: cores.sub }}
+          >
+            <Rico t={s.texto} cor={cores.hi} peso={800} />
+          </div>
+        )}
+        {s.visual && <VisualSlide v={s.visual} c={cores} />}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
+        <div style={{ display: s.visual ? "none" : "flex", flexDirection: "column", gap: 26 }}>
           {itens.map((it, i) => (
             <div key={i} style={{ display: "flex", gap: 26, alignItems: "flex-start" }}>
               <div
@@ -633,11 +643,11 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "0 84px",
+          padding: s.visual ? "70px 80px 110px" : "0 84px",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          gap: 36,
+          gap: s.visual ? 34 : 36,
         }}
       >
         {s.rotulo && (
@@ -656,7 +666,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         {s.titulo && (
           <div
             style={{
-              fontSize: ajusta(s.titulo, 104, 60, 40),
+              fontSize: ajusta(s.titulo, s.visual ? 76 : 104, s.visual ? 52 : 60, 40),
               fontWeight: 900,
               lineHeight: 1.04,
               letterSpacing: -3,
@@ -665,19 +675,21 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <Rico t={s.titulo} cor={cores.hi} />
           </div>
         )}
+        {s.visual && <VisualSlide v={s.visual} c={cores} />}
         {s.texto && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <Paragrafos
               t={s.texto}
               cor={cores.hi}
               style={{
-                fontSize: ajusta(s.texto, 46, 34, 200),
+                fontSize: s.visual ? ajusta(s.texto, 36, 28, 160) : ajusta(s.texto, 46, 34, 200),
                 lineHeight: 1.38,
                 color: s.titulo ? cores.sub : cores.tx,
               }}
             />
           </div>
         )}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
       </div>
     );
   }

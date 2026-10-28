@@ -30,6 +30,47 @@ export const NOME_LAYOUT: Record<Layout, string> = {
 
 export const FUNDOS = ["escuro", "claro", "marca", "destaque"] as const;
 
+// Visual que explica o que o slide fala (layouts "texto" e "lista").
+export const visualSchema = z.discriminatedUnion("tipo", [
+  // cards lado a lado: ícone + título + detalhe + etiqueta (ex.: rotinas manuais)
+  z.object({
+    tipo: z.literal("cards"),
+    itens: z
+      .array(
+        z.object({
+          icone: z.string().nullish(),
+          titulo: z.string(),
+          detalhe: z.string().nullish(),
+          tag: z.string().nullish(),
+        }),
+      )
+      .min(1),
+  }),
+  // entradas → centro → saída (ex.: 3 rotinas → sistema → cresce sem contratar)
+  z.object({
+    tipo: z.literal("fluxo"),
+    entradas: z.array(z.string()).min(1),
+    icones: z.array(z.string()).nullish(),
+    centro: z.string(),
+    saida: z.string(),
+  }),
+  // gráfico de linhas (ex.: clientes x equipe); destaque = linha na cor de destaque
+  z.object({
+    tipo: z.literal("linhas"),
+    series: z
+      .array(
+        z.object({
+          nome: z.string(),
+          pontos: z.array(z.number()).min(2),
+          destaque: z.boolean().nullish(),
+        }),
+      )
+      .min(1),
+    eixo: z.array(z.string()).nullish(),
+  }),
+]);
+export type Visual = z.infer<typeof visualSchema>;
+
 export const slideSchema = z.object({
   id: z.string().default(() => Math.random().toString(36).slice(2, 9)),
   layout: z.enum(LAYOUTS).catch("texto"),
@@ -47,6 +88,9 @@ export const slideSchema = z.object({
   variante: z.enum(["impacto", "elegante"]).nullish(),
   // foco da foto de fundo (CSS object-position), ex.: "50% 20%"
   foco: z.string().nullish(),
+  visual: visualSchema.nullish().catch(null),
+  // botão de chamada em destaque no fim do slide, ex.: "Quero conversar"
+  botao: z.string().nullish(),
 });
 export type Slide = z.infer<typeof slideSchema>;
 
