@@ -11,7 +11,13 @@ export function Broll({ p, ctx, dur }: EfeitoProps) {
   const modo = p.modo ?? "tela-cheia";
   const ken = interpolate(frame, [0, dur], [1.06, 1.16]);
   const conteudo = (
-    <Midia ctx={ctx} midia={p.midia} tempo={p.tempo} style={{ transform: `scale(${ken})` }} />
+    <Midia
+      ctx={ctx}
+      midia={p.midia}
+      tempo={p.tempo}
+      // foco: recorte do vídeo deitado no quadro em pé (ex.: "80% 50%" mostra o lado direito)
+      style={{ transform: `scale(${ken})`, ...(p.foco ? { objectPosition: String(p.foco) } : {}) }}
+    />
   );
   if (modo === "janela") {
     return (

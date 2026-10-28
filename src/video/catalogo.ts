@@ -397,7 +397,7 @@ export const EFEITOS: EfeitoDef[] = [
     descricao: "Corte para outra imagem/vídeo: tela cheia, janela ou metade de cima.",
     quandoUsar: "Ilustrar o que está sendo falado, quebrar monotonia a cada 4–6s.",
     params:
-      "midia? (id enviado) | tempo? (outro trecho do original), modo: 'tela-cheia'|'janela'|'metade', legenda?",
+      "midia? (id enviado) | tempo? (outro trecho do original), modo: 'tela-cheia'|'janela'|'metade', legenda?, foco?: recorte do vídeo deitado em tela cheia ('80% 50%' mostra o lado direito)",
     duracaoPadrao: 2.5,
     somPadrao: "swipe",
     disponivel: true,
