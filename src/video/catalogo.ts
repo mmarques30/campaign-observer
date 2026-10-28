@@ -32,6 +32,7 @@ import { CardsFlutuantes, Mockup } from "./efeitos/mockup";
 import { Composicao } from "./efeitos/composicao";
 import { ListaApontada, NotaDeVoz } from "./efeitos/falados";
 import { ICONES_PH } from "./efeitos/icones-ph";
+import { Cards } from "./efeitos/cards";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -69,6 +70,25 @@ export const EFEITOS: EfeitoDef[] = [
     escondeLegenda: true,
     disponivel: true,
     componente: NotaDeVoz,
+  },
+  {
+    tipo: "cards",
+    comando: "/cards",
+    nome: "Cards modernos",
+    categoria: "interface",
+    descricao:
+      "Cards de vidro escuro com ícone na cor de destaque, que entram um a um no instante em que a pessoa fala de cada item e ficam na tela. Até 3 viram uma linha; 4 a 6 viram grade compacta. 'foco' acende um card e apaga os outros.",
+    quandoUsar:
+      'Lista ou grupos falados ("decidir, executar e repetir"; "cadastrar, conferir, atualizar…"). Use "foco" quando a fala volta a um dos itens ("decisões complexas, ótimo" → acende Decidir). Fica no topo, fora do rosto, e a legenda continua.',
+    params: `itens: [{titulo, icone?: ícone Phosphor embutido (${Object.keys(ICONES_PH)
+      .map((n) => "ph:" + n)
+      .join(
+        ", ",
+      )}), de?: s do original em que entra, detalhe?, tag?}], posicao?: 'superior'(padrão)|'centro'|'inferior', y?: 0–1, colunas?, foco?: [{indice, de}]`,
+    duracaoPadrao: 5,
+    somPadrao: "pop",
+    disponivel: true,
+    componente: Cards,
   },
   {
     tipo: "lista-apontada",
