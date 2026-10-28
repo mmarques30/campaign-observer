@@ -675,7 +675,11 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <Rico t={s.titulo} cor={cores.hi} />
           </div>
         )}
-        {s.visual && <VisualSlide v={s.visual} c={cores} />}
+        {s.visual && (
+          <div style={{ marginTop: 34, marginBottom: 10 }}>
+            <VisualSlide v={s.visual} c={cores} />
+          </div>
+        )}
         {s.texto && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <Paragrafos

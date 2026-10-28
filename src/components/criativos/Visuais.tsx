@@ -127,79 +127,83 @@ function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
 }
 
 function Fluxo({ v, c }: { v: Extract<Visual, { tipo: "fluxo" }>; c: Cores }) {
+  // De cima para baixo: entradas lado a lado → convergem no centro → seta → resultado.
   const ent = v.entradas.slice(0, 4);
-  const altEnt = 108,
-    gap = 26;
-  const H = ent.length * altEnt + (ent.length - 1) * gap;
-  const xEnt = 300,
-    xCentro = 400;
+  const W = 920,
+    liga = 96;
+  const larg = (W - (ent.length - 1) * 20) / ent.length;
+  const xs = ent.map((_, i) => i * (larg + 20) + larg / 2);
   return (
-    <div style={{ position: "relative", height: H, display: "flex", alignItems: "center" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap, width: xEnt }}>
+    <div style={{ width: W, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 20, width: W }}>
         {ent.map((e, i) => (
           <div
             key={i}
             style={{
               ...vidro(c),
-              height: altEnt,
-              borderRadius: 999,
+              width: larg,
+              height: 104,
+              borderRadius: 26,
               display: "flex",
               alignItems: "center",
-              gap: 14,
-              padding: "0 24px",
-              fontSize: 33,
+              justifyContent: "center",
+              gap: 12,
+              fontSize: ent.length > 3 ? 28 : 32,
               fontWeight: 700,
             }}
           >
-            <Icone nome={v.icones?.[i] ?? "manual"} cor={c.sub} tam={38} />
+            {v.icones?.[i] && <Icone nome={v.icones[i]} cor={c.sub} tam={36} />}
             {e}
           </div>
         ))}
       </div>
-      <svg
-        width={xCentro - xEnt}
-        height={H}
-        style={{ flexShrink: 0 }}
-        viewBox={`0 0 ${xCentro - xEnt} ${H}`}
-      >
-        {ent.map((_, i) => {
-          const y = i * (altEnt + gap) + altEnt / 2;
-          return (
-            <path
-              key={i}
-              d={`M4 ${y} C ${(xCentro - xEnt) / 2} ${y}, ${(xCentro - xEnt) / 2} ${H / 2}, ${xCentro - xEnt - 8} ${H / 2}`}
-              stroke={c.hi}
-              strokeWidth={4}
-              fill="none"
-              strokeDasharray="10 8"
-            />
-          );
-        })}
+      <svg width={W} height={liga} viewBox={`0 0 ${W} ${liga}`} style={{ display: "block" }}>
+        {xs.map((x, i) => (
+          <path
+            key={i}
+            d={`M${x} 4 C ${x} ${liga / 2}, ${W / 2} ${liga / 2}, ${W / 2} ${liga - 6}`}
+            stroke={c.hi}
+            strokeWidth={4}
+            fill="none"
+            strokeDasharray="10 8"
+          />
+        ))}
       </svg>
       <div
         style={{
-          width: 230,
-          height: Math.min(H, 300),
+          width: 520,
+          height: 128,
           borderRadius: 32,
           background: c.hi,
           color: c.bg,
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 12,
-          textAlign: "center",
-          padding: 20,
-          flexShrink: 0,
+          gap: 18,
           boxShadow: `0 0 60px ${c.hi}55`,
         }}
       >
-        <Icone nome="sistema" cor={c.bg} tam={64} />
-        <div style={{ fontSize: 34, fontWeight: 900, lineHeight: 1.05 }}>{v.centro}</div>
+        <Icone nome="sistema" cor={c.bg} tam={58} />
+        <div style={{ fontSize: 46, fontWeight: 900 }}>{v.centro}</div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0 }}>
-        <ArrowRight size={56} strokeWidth={3} color={c.hi} style={{ flexShrink: 0 }} />
-        <div style={{ fontSize: 34, fontWeight: 800, lineHeight: 1.15 }}>{v.saida}</div>
+      <svg width={40} height={70} viewBox="0 0 40 70" style={{ display: "block" }}>
+        <path d="M20 4 V58" stroke={c.hi} strokeWidth={5} />
+        <path d="M8 48 L20 62 L32 48" stroke={c.hi} strokeWidth={5} fill="none" />
+      </svg>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          padding: "22px 40px",
+          borderRadius: 999,
+          border: `3px solid ${c.hi}`,
+          fontSize: 38,
+          fontWeight: 800,
+        }}
+      >
+        <Icone nome="crescimento" cor={c.hi} tam={44} />
+        {v.saida}
       </div>
     </div>
   );
