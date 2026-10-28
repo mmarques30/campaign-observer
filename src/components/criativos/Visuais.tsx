@@ -127,84 +127,177 @@ function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
 }
 
 function Fluxo({ v, c }: { v: Extract<Visual, { tipo: "fluxo" }>; c: Cores }) {
-  // De cima para baixo: entradas lado a lado → convergem no centro → seta → resultado.
+  // Cara de editor de automação (n8n/Make): canvas com grade de pontos, nós com porta e
+  // ligações contínuas em degradê. Entradas no topo → nó central (sistema) → resultado.
   const ent = v.entradas.slice(0, 4);
   const W = 920,
-    liga = 96;
-  const larg = (W - (ent.length - 1) * 20) / ent.length;
-  const xs = ent.map((_, i) => i * (larg + 20) + larg / 2);
+    pad = 34,
+    nodeH = 132,
+    liga = 110,
+    centroH = 150,
+    liga2 = 84,
+    saidaH = 112;
+  const inner = W - pad * 2;
+  const larg = (inner - (ent.length - 1) * 18) / ent.length;
+  const xs = ent.map((_, i) => pad + i * (larg + 18) + larg / 2);
+  const yNos = pad;
+  const yCentro = yNos + nodeH + liga;
+  const ySaida = yCentro + centroH + liga2;
+  const H = ySaida + saidaH + pad;
+  const cx = W / 2;
+  const porta = (x: number, y: number, cheia = false) => (
+    <div
+      style={{
+        position: "absolute",
+        left: x - 9,
+        top: y - 9,
+        width: 18,
+        height: 18,
+        borderRadius: "50%",
+        background: cheia ? c.hi : c.bg,
+        border: `3px solid ${c.hi}`,
+        boxShadow: `0 0 14px ${c.hi}99`,
+      }}
+    />
+  );
+  const no: CSSProperties = {
+    position: "absolute",
+    borderRadius: 24,
+    background: `linear-gradient(180deg, ${c.tx}12, ${c.tx}06)`,
+    border: `1.5px solid ${c.tx}24`,
+    boxShadow: `0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 ${c.tx}14`,
+    display: "flex",
+    alignItems: "center",
+  };
+  const tile = (nome: string, cheio = false, t = 60) => (
+    <div
+      style={{
+        width: t,
+        height: t,
+        borderRadius: 16,
+        flexShrink: 0,
+        background: cheio ? c.hi : `${c.hi}22`,
+        border: cheio ? "none" : `1.5px solid ${c.hi}55`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Icone nome={nome} cor={cheio ? c.bg : c.hi} tam={Math.round(t * 0.55)} />
+    </div>
+  );
   return (
-    <div style={{ width: W, display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ display: "flex", gap: 20, width: W }}>
-        {ent.map((e, i) => (
-          <div
-            key={i}
-            style={{
-              ...vidro(c),
-              width: larg,
-              height: 104,
-              borderRadius: 26,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 12,
-              fontSize: ent.length > 3 ? 28 : 32,
-              fontWeight: 700,
-            }}
-          >
-            {v.icones?.[i] && <Icone nome={v.icones[i]} cor={c.sub} tam={36} />}
+    <div
+      style={{
+        position: "relative",
+        width: W,
+        height: H,
+        borderRadius: 36,
+        overflow: "hidden",
+        border: `1.5px solid ${c.tx}1A`,
+        background: `radial-gradient(${c.tx}1F 1.6px, transparent 1.6px) 0 0 / 28px 28px, linear-gradient(180deg, ${c.tx}08, transparent)`,
+      }}
+    >
+      <svg width={W} height={H} style={{ position: "absolute", inset: 0 }}>
+        <defs>
+          <linearGradient id="fx-liga" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor={c.hi} stopOpacity={0.35} />
+            <stop offset="1" stopColor={c.hi} stopOpacity={1} />
+          </linearGradient>
+        </defs>
+        {xs.map((x, i) => {
+          const y0 = yNos + nodeH,
+            y1 = yCentro;
+          return (
+            <path
+              key={i}
+              d={`M${x} ${y0} C ${x} ${y0 + liga * 0.65}, ${cx} ${y1 - liga * 0.65}, ${cx} ${y1}`}
+              stroke="url(#fx-liga)"
+              strokeWidth={4}
+              fill="none"
+              strokeLinecap="round"
+            />
+          );
+        })}
+        <path
+          d={`M${cx} ${yCentro + centroH} L${cx} ${ySaida}`}
+          stroke={c.hi}
+          strokeWidth={4}
+          strokeLinecap="round"
+        />
+      </svg>
+      {ent.map((e, i) => (
+        <div
+          key={i}
+          style={{
+            ...no,
+            left: xs[i] - larg / 2,
+            top: yNos,
+            width: larg,
+            height: nodeH,
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: 12,
+          }}
+        >
+          {tile(v.icones?.[i] ?? "manual", false, 56)}
+          <div style={{ fontSize: ent.length > 3 ? 26 : 30, fontWeight: 700, letterSpacing: -0.3 }}>
             {e}
           </div>
-        ))}
-      </div>
-      <svg width={W} height={liga} viewBox={`0 0 ${W} ${liga}`} style={{ display: "block" }}>
-        {xs.map((x, i) => (
-          <path
-            key={i}
-            d={`M${x} 4 C ${x} ${liga / 2}, ${W / 2} ${liga / 2}, ${W / 2} ${liga - 6}`}
-            stroke={c.hi}
-            strokeWidth={4}
-            fill="none"
-            strokeDasharray="10 8"
-          />
-        ))}
-      </svg>
+        </div>
+      ))}
+      {xs.map((x, i) => (
+        <div key={`p${i}`}>{porta(x, yNos + nodeH)}</div>
+      ))}
       <div
         style={{
+          ...no,
+          left: cx - 260,
+          top: yCentro,
           width: 520,
-          height: 128,
-          borderRadius: 32,
-          background: c.hi,
-          color: c.bg,
-          display: "flex",
-          alignItems: "center",
+          height: centroH,
+          padding: "0 30px",
+          gap: 22,
+          background: `linear-gradient(135deg, ${c.hi}30, ${c.hi}0A)`,
+          border: `2px solid ${c.hi}`,
+          boxShadow: `0 0 0 8px ${c.hi}14, 0 0 70px ${c.hi}40`,
+        }}
+      >
+        {tile("sistema", true, 84)}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ fontSize: 46, fontWeight: 900, letterSpacing: -1, lineHeight: 1 }}>
+            {v.centro}
+          </div>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: c.hi,
+            }}
+          >
+            automático · com IA
+          </div>
+        </div>
+      </div>
+      {porta(cx, yCentro, true)}
+      {porta(cx, yCentro + centroH, true)}
+      <div
+        style={{
+          ...no,
+          left: cx - 300,
+          top: ySaida,
+          width: 600,
+          height: saidaH,
           justifyContent: "center",
           gap: 18,
-          boxShadow: `0 0 60px ${c.hi}55`,
         }}
       >
-        <Icone nome="sistema" cor={c.bg} tam={58} />
-        <div style={{ fontSize: 46, fontWeight: 900 }}>{v.centro}</div>
+        {tile("crescimento", true, 60)}
+        <div style={{ fontSize: 38, fontWeight: 800, letterSpacing: -0.5 }}>{v.saida}</div>
       </div>
-      <svg width={40} height={70} viewBox="0 0 40 70" style={{ display: "block" }}>
-        <path d="M20 4 V58" stroke={c.hi} strokeWidth={5} />
-        <path d="M8 48 L20 62 L32 48" stroke={c.hi} strokeWidth={5} fill="none" />
-      </svg>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 16,
-          padding: "22px 40px",
-          borderRadius: 999,
-          border: `3px solid ${c.hi}`,
-          fontSize: 38,
-          fontWeight: 800,
-        }}
-      >
-        <Icone nome="crescimento" cor={c.hi} tam={44} />
-        {v.saida}
-      </div>
+      {porta(cx, ySaida, true)}
     </div>
   );
 }
