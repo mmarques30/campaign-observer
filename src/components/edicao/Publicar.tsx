@@ -204,7 +204,7 @@ export function Publicar({
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && !ocupado && onFechar()}>
-      <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[92vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>Publicar "{projeto.nome}"</DialogTitle>
           <DialogDescription>
@@ -218,7 +218,10 @@ export function Publicar({
             não estão nele. Feche e clique em Renderizar para publicar o vídeo atualizado.
           </div>
         )}
-        <Tabs defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}>
+        <Tabs
+          className="min-w-0"
+          defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
+        >
           <TabsList className="grid grid-cols-3">
             <TabsTrigger value="anuncio">
               <Megaphone className="h-4 w-4 mr-1" />

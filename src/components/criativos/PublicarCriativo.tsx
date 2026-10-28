@@ -279,7 +279,7 @@ export function PublicarCriativo({
 
   return (
     <Dialog open={aberto} onOpenChange={(o) => !o && !ocupado && onFechar()}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[92vh] overflow-y-auto overflow-x-hidden [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle>Publicar "{projeto.nome}"</DialogTitle>
           <DialogDescription>
@@ -287,7 +287,10 @@ export function PublicarCriativo({
             {projeto.formato}
           </DialogDescription>
         </DialogHeader>
-        <Tabs defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}>
+        <Tabs
+          className="min-w-0"
+          defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
+        >
           <TabsList className="grid grid-cols-2">
             <TabsTrigger value="instagram">
               <Instagram className="h-4 w-4 mr-1" /> Instagram
