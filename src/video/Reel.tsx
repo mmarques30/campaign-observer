@@ -268,6 +268,14 @@ export function Reel(bruto: ReelProps) {
     return (emNota && props.vozUrls?.audio) || somExterno;
   };
 
+  // Som de cada trecho entra e sai em rampa curta: sem estalo no corte. Com transição "suave"
+  // a rampa é maior (o corte de voz fica imperceptível, como o dissolve na imagem).
+  const volumeNoCorte = (t: Trecho) => {
+    const total = Math.max(1, Math.round(duracaoTrecho(t) * fps));
+    const r = tl.visual.transicao === "suave" ? 4 : 2;
+    return (q: number) => volumeVoz * Math.max(0, Math.min(1, (q + 1) / r, (total - q) / r));
+  };
+
   // Efeito de transição no início de cada trecho (menos o primeiro).
   const inicioTrechoAtual = [...trechos]
     .reverse()
@@ -510,7 +518,7 @@ export function Reel(bruto: ReelProps) {
                     playbackRate={t.vel}
                     // Som: voz limpa se existir; senão, no preview o WAV leve e no render o do vídeo.
                     muted={!!vozDoTrecho(t)}
-                    volume={vozDoTrecho(t) ? undefined : volumeVoz}
+                    volume={vozDoTrecho(t) ? undefined : volumeNoCorte(t)}
                     pauseWhenBuffering
                     onError={
                       getRemotionEnvironment().isRendering
@@ -530,7 +538,7 @@ export function Reel(bruto: ReelProps) {
                       src={vozDoTrecho(t)!}
                       trimBefore={Math.round(t.de * fps)}
                       playbackRate={t.vel}
-                      volume={volumeVoz}
+                      volume={volumeNoCorte(t)}
                     />
                   )}
                 </Sequence>

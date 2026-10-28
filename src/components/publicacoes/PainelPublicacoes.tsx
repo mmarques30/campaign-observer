@@ -21,6 +21,7 @@ import {
   CalendarClock,
   ExternalLink,
   Instagram,
+  Link2,
   Loader2,
   Megaphone,
   RefreshCw,
@@ -198,6 +199,28 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
     }
   }
 
+  // Liga anúncios publicados direto na Meta (fora daqui) ao vídeo/criativo de origem.
+  // O servidor também faz isso sozinho uma vez por hora.
+  const [vinculando, setVinculando] = useState(false);
+  async function vincular() {
+    setVinculando(true);
+    try {
+      const r = await callEdgeFunction("publicar-agendados", { acao: "vincular" });
+      if (r.error) throw new Error(r.error);
+      const n = (r.ligados ?? []).length;
+      await qc.invalidateQueries({ queryKey: ["publicacoes", origem] });
+      toast.success(
+        n
+          ? `${n} anúncio${n > 1 ? "s" : ""} da Meta ligado${n > 1 ? "s" : ""}: ${(r.ligados as { anuncio: string }[]).map((x) => x.anuncio).join(", ")}`
+          : "Nenhum anúncio novo para ligar.",
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setVinculando(false);
+    }
+  }
+
   async function cancelar(p: Pub) {
     await db()
       .from("publicacoes")
@@ -318,6 +341,20 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
           variant="outline"
           size="sm"
           className="ml-auto"
+          onClick={vincular}
+          disabled={vinculando}
+          title="Liga ao vídeo ou criativo os anúncios que você publicou direto na Meta"
+        >
+          {vinculando ? (
+            <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+          ) : (
+            <Link2 className="h-4 w-4 mr-1.5" />
+          )}
+          Buscar anúncios da Meta
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={atualizarMetricas}
           disabled={atualizando || !publicados.length}
         >

@@ -65,7 +65,40 @@ export function VideoNosCortes({
             </AbsoluteFill>
           </Sequence>
         ))}
+      {/* Transição "suave": o fim do trecho anterior se dissolve por cima do novo (como no vídeo base). */}
+      {ctx.tl.visual.transicao === "suave" &&
+        ctx.trechos.slice(1).map((t, k) => {
+          const ant = ctx.trechos[k];
+          const d = Math.min(8, Math.round(duracaoTrecho(t) * fps) - 1);
+          const de = Math.round((t.saidaDe - inicio) * fps);
+          if (d < 3 || t.saidaDe < inicio || t.saidaDe >= fim) return null;
+          return (
+            <Sequence key={`d${k}`} from={de} durationInFrames={d} layout="none">
+              <Dissolvendo dur={d}>
+                <OffthreadVideo
+                  src={src}
+                  muted
+                  transparent
+                  trimBefore={Math.round(ant.ate * fps)}
+                  style={s}
+                  onError={aoErrar()}
+                />
+              </Dissolvendo>
+            </Sequence>
+          );
+        })}
     </>
+  );
+}
+
+function Dissolvendo({ dur, children }: { dur: number; children: React.ReactNode }) {
+  const frame = useCurrentFrame();
+  return (
+    <AbsoluteFill
+      style={{ opacity: interpolate(frame, [0, dur], [1, 0], { extrapolateRight: "clamp" }) }}
+    >
+      {children}
+    </AbsoluteFill>
   );
 }
 

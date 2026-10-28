@@ -33,6 +33,7 @@ import { Composicao } from "./efeitos/composicao";
 import { ListaApontada, NotaDeVoz } from "./efeitos/falados";
 import { ICONES_PH } from "./efeitos/icones-ph";
 import { Cards } from "./efeitos/cards";
+import { Fluxo } from "./efeitos/fluxo";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -84,11 +85,27 @@ export const EFEITOS: EfeitoDef[] = [
       .map((n) => "ph:" + n)
       .join(
         ", ",
-      )}), de?: s do original em que entra, detalhe?, tag?}], posicao?: 'superior'(padrão)|'centro'|'inferior', y?: 0–1, colunas?, foco?: [{indice, de}]`,
+      )}), logo?: id de mídia de um logo (empresa, ferramenta; aparece numa placa branca no lugar do ícone), de?: s do original em que entra, detalhe?, tag?}], posicao?: 'superior'(padrão)|'centro'|'inferior', y?: 0–1, colunas?, foco?: [{indice, de}]`,
     duracaoPadrao: 5,
     somPadrao: "pop",
     disponivel: true,
     componente: Cards,
+  },
+  {
+    tipo: "fluxo",
+    comando: "/fluxo",
+    nome: "Fluxo vivo",
+    categoria: "interface",
+    descricao:
+      "A operação desenhada como um fluxo de automação (estilo n8n): nós entram no instante da fala, as conexões se desenham e os dados correm por elas. Nó 'trava' fica vermelho e o fluxo para antes dele; nó 'espera' gira um relógio. Uma linha de leitura varre o fluxo ('mapeando').",
+    quandoUsar:
+      'Processo, etapas ou mapeamento da operação falados em sequência ("quem faz o quê, onde trava, quem espera quem"; "entra o pedido, confere, fatura"). Mais vivo que cards para etapas encadeadas. Fica no topo, fora do rosto.',
+    params:
+      "nos: [{titulo, icone?: ícone Phosphor (os mesmos dos cards), de?: s do original, estado?: 'ok'|'trava'|'espera', rotulo?: texto do selo (padrão ok/travado/aguardando)}] (2 a 4), titulo?: texto do cabeçalho (padrão 'mapeando a operação'), y?: 0–1 (topo do fluxo, padrão 0.1)",
+    duracaoPadrao: 5,
+    somPadrao: "pop",
+    disponivel: true,
+    componente: Fluxo,
   },
   {
     tipo: "lista-apontada",
