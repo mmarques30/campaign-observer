@@ -314,7 +314,7 @@ O design é um JSON. Você o grava com a ferramenta salvar_design (sempre o desi
  "autor": {"nome":"Mariana Marques","arroba":"marimarquescb","foto":"<id de foto de rosto para o avatar>","verificado":true},
  "mostrarNumeracao": true,
  "legendaPost": "legenda sugerida para o post: 1ª linha que prende, parágrafos curtos, CTA igual ao do último slide e no máximo 3 hashtags no fim",
- "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%" } ]
+ "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar" } ]
 }
 
 Layouts (use só estes):
@@ -326,6 +326,13 @@ Layouts (use só estes):
 - lista: titulo + itens numerados (3 a 6 itens curtos).
 - foto: foto inteira com título/texto curto embaixo.
 - cta: slide final com avatar grande, chamada e botões Salve/Envie/Siga automáticos.
+
+Visual que explica a fala (campo "visual", nos layouts texto e lista; na lista ele substitui os itens numerados e o texto vem antes dele). Use quando o slide fala de processo, números ou antes/depois e uma imagem ajudaria a entender:
+- {"tipo":"cards","itens":[{"icone":"lancamento","titulo":"Lançamento","detalhe":"nota por nota, digitado à mão","tag":"máquina faz"}]} (até 4 cards).
+- {"tipo":"fluxo","entradas":["Lançamento","Conciliação","Fechamento"],"icones":["lancamento","conciliacao","fechamento"],"centro":"Sistema","saida":"Cresce sem contratar"}.
+- {"tipo":"linhas","series":[{"nome":"carteira","pontos":[2,3,4.3,5.6,7],"destaque":true},{"nome":"equipe","pontos":[3,3.1,3.2,3.2,3.3]}],"eixo":["antes","","","","com sistema"]} (tendência ilustrativa; nunca invente número exato como se fosse dado).
+Ícones: teclado, lancamento, conciliacao, fechamento, calendario, mao, manual, robo, ia, sistema, check, relogio, documento, planilha, banco, cliente, contratar, equipe, grafico, crescimento, dinheiro, margem, alerta, empresa, conversa, sono.
+Botão (campo "botao"): chamada final em destaque, ex.: "Quero conversar" (a seta entra sozinha). Quando houver botão, não repita a chamada no texto.
 
 Regras de qualidade:
 - **palavra** destaca na cor de destaque. Use em 1-3 palavras-chave por slide, nunca em frases inteiras.
@@ -340,7 +347,7 @@ Regras de qualidade:
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
 - REFERÊNCIA (quando houver) é o molde, slide a slide: o slide N do criativo segue o papel, o layout e a densidade de texto do slide N da referência ("estrutura" e "layouts" da análise e as imagens dela). Se o conteúdo tiver mais slides que a referência, repita o padrão dos slides do meio; se tiver menos, mantenha capa, miolo e fechamento. Copie o acabamento (tipografia, cores, caixa alta, posição da foto, numeração), nunca o texto.
 - Sem roteiro, escreva o conteúdo a partir do briefing (e do molde da referência, se houver).
-- Em ajustes pelo chat, mude só o que foi pedido e preserve o resto (ids dos slides inclusive).
+- Em ajustes pelo chat, mude só o que foi pedido e preserve o resto (ids dos slides, "visual" e "botao" inclusive).
 Depois de salvar, responda em 1-3 frases curtas o que fez (sem listar slide por slide).`;
 
 const FERRAMENTAS = [
