@@ -5,9 +5,12 @@
 //   POST { acao: "previa", audio_id, titulo?, artista? }    → prévia para ouvir antes de escolher (Instagram ou iTunes)
 //   POST { acao: "metricas", ids? }                         → atualiza alcance, curtidas, salvamentos…
 //   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
+//   POST { acao: "vincular", simular? }                     → liga anúncios publicados direto na Meta ao vídeo/criativo
+//                                                             (o cron também faz isso uma vez por hora)
 // O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
 // Reel pode ficar processando e é concluído na rodada seguinte (status "publicando" + container_id).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { vincularAnuncios } from "./vincular.ts";
 
 const V = "v22.0"; // a API de áudio (músicas em alta) está documentada a partir da v22
 const CORS = {
@@ -75,6 +78,10 @@ async function graph(
     throw new Error(`Instagram: ${j.error?.error_user_msg || j.error?.message || r.status}`);
   return j;
 }
+
+/** Leitura na API de anúncios (o ids=... em lote usa o caminho vazio). */
+const graphMeta = (token: string) => (path: string, params: Record<string, string>) =>
+  graph("GET", path, token, params);
 
 let igCache: string | null = null;
 async function contaInstagram(sb: any, token: string) {
@@ -341,7 +348,14 @@ Deno.serve(async (req) => {
       const resultados = await processar(sb);
       // Métricas: a cada rodada, as mais desatualizadas (cada uma é revista a cada ~3 h).
       const medidas = await atualizarMetricas(sb).catch(() => 0);
-      return json({ ok: true, resultados, medidas });
+      // Uma vez por hora: liga anúncios publicados direto na Meta ao vídeo/criativo de origem.
+      const vinculos =
+        new Date().getUTCMinutes() < 5
+          ? await vincularAnuncios(sb, graphMeta(await tokenMeta(sb))).catch((e) => ({
+              erro: String(e),
+            }))
+          : null;
+      return json({ ok: true, resultados, medidas, vinculos });
     }
     const b = await req.json().catch(() => ({}));
     if (b.acao === "conta") {
@@ -404,6 +418,11 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         medidas: await atualizarMetricas(sb, Array.isArray(b.ids) ? b.ids : undefined),
+      });
+    if (b.acao === "vincular")
+      return json({
+        ok: true,
+        ...(await vincularAnuncios(sb, graphMeta(await tokenMeta(sb)), 45, !!b.simular)),
       });
     if (b.acao === "agora") {
       const p = await pegar(sb, String(b.id ?? ""));

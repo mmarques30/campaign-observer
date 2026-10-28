@@ -1,12 +1,19 @@
-// Cards modernos (vidro escuro, ícone na cor de destaque) que entram um a um no instante em
-// que a pessoa fala de cada item e ficam na tela. "foco" acende um card e apaga os outros.
+// Cards modernos (vidro escuro, ícone na cor de destaque ou logo) que entram um a um no instante
+// em que a pessoa fala de cada item e ficam na tela. "foco" acende um card e apaga os outros.
 import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
 import { paraSaida } from "../tempo";
-import { u, useEntradaSaida, type EfeitoProps } from "./base";
+import { Midia, u, useEntradaSaida, type EfeitoProps } from "./base";
 import { comAlfa, IconeCor } from "./falados";
 
-type Item = { titulo: string; icone?: string; de?: number; detalhe?: string; tag?: string };
+type Item = {
+  titulo: string;
+  icone?: string;
+  logo?: string; // id de mídia (ou URL) de um logo: aparece numa placa branca no lugar do ícone
+  de?: number;
+  detalhe?: string;
+  tag?: string;
+};
 type Foco = { indice: number; de: number };
 
 export function Cards({ p, ctx, dur }: EfeitoProps) {
@@ -88,25 +95,43 @@ export function Cards({ p, ctx, dur }: EfeitoProps) {
                 gap: (compacto ? 12 : 14) * k,
               }}
             >
-              <div
-                style={{
-                  width: (compacto ? 56 : 72) * k,
-                  height: (compacto ? 56 : 72) * k,
-                  borderRadius: 18 * k,
-                  flexShrink: 0,
-                  background: emFoco ? m.destaque : comAlfa(m.destaque, 0.16),
-                  border: `${1.5 * k}px solid ${comAlfa(m.destaque, 0.45)}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <IconeCor
-                  nome={it.icone ?? "ph:check-circle-bold"}
-                  cor={emFoco ? m.fundo : m.destaque}
-                  tamanho={(compacto ? 32 : 42) * k}
-                />
-              </div>
+              {it.logo ? (
+                // Logo (empresa, ferramenta): placa branca na largura do card, sem distorcer.
+                <div
+                  style={{
+                    alignSelf: "stretch",
+                    height: (compacto ? 70 : 104) * k,
+                    borderRadius: 16 * k,
+                    background: "#fff",
+                    padding: `${12 * k}px ${16 * k}px`,
+                    boxSizing: "border-box",
+                    flexShrink: 0,
+                    width: compacto ? 120 * k : undefined,
+                  }}
+                >
+                  <Midia ctx={ctx} midia={it.logo} style={{ objectFit: "contain" }} />
+                </div>
+              ) : (
+                <div
+                  style={{
+                    width: (compacto ? 56 : 72) * k,
+                    height: (compacto ? 56 : 72) * k,
+                    borderRadius: 18 * k,
+                    flexShrink: 0,
+                    background: emFoco ? m.destaque : comAlfa(m.destaque, 0.16),
+                    border: `${1.5 * k}px solid ${comAlfa(m.destaque, 0.45)}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <IconeCor
+                    nome={it.icone ?? "ph:check-circle-bold"}
+                    cor={emFoco ? m.fundo : m.destaque}
+                    tamanho={(compacto ? 32 : 42) * k}
+                  />
+                </div>
+              )}
               <div style={{ minWidth: 0 }}>
                 <div
                   style={{
