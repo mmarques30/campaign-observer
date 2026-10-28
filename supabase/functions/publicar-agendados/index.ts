@@ -2,7 +2,7 @@
 //   GET (cron a cada 5 min) ou POST { acao: "processar" } → publica o que já venceu
 //   POST { acao: "conta" }                                  → qual perfil publica (nada é publicado)
 //   POST { acao: "musicas", busca? }                        → músicas do Instagram (em alta sem busca)
-//   POST { acao: "previa", audio_id }                       → link para ouvir a música antes de escolher
+//   POST { acao: "previa", audio_id, titulo?, artista? }    → prévia para ouvir antes de escolher (Instagram ou iTunes)
 //   POST { acao: "metricas", ids? }                         → atualiza alcance, curtidas, salvamentos…
 //   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
 // O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
@@ -21,6 +21,32 @@ const json = (d: unknown, s = 200) =>
     headers: { ...CORS, "Content-Type": "application/json" },
   });
 const BUCKET = "video-edicao";
+
+/** Prévia de 30 s (m4a) da faixa no iTunes, pelo título + artista. null se não achar. */
+async function previaItunes(titulo: string, artista: string): Promise<string | null> {
+  const limpa = (t: string) =>
+    t
+      .replace(/\(.*?\)|\[.*?\]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  const termos = [`${limpa(titulo)} ${artista.split(",")[0]}`, limpa(titulo)];
+  for (const termo of termos) {
+    for (const pais of ["BR", "US"]) {
+      try {
+        const r = await fetch(
+          `https://itunes.apple.com/search?term=${encodeURIComponent(termo)}&entity=song&limit=5&country=${pais}`,
+          { signal: AbortSignal.timeout(6000) },
+        );
+        const j = await r.json();
+        const achou = (j.results ?? []).find((x: any) => x.previewUrl);
+        if (achou) return achou.previewUrl;
+      } catch (_) {
+        /* tenta o próximo */
+      }
+    }
+  }
+  return null;
+}
 
 async function tokenMeta(sb: any): Promise<string> {
   const { data } = await sb.rpc("get_secret", { secret_name: "META_ADS_TOKEN" });
@@ -334,8 +360,12 @@ Deno.serve(async (req) => {
         audio_type: "music",
         user_id: ig,
         ...(busca ? { search_query: busca } : {}),
+        limit: "50",
       });
-      const musicas = (j.audio ?? j.data ?? []).map((a: any) => ({
+      // A API não dá contagem de uso: a ordem da lista sem busca é a posição em alta.
+      const musicas = (j.audio ?? j.data ?? []).map((a: any, i: number) => ({
+        posicao: busca ? null : i + 1,
+        anuncio: a.is_ads_eligible ?? null,
         audio_id: String(a.audio_id ?? a.id),
         titulo: a.title ?? "",
         artista: a.display_artist ?? "",
@@ -347,12 +377,25 @@ Deno.serve(async (req) => {
     }
     if (b.acao === "previa") {
       // Prévia (link temporário) e capa de uma música, para ouvir antes de escolher.
-      const token = await tokenMeta(sb);
-      const ig = await contaInstagram(sb, token);
-      const a = await graph("GET", String(b.audio_id ?? ""), token, { user_id: ig });
+      // deno-lint-ignore no-explicit-any
+      let a: any = {};
+      try {
+        const token = await tokenMeta(sb);
+        const ig = await contaInstagram(sb, token);
+        a = await graph("GET", String(b.audio_id ?? ""), token, { user_id: ig });
+      } catch (_) {
+        /* sem os dados do Instagram, tenta a prévia só pelo título e artista */
+      }
+      // O Instagram quase nunca libera o arquivo: busca a prévia de 30 s da mesma faixa no iTunes.
+      let previa: string | null = a.download_url ?? null;
+      if (!previa && (b.titulo || a.title))
+        previa = await previaItunes(
+          String(b.titulo ?? a.title ?? ""),
+          String(b.artista ?? a.display_artist ?? ""),
+        );
       return json({
         ok: true,
-        previa: a.download_url ?? null,
+        previa,
         capa: a.cover_artwork_thumbnail_url ?? a.cover_artwork_thumbnail_uri ?? null,
         link: a.on_platform_audio_preview_link ?? null,
       });
