@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bookmark, Check, Loader2, Trash2 } from "lucide-react";
+import { Bookmark, Check, LayoutTemplate, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { SlideEscalado } from "@/components/criativos/SlideView";
 import { db } from "@/lib/vedit";
-import { useFotos } from "@/lib/criativos";
+import { chamarAgente, useFotos } from "@/lib/criativos";
 import { normalizarDesign, type CriaProjeto, type Design, type Formato } from "@/criativos/design";
 import { cn } from "@/lib/utils";
 
@@ -220,5 +220,82 @@ export function EscolherModelo({
         })}
       </div>
     </div>
+  );
+}
+
+/** Botão + janela "Aplicar modelo" do editor: refaz o criativo na estrutura/visual do modelo,
+ * mantendo o conteúdo que já está nele. */
+export function AplicarModelo({
+  projeto,
+  disabled,
+  temAlteracaoNaoSalva,
+}: {
+  projeto: CriaProjeto;
+  disabled?: boolean;
+  temAlteracaoNaoSalva?: boolean;
+}) {
+  const qc = useQueryClient();
+  const modelos = useModelos();
+  const [aberto, setAberto] = useState(false);
+  const [modelo, setModelo] = useState<CriaModelo | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  if (modelos.isError || !(modelos.data ?? []).length) return null;
+
+  async function aplicar() {
+    if (!modelo) return;
+    setEnviando(true);
+    try {
+      await chamarAgente({ acao: "aplicar_modelo", projeto_id: projeto.id, modelo_id: modelo.id });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["cria", "projeto", projeto.id] }),
+        qc.invalidateQueries({ queryKey: ["cria", "mensagens", projeto.id] }),
+      ]);
+      toast.success("Aplicando o modelo. Leva cerca de 1 minuto; dá para desfazer depois.");
+      setAberto(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => {
+          setModelo(null);
+          setAberto(true);
+        }}
+      >
+        <LayoutTemplate className="h-4 w-4 mr-1.5" /> Aplicar modelo
+      </Button>
+      <Dialog open={aberto} onOpenChange={(o) => !enviando && setAberto(o)}>
+        <DialogContent className="max-w-2xl w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>Aplicar um modelo neste criativo</DialogTitle>
+            <DialogDescription>
+              O Claude mantém o conteúdo deste criativo (textos, dados e a ordem das ideias) e refaz
+              o layout no modelo escolhido: cores, fontes, layout de cada slide, visuais, rótulos,
+              botão e logo. A versão atual fica guardada; se não gostar, é só clicar em Desfazer.
+            </DialogDescription>
+          </DialogHeader>
+          <EscolherModelo valor={modelo?.id ?? null} onChange={setModelo} />
+          {temAlteracaoNaoSalva && (
+            <p className="text-xs text-amber-700">
+              Você tem edições não salvas. Salve antes, senão elas ficam de fora.
+            </p>
+          )}
+          <DialogFooter>
+            <Button onClick={aplicar} disabled={!modelo || enviando}>
+              {enviando && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {modelo ? `Aplicar "${modelo.nome}"` : "Escolha um modelo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

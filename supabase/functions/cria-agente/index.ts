@@ -1,6 +1,7 @@
 // cria-agente — o Claude como diretor de arte dos criativos (carrosséis e posts únicos).
 //   criar     { projeto_id }                    → monta o design a partir do briefing, fotos e referência
 //   mensagem  { projeto_id, texto, slide_id? }  → ajusta o design pelo chat
+//   aplicar_modelo { projeto_id, modelo_id }   → refaz o criativo na estrutura/visual de um modelo salvo, mantendo o conteúdo
 //   descrever_foto { foto_id }                  → descrição curta da foto (para escolher as certas depois)
 //   referencia { url, username? }               → cria a referência e põe o download na fila do servidor de vídeo
 //   liberar_pendentes { id }                    → dispara os criativos que esperavam a referência
@@ -417,7 +418,7 @@ async function gerarFotoIA(input: any) {
   return j.fotos?.[0];
 }
 
-async function contexto(sb: any, p: any) {
+async function contexto(sb: any, p: any, comModelo = false) {
   const [{ data: fotos }, { data: marca }, ref, { data: msgs }, modelo] = await Promise.all([
     sb
       .from("cria_fotos")
@@ -446,7 +447,11 @@ async function contexto(sb: any, p: any) {
       .order("created_at", { ascending: false })
       .limit(14),
     p.modelo_id
-      ? sb.from("cria_modelos").select("nome, descricao").eq("id", p.modelo_id).maybeSingle()
+      ? sb
+          .from("cria_modelos")
+          .select("nome, descricao, design")
+          .eq("id", p.modelo_id)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   const lista = (fotos ?? [])
@@ -462,7 +467,13 @@ Briefing: ${p.briefing || "(sem briefing)"}
 ${p.roteiro ? `\nROTEIRO da Mariana (distribua slide a slide, nesta ordem, sem perder nada):\n"""\n${p.roteiro}\n"""\n` : ""}
 MARCA (padrão do editor de vídeo): ${JSON.stringify(marca?.marca ?? {})}${marca?.instrucoes ? `\nInstruções da marca: ${marca.instrucoes}` : ""}
 
-${modelo?.data ? `MODELO SALVO da Mariana: "${modelo.data.nome}"${modelo.data.descricao ? ` (${modelo.data.descricao})` : ""}. O criativo nasceu como cópia dele (DESIGN ATUAL). Mantenha a ESTRUTURA do modelo (a não ser que a Mariana peça para mudar) e troque o CONTEÚDO.\n` : ""}${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
+${
+  modelo?.data
+    ? comModelo
+      ? `MODELO SALVO a aplicar: "${modelo.data.nome}"${modelo.data.descricao ? ` (${modelo.data.descricao})` : ""}. Design do modelo (estrutura e visual a adotar):\n${JSON.stringify(modelo.data.design ?? {})}\n`
+      : `MODELO SALVO da Mariana: "${modelo.data.nome}"${modelo.data.descricao ? ` (${modelo.data.descricao})` : ""}. Mantenha a ESTRUTURA do modelo (a não ser que a Mariana peça para mudar).\n`
+    : ""
+}${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
 BIBLIOTECA DE FOTOS (id | tipo | nome — descrição):
 ${lista || "(vazia: faça sem fotos ou gere do zero)"}
 
@@ -473,11 +484,17 @@ ${JSON.stringify(p.design ?? {})}`,
   };
 }
 
-async function rodar(sb: any, projetoId: string, pedido: string, verReferencia = false) {
+async function rodar(
+  sb: any,
+  projetoId: string,
+  pedido: string,
+  verReferencia = false,
+  comModelo = false,
+) {
   const { data: p } = await sb.from("cria_projetos").select("*").eq("id", projetoId).single();
   if (!p) throw new Error("projeto não encontrado");
   try {
-    const ctx = await contexto(sb, p);
+    const ctx = await contexto(sb, p, comModelo);
     const conversa = ctx.historico
       .filter((m: any) => m.papel !== "sistema")
       .slice(0, -1)
@@ -638,6 +655,42 @@ Deno.serve(async (req) => {
       });
     if (body.acao === "analisar_referencia") {
       emSegundoPlano(analisarReferencia(sb, body.id));
+      return json({ ok: true });
+    }
+
+    if (body.acao === "aplicar_modelo") {
+      const id = String(body.projeto_id ?? "");
+      const modeloId = String(body.modelo_id ?? "");
+      const { data: p } = await sb
+        .from("cria_projetos")
+        .select("id, status, updated_at, tipo")
+        .eq("id", id)
+        .single();
+      const { data: m } = await sb
+        .from("cria_modelos")
+        .select("id, nome")
+        .eq("id", modeloId)
+        .maybeSingle();
+      if (!p || !m) return json({ error: "criativo ou modelo não encontrado" }, 404);
+      const travado = Date.now() - new Date(p.updated_at).getTime() > 6 * 60 * 1000;
+      if (p.status === "gerando" && !travado)
+        return json({ error: "O Claude ainda está trabalhando neste criativo." }, 409);
+      await sb.from("cria_mensagens").insert({
+        projeto_id: id,
+        papel: "usuario",
+        conteudo: `Aplicar o modelo "${m.nome}" neste criativo.`,
+      });
+      await sb
+        .from("cria_projetos")
+        .update({
+          modelo_id: modeloId,
+          status: "gerando",
+          erro: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+      const pedido = `Aplique o MODELO SALVO a este criativo. Mantenha o CONTEÚDO do DESIGN ATUAL (a mensagem, os textos, os dados, a ordem das ideias e as fotos que fizerem sentido) e adote a ESTRUTURA e o VISUAL do modelo: o tema (cores e fontes), o layout de cada posição (slide N do criativo segue o slide N do modelo), os tipos de visual (cards, fluxo, linhas), os rótulos, o botão, a logo, a numeração e a densidade de texto. Se o conteúdo tiver mais slides que o modelo, repita o padrão dos slides do meio; se tiver menos, mantenha a abertura e o fechamento do modelo. Adapte o tamanho dos textos ao layout novo sem perder informação importante. Não traga textos do modelo, só a forma.`;
+      emSegundoPlano(rodar(sb, id, pedido, false, true));
       return json({ ok: true });
     }
 

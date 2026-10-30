@@ -36,7 +36,7 @@ import {
 import { SlideEscalado, SlideView } from "@/components/criativos/SlideView";
 import { EscolherFoto } from "@/components/criativos/EscolherFoto";
 import { PublicarCriativo } from "@/components/criativos/PublicarCriativo";
-import { SalvarModelo } from "@/components/criativos/Modelos";
+import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
 import {
   baixarPngs,
@@ -287,6 +287,7 @@ function EditorCriativo() {
             </Button>
           )}
           <SalvarModelo projeto={p} design={design} disabled={gerando} />
+          <AplicarModelo projeto={p} disabled={gerando} temAlteracaoNaoSalva={sujo} />
           <Button
             size="sm"
             variant="outline"
