@@ -38,6 +38,7 @@ import { EscolherFoto } from "@/components/criativos/EscolherFoto";
 import { PublicarCriativo } from "@/components/criativos/PublicarCriativo";
 import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
+import { BotaoCopiar } from "@/components/BotaoCopiar";
 import {
   baixarPngs,
   carregarFontes,
@@ -441,13 +442,19 @@ function EditorCriativo() {
                   <div
                     key={m.id}
                     className={cn(
-                      "text-sm rounded-lg px-3 py-2 whitespace-pre-wrap",
+                      "group relative text-sm rounded-lg px-3 py-2 whitespace-pre-wrap select-text",
                       m.papel === "usuario" && "bg-primary text-primary-foreground ml-8",
                       m.papel === "claude" && "bg-muted mr-8",
                       m.papel === "sistema" && "text-xs text-muted-foreground px-1 py-0.5",
                     )}
                   >
                     {m.conteudo}
+                    {m.papel !== "sistema" && (
+                      <BotaoCopiar
+                        texto={m.conteudo}
+                        className="absolute -bottom-2 right-1 bg-background text-foreground border shadow-sm opacity-0 group-hover:opacity-100"
+                      />
+                    )}
                   </div>
                 ))}
                 {gerando && (
