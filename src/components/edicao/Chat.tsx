@@ -6,6 +6,7 @@ import { COMANDOS, EFEITOS } from "@/video/catalogo";
 import type { Cena, Mensagem } from "@/lib/vedit";
 import { fmtTempo } from "@/lib/vedit";
 import { cn } from "@/lib/utils";
+import { BotaoCopiar } from "@/components/BotaoCopiar";
 import { BotaoVoz } from "@/components/BotaoVoz";
 
 type Sugestao = { comando: string; titulo: string; descricao: string };
@@ -94,7 +95,7 @@ export function Chat({
           >
             <div
               className={cn(
-                "max-w-[92%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
+                "group relative max-w-[92%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap select-text",
                 m.papel === "usuario"
                   ? "bg-primary text-primary-foreground rounded-br-sm"
                   : m.papel === "sistema"
@@ -133,6 +134,12 @@ export function Chat({
               )}
               {m.versao != null && m.papel === "claude" && (
                 <div className="text-[10px] opacity-60 mt-1">versão {m.versao}</div>
+              )}
+              {m.papel !== "sistema" && (
+                <BotaoCopiar
+                  texto={m.conteudo}
+                  className="absolute -bottom-2 right-1 bg-background text-foreground border shadow-sm opacity-0 group-hover:opacity-100"
+                />
               )}
             </div>
           </div>
