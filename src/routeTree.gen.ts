@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdsLpsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAdsInsightsRouteImport } from './routes/_authenticated/ads.insights'
 import { Route as AuthenticatedAdsCriativosRouteImport } from './routes/_authenticated/ads.criativos'
 import { Route as AuthenticatedAdsCapiEventsRouteImport } from './routes/_authenticated/ads.capi-events'
+import { Route as AuthenticatedAdsAutomacoesRouteImport } from './routes/_authenticated/ads.automacoes'
 import { Route as AuthenticatedAdsAudienciasRouteImport } from './routes/_authenticated/ads.audiencias'
 import { Route as AuthenticatedAdsAnunciosRouteImport } from './routes/_authenticated/ads.anuncios'
 import { Route as AuthenticatedAdsEdicaoIndexRouteImport } from './routes/_authenticated/ads.edicao.index'
@@ -97,6 +98,12 @@ const AuthenticatedAdsCapiEventsRoute =
   AuthenticatedAdsCapiEventsRouteImport.update({
     id: '/capi-events',
     path: '/capi-events',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsAutomacoesRoute =
+  AuthenticatedAdsAutomacoesRouteImport.update({
+    id: '/automacoes',
+    path: '/automacoes',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
 const AuthenticatedAdsAudienciasRoute =
@@ -231,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/ads': typeof AuthenticatedAdsRouteWithChildren
   '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
   '/ads/audiencias': typeof AuthenticatedAdsAudienciasRoute
+  '/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/ads/criativos': typeof AuthenticatedAdsCriativosRoute
   '/ads/insights': typeof AuthenticatedAdsInsightsRoute
@@ -263,6 +271,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
   '/ads/audiencias': typeof AuthenticatedAdsAudienciasRoute
+  '/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/ads/criativos': typeof AuthenticatedAdsCriativosRoute
   '/ads/insights': typeof AuthenticatedAdsInsightsRoute
@@ -298,6 +307,7 @@ export interface FileRoutesById {
   '/_authenticated/ads': typeof AuthenticatedAdsRouteWithChildren
   '/_authenticated/ads/anuncios': typeof AuthenticatedAdsAnunciosRoute
   '/_authenticated/ads/audiencias': typeof AuthenticatedAdsAudienciasRoute
+  '/_authenticated/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/_authenticated/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/_authenticated/ads/criativos': typeof AuthenticatedAdsCriativosRoute
   '/_authenticated/ads/insights': typeof AuthenticatedAdsInsightsRoute
@@ -333,6 +343,7 @@ export interface FileRouteTypes {
     | '/ads'
     | '/ads/anuncios'
     | '/ads/audiencias'
+    | '/ads/automacoes'
     | '/ads/capi-events'
     | '/ads/criativos'
     | '/ads/insights'
@@ -365,6 +376,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/ads/anuncios'
     | '/ads/audiencias'
+    | '/ads/automacoes'
     | '/ads/capi-events'
     | '/ads/criativos'
     | '/ads/insights'
@@ -399,6 +411,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ads'
     | '/_authenticated/ads/anuncios'
     | '/_authenticated/ads/audiencias'
+    | '/_authenticated/ads/automacoes'
     | '/_authenticated/ads/capi-events'
     | '/_authenticated/ads/criativos'
     | '/_authenticated/ads/insights'
@@ -510,6 +523,13 @@ declare module '@tanstack/react-router' {
       path: '/capi-events'
       fullPath: '/ads/capi-events'
       preLoaderRoute: typeof AuthenticatedAdsCapiEventsRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/automacoes': {
+      id: '/_authenticated/ads/automacoes'
+      path: '/automacoes'
+      fullPath: '/ads/automacoes'
+      preLoaderRoute: typeof AuthenticatedAdsAutomacoesRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
     '/_authenticated/ads/audiencias': {
@@ -680,6 +700,7 @@ const AuthenticatedAdsCampanhasIdRouteWithChildren =
 interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsAnunciosRoute: typeof AuthenticatedAdsAnunciosRoute
   AuthenticatedAdsAudienciasRoute: typeof AuthenticatedAdsAudienciasRoute
+  AuthenticatedAdsAutomacoesRoute: typeof AuthenticatedAdsAutomacoesRoute
   AuthenticatedAdsCapiEventsRoute: typeof AuthenticatedAdsCapiEventsRoute
   AuthenticatedAdsCriativosRoute: typeof AuthenticatedAdsCriativosRoute
   AuthenticatedAdsInsightsRoute: typeof AuthenticatedAdsInsightsRoute
@@ -710,6 +731,7 @@ interface AuthenticatedAdsRouteChildren {
 const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsAnunciosRoute: AuthenticatedAdsAnunciosRoute,
   AuthenticatedAdsAudienciasRoute: AuthenticatedAdsAudienciasRoute,
+  AuthenticatedAdsAutomacoesRoute: AuthenticatedAdsAutomacoesRoute,
   AuthenticatedAdsCapiEventsRoute: AuthenticatedAdsCapiEventsRoute,
   AuthenticatedAdsCriativosRoute: AuthenticatedAdsCriativosRoute,
   AuthenticatedAdsInsightsRoute: AuthenticatedAdsInsightsRoute,
