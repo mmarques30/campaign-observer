@@ -136,6 +136,7 @@ export type CriaProjeto = {
   briefing: string | null;
   roteiro: string | null;
   referencia_id: string | null;
+  modelo_id?: string | null;
   design: unknown;
   versao: number;
   status: "rascunho" | "aguardando" | "gerando" | "pronto" | "erro";

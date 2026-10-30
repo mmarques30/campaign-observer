@@ -46,6 +46,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { SlideEscalado } from "@/components/criativos/SlideView";
+import { EscolherModelo, type CriaModelo } from "@/components/criativos/Modelos";
 import { chamarAgente, carregarFontes, useFotos } from "@/lib/criativos";
 import { db } from "@/lib/vedit";
 import {
@@ -85,6 +86,7 @@ function Criativos() {
   const [briefing, setBriefing] = useState("");
   const [roteiro, setRoteiro] = useState("");
   const [referencia, setReferencia] = useState<string>("nenhuma");
+  const [modelo, setModelo] = useState<CriaModelo | null>(null);
   const [linkRef, setLinkRef] = useState("");
   const [buscandoRef, setBuscandoRef] = useState(false);
   const [escolhidas, setEscolhidas] = useState<string[]>([]);
@@ -173,7 +175,7 @@ function Criativos() {
     setCriando(true);
     try {
       let refId = referencia !== "nenhuma" ? referencia : null;
-      if (linkRef.trim()) {
+      if (linkRef.trim() && !modelo) {
         const novo = await usarLink();
         if (!novo) return;
         refId = novo;
@@ -192,7 +194,10 @@ function Criativos() {
           objetivo,
           briefing: briefing.trim() + fotosTxt,
           roteiro: roteiro.trim() || null,
-          referencia_id: refId,
+          referencia_id: modelo ? null : refId,
+          // Com modelo: o criativo já nasce com a estrutura dele; o Claude troca o conteúdo.
+          modelo_id: modelo?.id ?? null,
+          ...(modelo ? { design: modelo.design } : {}),
         })
         .select("id")
         .single();
@@ -432,56 +437,73 @@ function Criativos() {
                   <Input className="h-9" value={nome} onChange={(e) => setNome(e.target.value)} />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Referência (o modelo a seguir, slide a slide)</Label>
-                <Select value={referencia} onValueChange={setReferencia}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nenhuma">Sem referência (o Claude escolhe)</SelectItem>
-                    {(refs.data ?? []).map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.status === "pronta"
-                          ? (r.analise?.estilo ?? "Referência")
-                          : r.status === "baixando"
-                            ? "Nova referência · baixando slides…"
-                            : "Nova referência · analisando…"}
-                        {r.autor ? ` · @${r.autor}` : ""}
-                        {r.imagens?.length ? ` · ${r.imagens.length} slides` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-2">
-                  <Input
-                    className="h-9"
-                    value={linkRef}
-                    onChange={(e) => setLinkRef(e.target.value)}
-                    placeholder="ou cole o link de um post do Instagram como referência"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 shrink-0"
-                    onClick={() => void usarLink()}
-                    disabled={buscandoRef || !linkRef.trim()}
-                  >
-                    {buscandoRef ? (
-                      <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                    ) : (
-                      <Link2 className="h-4 w-4 mr-1.5" />
-                    )}
-                    Usar link
-                  </Button>
+              <EscolherModelo
+                valor={modelo?.id ?? null}
+                onChange={(m) => {
+                  setModelo(m);
+                  if (m) {
+                    setTipo(m.tipo);
+                    setFormato(m.formato);
+                  }
+                }}
+              />
+              {modelo ? (
+                <p className="text-xs text-muted-foreground">
+                  Baseado no modelo <strong>{modelo.nome}</strong>: mesma estrutura, layouts,
+                  visuais e cores; o Claude troca o conteúdo pelo do briefing ou roteiro.
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  <Label className="text-xs">Referência (o modelo a seguir, slide a slide)</Label>
+                  <Select value={referencia} onValueChange={setReferencia}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhuma">Sem referência (o Claude escolhe)</SelectItem>
+                      {(refs.data ?? []).map((r) => (
+                        <SelectItem key={r.id} value={r.id}>
+                          {r.status === "pronta"
+                            ? (r.analise?.estilo ?? "Referência")
+                            : r.status === "baixando"
+                              ? "Nova referência · baixando slides…"
+                              : "Nova referência · analisando…"}
+                          {r.autor ? ` · @${r.autor}` : ""}
+                          {r.imagens?.length ? ` · ${r.imagens.length} slides` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2">
+                    <Input
+                      className="h-9"
+                      value={linkRef}
+                      onChange={(e) => setLinkRef(e.target.value)}
+                      placeholder="ou cole o link de um post do Instagram como referência"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 shrink-0"
+                      onClick={() => void usarLink()}
+                      disabled={buscandoRef || !linkRef.trim()}
+                    >
+                      {buscandoRef ? (
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                      ) : (
+                        <Link2 className="h-4 w-4 mr-1.5" />
+                      )}
+                      Usar link
+                    </Button>
+                  </div>
+                  {refEscolhida && refEscolhida.status !== "pronta" && (
+                    <p className="text-xs text-muted-foreground">
+                      A referência ainda está sendo lida. Pode clicar em Criar: o Claude espera ela
+                      ficar pronta e então monta o criativo.
+                    </p>
+                  )}
                 </div>
-                {refEscolhida && refEscolhida.status !== "pronta" && (
-                  <p className="text-xs text-muted-foreground">
-                    A referência ainda está sendo lida. Pode clicar em Criar: o Claude espera ela
-                    ficar pronta e então monta o criativo.
-                  </p>
-                )}
-              </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">
                   Fotos que quer usar (opcional
