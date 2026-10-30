@@ -735,6 +735,30 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     );
   }
 
+  // Logo da IAplicada no canto de cima (versão de texto branco em fundo escuro/foto).
+  const lg = design.logo;
+  const comLogo =
+    !!lg &&
+    (lg.onde === "todos" ||
+      (indice === 0 && (lg.onde === "primeiro" || lg.onde === "primeiro-e-ultimo")) ||
+      (ultimo && (lg.onde === "ultimo" || lg.onde === "primeiro-e-ultimo")));
+  const logoClaro = fundo === "claro" && !["foto", "capa"].includes(s.layout);
+  const logo = comLogo ? (
+    <img
+      src={logoClaro ? "/brand/iaplicada-logo-light.png" : "/brand/iaplicada-logo-dark.png"}
+      alt="IAplicada"
+      style={{
+        position: "absolute",
+        top: 64,
+        [lg!.lado === "direita" ? "right" : "left"]: 72,
+        width: 260,
+        height: "auto",
+        zIndex: 5,
+        filter: logoClaro ? undefined : "drop-shadow(0 2px 10px rgba(0,0,0,.45))",
+      }}
+    />
+  ) : null;
+
   // Layouts que não posicionam o botão no próprio corpo: ele entra embaixo, acima do rodapé.
   const botaoSolto =
     s.botao && ["capa", "tweet", "comando", "cta"].includes(s.layout) ? (
@@ -747,6 +771,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     <div ref={ref} style={raiz}>
       {corpo}
       {botaoSolto}
+      {logo}
       {s.layout !== "capa" && rodape}
     </div>
   );
