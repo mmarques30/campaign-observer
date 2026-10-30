@@ -1,5 +1,5 @@
 // Edição → Pesquisa: os Reels que mais viralizaram no nicho, por que funcionaram e roteiro original.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ import {
   RefreshCw,
   Search,
   Send,
+  FileText,
   Sparkles,
   Trash2,
   Wand2,
@@ -42,6 +43,7 @@ import {
 import { cn } from "@/lib/utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { db } from "@/lib/vedit";
+import { BotaoSalvarReferencia, NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/pesquisa")({
   component: PesquisaPage,
@@ -104,6 +106,7 @@ type Reel = {
     finalidade: "organico" | "anuncio";
   } | null;
   content_item_id: string | null;
+  referencia_id?: string | null;
   descartado: boolean;
 };
 
@@ -689,6 +692,20 @@ function DetalheReel({
   onMudou: () => void;
 }) {
   const [enviando, setEnviando] = useState(false);
+  const [novoRoteiro, setNovoRoteiro] = useState(false);
+  const navigate = useNavigate();
+  const refPronta = useQuery({
+    queryKey: ["vedit", "referencia-status", r?.referencia_id],
+    enabled: !!r?.referencia_id,
+    queryFn: async () =>
+      (
+        await db()
+          .from("vedit_referencias")
+          .select("status")
+          .eq("id", r!.referencia_id!)
+          .maybeSingle()
+      ).data as { status: string } | null,
+  });
   async function enviar() {
     if (!r) return;
     setEnviando(true);
@@ -756,6 +773,20 @@ function DetalheReel({
                 {r.caption}
               </p>
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => setNovoRoteiro(true)}>
+                <FileText className="h-4 w-4 mr-2" /> Criar roteiro com esta estrutura
+              </Button>
+              <BotaoSalvarReferencia reel={r} onSalvo={onMudou} />
+            </div>
+            <NovoRoteiro
+              aberto={novoRoteiro}
+              onFechar={() => setNovoRoteiro(false)}
+              reelId={r.id}
+              origem={`@${r.username ?? "este reel"}`}
+              comTempos={refPronta.data?.status === "pronta"}
+              onCriado={(id) => void navigate({ to: "/ads/edicao/roteiros", search: { id } })}
+            />
 
             {!r.analise ? (
               <div className="mt-4 flex gap-2">
