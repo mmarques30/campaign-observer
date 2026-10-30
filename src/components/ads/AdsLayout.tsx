@@ -2,7 +2,7 @@ import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-route
 import {
   LayoutDashboard, Megaphone, Image, Activity, RefreshCw, LogOut, Globe, Menu, PanelLeftClose, PanelLeftOpen, X,
   Users, Webhook, Film, Sparkles, ChevronDown, Clapperboard, BookOpen, Music2, Wand2, Palette, Search, Bell, Sun, Moon, Monitor, Check,
-  GalleryHorizontalEnd, ImagePlus, BookMarked, Send,
+  GalleryHorizontalEnd, ImagePlus, BookMarked, Send, FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -60,6 +60,7 @@ const GROUPS: NavGroup[] = [
       { to: "/ads/edicao/trilhas", label: "Trilhas", icon: Music2, keywords: "música trilha sonora fundo" },
       { to: "/ads/edicao/pesquisa", label: "Pesquisa", icon: Search, keywords: "nicho reels virais roteiro concorrentes" },
       { to: "/ads/edicao/referencias", label: "Referências", icon: BookOpen, keywords: "reels análise técnicas benchmark" },
+      { to: "/ads/edicao/roteiros", label: "Roteiros", icon: FileText, keywords: "roteiro script pausas estrutura idioma" },
       { to: "/ads/edicao/publicados", label: "Publicados", icon: Send, keywords: "publicado agendado instagram performance alcance reaproveitar" },
       { to: "/ads/edicao/marca", label: "Marca", icon: Palette, keywords: "cores fontes identidade" },
     ],

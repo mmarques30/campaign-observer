@@ -26,6 +26,7 @@ import { Route as AuthenticatedAdsEdicaoIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdsCriarIndexRouteImport } from './routes/_authenticated/ads.criar.index'
 import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
 import { Route as AuthenticatedAdsEdicaoTrilhasRouteImport } from './routes/_authenticated/ads.edicao.trilhas'
+import { Route as AuthenticatedAdsEdicaoRoteirosRouteImport } from './routes/_authenticated/ads.edicao.roteiros'
 import { Route as AuthenticatedAdsEdicaoReferenciasRouteImport } from './routes/_authenticated/ads.edicao.referencias'
 import { Route as AuthenticatedAdsEdicaoPublicadosRouteImport } from './routes/_authenticated/ads.edicao.publicados'
 import { Route as AuthenticatedAdsEdicaoPesquisaRouteImport } from './routes/_authenticated/ads.edicao.pesquisa'
@@ -132,6 +133,12 @@ const AuthenticatedAdsEdicaoTrilhasRoute =
   AuthenticatedAdsEdicaoTrilhasRouteImport.update({
     id: '/edicao/trilhas',
     path: '/edicao/trilhas',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsEdicaoRoteirosRoute =
+  AuthenticatedAdsEdicaoRoteirosRouteImport.update({
+    id: '/edicao/roteiros',
+    path: '/edicao/roteiros',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
 const AuthenticatedAdsEdicaoReferenciasRoute =
@@ -243,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/ads/edicao/pesquisa': typeof AuthenticatedAdsEdicaoPesquisaRoute
   '/ads/edicao/publicados': typeof AuthenticatedAdsEdicaoPublicadosRoute
   '/ads/edicao/referencias': typeof AuthenticatedAdsEdicaoReferenciasRoute
+  '/ads/edicao/roteiros': typeof AuthenticatedAdsEdicaoRoteirosRoute
   '/ads/edicao/trilhas': typeof AuthenticatedAdsEdicaoTrilhasRoute
   '/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
   '/ads/criar/': typeof AuthenticatedAdsCriarIndexRoute
@@ -274,6 +282,7 @@ export interface FileRoutesByTo {
   '/ads/edicao/pesquisa': typeof AuthenticatedAdsEdicaoPesquisaRoute
   '/ads/edicao/publicados': typeof AuthenticatedAdsEdicaoPublicadosRoute
   '/ads/edicao/referencias': typeof AuthenticatedAdsEdicaoReferenciasRoute
+  '/ads/edicao/roteiros': typeof AuthenticatedAdsEdicaoRoteirosRoute
   '/ads/edicao/trilhas': typeof AuthenticatedAdsEdicaoTrilhasRoute
   '/ads/campanhas': typeof AuthenticatedAdsCampanhasIndexRoute
   '/ads/criar': typeof AuthenticatedAdsCriarIndexRoute
@@ -308,6 +317,7 @@ export interface FileRoutesById {
   '/_authenticated/ads/edicao/pesquisa': typeof AuthenticatedAdsEdicaoPesquisaRoute
   '/_authenticated/ads/edicao/publicados': typeof AuthenticatedAdsEdicaoPublicadosRoute
   '/_authenticated/ads/edicao/referencias': typeof AuthenticatedAdsEdicaoReferenciasRoute
+  '/_authenticated/ads/edicao/roteiros': typeof AuthenticatedAdsEdicaoRoteirosRoute
   '/_authenticated/ads/edicao/trilhas': typeof AuthenticatedAdsEdicaoTrilhasRoute
   '/_authenticated/ads/campanhas/': typeof AuthenticatedAdsCampanhasIndexRoute
   '/_authenticated/ads/criar/': typeof AuthenticatedAdsCriarIndexRoute
@@ -342,6 +352,7 @@ export interface FileRouteTypes {
     | '/ads/edicao/pesquisa'
     | '/ads/edicao/publicados'
     | '/ads/edicao/referencias'
+    | '/ads/edicao/roteiros'
     | '/ads/edicao/trilhas'
     | '/ads/campanhas/'
     | '/ads/criar/'
@@ -373,6 +384,7 @@ export interface FileRouteTypes {
     | '/ads/edicao/pesquisa'
     | '/ads/edicao/publicados'
     | '/ads/edicao/referencias'
+    | '/ads/edicao/roteiros'
     | '/ads/edicao/trilhas'
     | '/ads/campanhas'
     | '/ads/criar'
@@ -406,6 +418,7 @@ export interface FileRouteTypes {
     | '/_authenticated/ads/edicao/pesquisa'
     | '/_authenticated/ads/edicao/publicados'
     | '/_authenticated/ads/edicao/referencias'
+    | '/_authenticated/ads/edicao/roteiros'
     | '/_authenticated/ads/edicao/trilhas'
     | '/_authenticated/ads/campanhas/'
     | '/_authenticated/ads/criar/'
@@ -539,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/edicao/trilhas'
       fullPath: '/ads/edicao/trilhas'
       preLoaderRoute: typeof AuthenticatedAdsEdicaoTrilhasRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/edicao/roteiros': {
+      id: '/_authenticated/ads/edicao/roteiros'
+      path: '/edicao/roteiros'
+      fullPath: '/ads/edicao/roteiros'
+      preLoaderRoute: typeof AuthenticatedAdsEdicaoRoteirosRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
     '/_authenticated/ads/edicao/referencias': {
@@ -679,6 +699,7 @@ interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsEdicaoPesquisaRoute: typeof AuthenticatedAdsEdicaoPesquisaRoute
   AuthenticatedAdsEdicaoPublicadosRoute: typeof AuthenticatedAdsEdicaoPublicadosRoute
   AuthenticatedAdsEdicaoReferenciasRoute: typeof AuthenticatedAdsEdicaoReferenciasRoute
+  AuthenticatedAdsEdicaoRoteirosRoute: typeof AuthenticatedAdsEdicaoRoteirosRoute
   AuthenticatedAdsEdicaoTrilhasRoute: typeof AuthenticatedAdsEdicaoTrilhasRoute
   AuthenticatedAdsCampanhasIndexRoute: typeof AuthenticatedAdsCampanhasIndexRoute
   AuthenticatedAdsCriarIndexRoute: typeof AuthenticatedAdsCriarIndexRoute
@@ -710,6 +731,7 @@ const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsEdicaoPublicadosRoute: AuthenticatedAdsEdicaoPublicadosRoute,
   AuthenticatedAdsEdicaoReferenciasRoute:
     AuthenticatedAdsEdicaoReferenciasRoute,
+  AuthenticatedAdsEdicaoRoteirosRoute: AuthenticatedAdsEdicaoRoteirosRoute,
   AuthenticatedAdsEdicaoTrilhasRoute: AuthenticatedAdsEdicaoTrilhasRoute,
   AuthenticatedAdsCampanhasIndexRoute: AuthenticatedAdsCampanhasIndexRoute,
   AuthenticatedAdsCriarIndexRoute: AuthenticatedAdsCriarIndexRoute,
