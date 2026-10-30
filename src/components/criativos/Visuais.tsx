@@ -387,26 +387,35 @@ export function VisualSlide({ v, c }: { v: Visual; c: Cores }) {
 }
 
 /** Botão de chamada em destaque ("Quero conversar →"). */
-export function BotaoSlide({ texto, c }: { texto: string; c: Cores }) {
+export function BotaoSlide({
+  texto,
+  c,
+  tamanho,
+}: {
+  texto: string;
+  c: Cores;
+  tamanho?: "pequeno" | "medio" | "grande" | null;
+}) {
+  const k = tamanho === "pequeno" ? 0.7 : tamanho === "medio" ? 0.85 : 1;
   return (
     <div
       style={{
         alignSelf: "flex-start",
         display: "inline-flex",
         alignItems: "center",
-        gap: 22,
-        padding: "30px 46px",
+        gap: 22 * k,
+        padding: `${30 * k}px ${46 * k}px`,
         borderRadius: 999,
         background: c.hi,
         color: c.bg,
-        fontSize: 46,
+        fontSize: 46 * k,
         fontWeight: 900,
         letterSpacing: -0.5,
-        boxShadow: `0 0 0 10px ${c.hi}2E, 0 24px 60px ${c.hi}40`,
+        boxShadow: `0 0 0 ${10 * k}px ${c.hi}2E, 0 24px 60px ${c.hi}40`,
       }}
     >
       {texto.replace(/\s*[→>]+\s*$/, "")}
-      <ArrowRight size={52} strokeWidth={3.2} color={c.bg} />
+      <ArrowRight size={52 * k} strokeWidth={3.2} color={c.bg} />
     </div>
   );
 }

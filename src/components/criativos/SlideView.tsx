@@ -117,6 +117,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   const avatar = autor.foto ? fotos.get(autor.foto)?.url : undefined;
   const foto = (i: number) => (s.fotos?.[i] ? fotos.get(s.fotos[i])?.url : undefined);
   const ultimo = indice === total - 1;
+  // Ajustes finos do slide (capa e foto): escala do texto e altura do bloco de texto.
+  const esc = s.escalaTexto ?? 1;
+  const subir = s.alturaTexto === "alto" ? 0.38 : s.alturaTexto === "meio" ? 0.2 : 0;
   const fundo = s.fundo ?? (s.layout === "tweet" ? "claro" : "escuro");
   const cores =
     fundo === "claro"
@@ -190,7 +193,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
 
   if (s.layout === "capa") {
     const elegante = s.variante === "elegante";
-    const tam = elegante ? ajusta(s.titulo, 132, 76, 26) : ajusta(s.titulo, 150, 84, 30);
+    const tam = esc * (elegante ? ajusta(s.titulo, 132, 76, 26) : ajusta(s.titulo, 150, 84, 30));
     corpo = (
       <>
         <Foto
@@ -202,8 +205,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           style={{
             position: "absolute",
             inset: 0,
-            background:
-              "linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.7) 30%, rgba(0,0,0,.15) 60%, rgba(0,0,0,0) 75%)",
+            background: `linear-gradient(0deg, rgba(0,0,0,.92) 0%, rgba(0,0,0,.7) ${30 + subir * 100}%, rgba(0,0,0,.15) ${60 + subir * 60}%, rgba(0,0,0,0) ${Math.min(95, 75 + subir * 50)}%)`,
           }}
         />
         <div
@@ -211,7 +213,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             position: "absolute",
             left: 72,
             right: 72,
-            bottom: total > 1 ? 120 : 80,
+            bottom: (total > 1 ? 120 : 80) + subir * H,
             display: "flex",
             flexDirection: "column",
             alignItems: elegante ? "center" : "flex-start",
@@ -219,7 +221,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             gap: 28,
           }}
         >
-          {!elegante && pilulaAutor()}
+          {!elegante && !s.semAutor && pilulaAutor()}
           {s.rotulo && (
             <div
               style={{
@@ -248,7 +250,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <Rico t={s.titulo ?? ""} cor={t.destaque} />
           </div>
           {s.subtitulo && (
-            <div style={{ fontSize: 38, lineHeight: 1.3, color: "#FFFFFFD9", maxWidth: 900 }}>
+            <div style={{ fontSize: 38 * esc, lineHeight: 1.3, color: "#FFFFFFD9", maxWidth: 900 }}>
               <Rico t={s.subtitulo} cor={t.destaque} peso={700} />
             </div>
           )}
@@ -454,7 +456,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             />
           </div>
         )}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
       </div>
     );
   } else if (s.layout === "lista") {
@@ -503,7 +505,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           </div>
         )}
         {s.visual && <VisualSlide v={s.visual} c={cores} />}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
         <div style={{ display: s.visual ? "none" : "flex", flexDirection: "column", gap: 26 }}>
           {itens.map((it, i) => (
             <div key={i} style={{ display: "flex", gap: 26, alignItems: "flex-start" }}>
@@ -530,7 +532,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     // Foto inteira com o texto apoiado numa sombra que cresce conforme a quantidade de texto:
     // a foto nunca disputa com a leitura. Rótulo em pílula, título grande, texto curto e botão.
     const palavras = `${s.titulo ?? ""} ${s.texto ?? ""}`.trim().split(/\s+/).length;
-    const sombra = palavras > 28 ? 62 : palavras > 16 ? 55 : 48;
+    const sombra = Math.min(92, (palavras > 28 ? 62 : palavras > 16 ? 55 : 48) + subir * 100);
     corpo = (
       <>
         <Foto
@@ -550,7 +552,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             position: "absolute",
             left: 72,
             right: 72,
-            bottom: s.botao ? 110 : 130,
+            bottom: (s.botao ? 110 : 130) + subir * H,
             display: "flex",
             flexDirection: "column",
             gap: 22,
@@ -578,7 +580,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <div
               style={{
                 fontFamily: f(t.fonteTitulo, "Inter, sans-serif"),
-                fontSize: ajusta(s.titulo, 96, 64, 30),
+                fontSize: esc * ajusta(s.titulo, 96, 64, 30),
                 fontWeight: 900,
                 lineHeight: 1.04,
                 letterSpacing: -2,
@@ -591,7 +593,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           {s.texto && (
             <div
               style={{
-                fontSize: ajusta(s.texto, 44, 36, 120),
+                fontSize: esc * ajusta(s.texto, 44, 36, 120),
                 lineHeight: 1.3,
                 color: "#FFFFFFE6",
               }}
@@ -602,6 +604,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           {s.botao && (
             <div style={{ marginTop: 10, display: "flex" }}>
               <BotaoSlide
+                tamanho={s.botaoTamanho}
                 texto={s.botao}
                 c={{ bg: "#0B0B0F", tx: "#fff", sub: "#FFFFFFB3", hi: t.destaque }}
               />
@@ -730,7 +733,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             />
           </div>
         )}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
       </div>
     );
   }
@@ -763,7 +766,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   const botaoSolto =
     s.botao && ["capa", "tweet", "comando", "cta"].includes(s.layout) ? (
       <div style={{ position: "absolute", left: 72, right: 72, bottom: 120, display: "flex" }}>
-        <BotaoSlide texto={s.botao} c={cores} />
+        <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />
       </div>
     ) : null;
 

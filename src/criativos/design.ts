@@ -91,6 +91,12 @@ export const slideSchema = z.object({
   visual: visualSchema.nullish().catch(null),
   // botão de chamada em destaque no fim do slide, ex.: "Quero conversar"
   botao: z.string().nullish(),
+  // ajustes finos (capa e foto): tamanho do botão, altura do bloco de texto, escala do texto
+  // e esconder a pílula com nome/foto da autora na capa
+  botaoTamanho: z.enum(["pequeno", "medio", "grande"]).nullish().catch(null),
+  alturaTexto: z.enum(["baixo", "meio", "alto"]).nullish().catch(null),
+  escalaTexto: z.number().min(0.6).max(1.4).nullish().catch(null),
+  semAutor: z.boolean().nullish(),
 });
 export type Slide = z.infer<typeof slideSchema>;
 

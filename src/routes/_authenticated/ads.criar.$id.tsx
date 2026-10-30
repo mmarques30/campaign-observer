@@ -705,6 +705,68 @@ function EditorCriativo() {
                       />
                     </div>
                   )}
+                  {/* Ajustes finos: o que o chat também usa para "texto maior", "subir o texto"… */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      Tamanho do texto ({Math.round((slide.escalaTexto ?? 1) * 100)}%)
+                    </Label>
+                    <Slider
+                      min={60}
+                      max={140}
+                      step={5}
+                      value={[Math.round((slide.escalaTexto ?? 1) * 100)]}
+                      onValueChange={([v]) => mudarSlide({ escalaTexto: v / 100 })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Altura do texto</Label>
+                      <Select
+                        value={slide.alturaTexto ?? "baixo"}
+                        onValueChange={(v) =>
+                          mudarSlide({ alturaTexto: v as NonNullable<Slide["alturaTexto"]> })
+                        }
+                      >
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="baixo">Embaixo</SelectItem>
+                          <SelectItem value="meio">Mais acima</SelectItem>
+                          <SelectItem value="alto">No meio</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {slide.botao && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tamanho do botão</Label>
+                        <Select
+                          value={slide.botaoTamanho ?? "grande"}
+                          onValueChange={(v) =>
+                            mudarSlide({ botaoTamanho: v as NonNullable<Slide["botaoTamanho"]> })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pequeno">Pequeno</SelectItem>
+                            <SelectItem value="medio">Médio</SelectItem>
+                            <SelectItem value="grande">Grande</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  {slide.layout === "capa" && slide.variante !== "elegante" && (
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={!slide.semAutor}
+                        onCheckedChange={(v) => mudarSlide({ semAutor: !v })}
+                      />
+                      Nome e foto da autora na capa
+                    </label>
+                  )}
                 </>
               )}
             </TabsContent>

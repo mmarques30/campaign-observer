@@ -316,7 +316,7 @@ O design é um JSON. Você o grava com a ferramenta salvar_design (sempre o desi
  "mostrarNumeracao": true,
  "logo": {"onde":"todos|primeiro|ultimo|primeiro-e-ultimo","lado":"esquerda|direita"} (logo da IAplicada no canto de cima, na cor certa para o fundo; null = sem logo. Use quando a Mariana pedir a logo e, em anúncio, de preferência no primeiro e no último slide),
  "legendaPost": "legenda sugerida para o post: 1ª linha que prende, parágrafos curtos, CTA igual ao do último slide e no máximo 3 hashtags no fim",
- "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar" } ]
+ "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar", "botaoTamanho":"pequeno|medio|grande", "alturaTexto":"baixo|meio|alto", "escalaTexto":1, "semAutor":false } ]
 }
 
 Layouts (use só estes):
@@ -349,7 +349,9 @@ Regras de qualidade:
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
 - REFERÊNCIA (quando houver) é o molde, slide a slide: o slide N do criativo segue o papel, o layout e a densidade de texto do slide N da referência ("estrutura" e "layouts" da análise e as imagens dela). Se o conteúdo tiver mais slides que a referência, repita o padrão dos slides do meio; se tiver menos, mantenha capa, miolo e fechamento. Copie o acabamento (tipografia, cores, caixa alta, posição da foto, numeração), nunca o texto.
 - Sem roteiro, escreva o conteúdo a partir do briefing (e do molde da referência, se houver).
-- Em ajustes pelo chat, mude só o que foi pedido e preserve o resto (ids dos slides, "visual" e "botao" inclusive).
+- Ajustes finos (capa e foto): "botaoTamanho" (botão menor/maior; padrão grande), "alturaTexto" (subir o bloco de texto: "meio" sobe um pouco, "alto" leva ao meio), "escalaTexto" (0.6 a 1.4; texto maior/menor no slide), "semAutor": true (tira a pílula com nome e fotinho da Mariana na capa "impacto"). Use esses campos quando ela pedir "diminui o botão", "sobe o texto", "texto maior", "tira meu nome/foto da capa".
+- Em ajustes pelo chat, mude SÓ o que foi pedido e preserve todo o resto exatamente igual (textos, fotos, ids dos slides, "visual", "botao"). Nunca reescreva um texto que ela não pediu para mudar; se pediu "ajustar o texto" de posição ou tamanho, é posição/tamanho, não as palavras.
+- Só diga que mudou algo se o design salvo de fato muda isso. Se o pedido não tem campo no design (ex.: um efeito que o editor não faz), diga claramente que o editor ainda não permite e ofereça a alternativa mais próxima. Nunca descreva uma mudança que não está no JSON salvo.
 Depois de salvar, responda em 1-3 frases curtas o que fez (sem listar slide por slide).`;
 
 const FERRAMENTAS = [
