@@ -237,18 +237,46 @@ export async function exportarPngs(nos: HTMLElement[], formato: Formato) {
   return pngs;
 }
 
+const nomeBase = (nome: string) =>
+  nome
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "criativo";
+const baixar = (href: string, arq: string) => {
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = arq;
+  a.click();
+};
+/** Nome da pasta/sufixo de cada formato no zip. */
+export const PASTA_FORMATO: Record<Formato, string> = {
+  "4:5": "feed-4x5",
+  "1:1": "quadrado-1x1",
+  "9:16": "stories-9x16",
+};
+
+/** Zip com uma pasta por formato e arquivos numerados na ordem dos cards. */
+export async function baixarPacote(porFormato: Partial<Record<Formato, string[]>>, nome: string) {
+  const base = nomeBase(nome);
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  for (const [f, pngs] of Object.entries(porFormato) as [Formato, string[]][]) {
+    const pasta = zip.folder(PASTA_FORMATO[f])!;
+    pngs.forEach((p, i) =>
+      pasta.file(
+        `${base}-${PASTA_FORMATO[f]}-${String(i + 1).padStart(2, "0")}.png`,
+        p.split(",")[1],
+        { base64: true },
+      ),
+    );
+  }
+  const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
+  baixar(url, `${base}-todos-os-formatos.zip`);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export async function baixarPngs(pngs: string[], nome: string) {
-  const base =
-    nome
-      .replace(/[^\p{L}\p{N}]+/gu, "-")
-      .replace(/^-|-$/g, "")
-      .toLowerCase() || "criativo";
-  const baixar = (href: string, arq: string) => {
-    const a = document.createElement("a");
-    a.href = href;
-    a.download = arq;
-    a.click();
-  };
+  const base = nomeBase(nome);
   if (pngs.length === 1) return baixar(pngs[0], `${base}.png`);
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
