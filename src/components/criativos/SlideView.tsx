@@ -456,7 +456,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             />
           </div>
         )}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
+        {s.botao && (
+          <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
+        )}
       </div>
     );
   } else if (s.layout === "lista") {
@@ -505,7 +507,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           </div>
         )}
         {s.visual && <VisualSlide v={s.visual} c={cores} />}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
+        {s.botao && (
+          <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
+        )}
         <div style={{ display: s.visual ? "none" : "flex", flexDirection: "column", gap: 26 }}>
           {itens.map((it, i) => (
             <div key={i} style={{ display: "flex", gap: 26, alignItems: "flex-start" }}>
@@ -605,6 +609,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <div style={{ marginTop: 10, display: "flex" }}>
               <BotaoSlide
                 tamanho={s.botaoTamanho}
+                estilo={s.botaoEstilo}
                 texto={s.botao}
                 c={{ bg: "#0B0B0F", tx: "#fff", sub: "#FFFFFFB3", hi: t.destaque }}
               />
@@ -653,7 +658,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           // Com botão, ele entra no fluxo do slide (nunca por cima do texto) e substitui
           // as pílulas Salve/Envie/Siga.
           <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
-            <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />
+            <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
           </div>
         ) : (
           <div style={{ display: "flex", gap: 22, marginTop: 10 }}>
@@ -741,7 +746,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             />
           </div>
         )}
-        {s.botao && <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />}
+        {s.botao && (
+          <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
+        )}
       </div>
     );
   }
@@ -774,7 +781,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   const botaoSolto =
     s.botao && ["capa", "tweet", "comando"].includes(s.layout) ? (
       <div style={{ position: "absolute", left: 72, right: 72, bottom: 120, display: "flex" }}>
-        <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />
+        <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
       </div>
     ) : null;
 
