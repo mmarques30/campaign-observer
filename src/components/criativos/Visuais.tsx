@@ -391,12 +391,18 @@ export function BotaoSlide({
   texto,
   c,
   tamanho,
+  estilo,
 }: {
   texto: string;
   c: Cores;
   tamanho?: "pequeno" | "medio" | "grande" | null;
+  /** destaque: cheio com brilho (padrão) · suave: cheio, sem brilho · contorno: só a borda */
+  estilo?: "destaque" | "suave" | "contorno" | null;
 }) {
   const k = tamanho === "pequeno" ? 0.7 : tamanho === "medio" ? 0.85 : 1;
+  const contorno = estilo === "contorno";
+  const brilho = !estilo || estilo === "destaque";
+  const cor = contorno ? c.tx : c.bg;
   return (
     <div
       style={{
@@ -406,16 +412,17 @@ export function BotaoSlide({
         gap: 22 * k,
         padding: `${30 * k}px ${46 * k}px`,
         borderRadius: 999,
-        background: c.hi,
-        color: c.bg,
+        background: contorno ? "transparent" : c.hi,
+        border: contorno ? `${3 * k}px solid ${c.hi}` : undefined,
+        color: cor,
         fontSize: 46 * k,
-        fontWeight: 900,
+        fontWeight: brilho ? 900 : 800,
         letterSpacing: -0.5,
-        boxShadow: `0 0 0 ${10 * k}px ${c.hi}2E, 0 24px 60px ${c.hi}40`,
+        boxShadow: brilho ? `0 0 0 ${10 * k}px ${c.hi}2E, 0 24px 60px ${c.hi}40` : undefined,
       }}
     >
       {texto.replace(/\s*[→>]+\s*$/, "")}
-      <ArrowRight size={52 * k} strokeWidth={3.2} color={c.bg} />
+      <ArrowRight size={52 * k} strokeWidth={3.2} color={contorno ? c.hi : cor} />
     </div>
   );
 }

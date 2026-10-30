@@ -757,6 +757,26 @@ function EditorCriativo() {
                         </Select>
                       </div>
                     )}
+                    {slide.botao && (
+                      <div className="space-y-1">
+                        <Label className="text-xs">Ênfase do botão</Label>
+                        <Select
+                          value={slide.botaoEstilo ?? "destaque"}
+                          onValueChange={(v) =>
+                            mudarSlide({ botaoEstilo: v as NonNullable<Slide["botaoEstilo"]> })
+                          }
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="destaque">Forte (com brilho)</SelectItem>
+                            <SelectItem value="suave">Suave (sem brilho)</SelectItem>
+                            <SelectItem value="contorno">Discreta (só contorno)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   {slide.layout === "capa" && slide.variante !== "elegante" && (
                     <label className="flex items-center gap-2 text-sm">
