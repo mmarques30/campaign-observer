@@ -119,7 +119,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   const ultimo = indice === total - 1;
   // Ajustes finos do slide (capa e foto): escala do texto e altura do bloco de texto.
   const esc = s.escalaTexto ?? 1;
-  const subir = s.alturaTexto === "alto" ? 0.38 : s.alturaTexto === "meio" ? 0.2 : 0;
+  const subir = s.alturaTexto === "alto" ? 0.2 : s.alturaTexto === "meio" ? 0.08 : 0;
   const fundo = s.fundo ?? (s.layout === "tweet" ? "claro" : "escuro");
   const cores =
     fundo === "claro"
