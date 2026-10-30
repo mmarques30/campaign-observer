@@ -34,6 +34,7 @@ import { callEdgeFunction } from "@/lib/ads-mutations";
 import { BUCKET, db, enviarAoClaude } from "@/lib/vedit";
 import { chamarAgente } from "@/lib/criativos";
 import { cn } from "@/lib/utils";
+import { BotaoAutomacao, useAutomacoes } from "@/components/publicacoes/AutomacaoComentarios";
 
 type Origem = "criativo" | "video";
 type Pub = {
@@ -50,6 +51,7 @@ type Pub = {
   status: "preparando" | "agendado" | "publicando" | "publicado" | "erro" | "cancelado";
   erro: string | null;
   permalink: string | null;
+  ig_media_id: string | null;
   thumb: string | null;
   meta_ad_id: string | null;
   metricas: Record<string, number> | null;
@@ -114,6 +116,7 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
   const [atualizando, setAtualizando] = useState(false);
   const [reaproveitando, setReaproveitando] = useState<string | null>(null);
 
+  const automacoes = useAutomacoes();
   const pubs = useQuery({
     queryKey: ["publicacoes", origem],
     refetchInterval: (q) =>
@@ -536,6 +539,17 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
                           <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver post
                         </a>
                       </Button>
+                    )}
+                    {p.destino === "instagram" && p.status === "publicado" && (
+                      <BotaoAutomacao
+                        post={{
+                          ig_media_id: p.ig_media_id,
+                          permalink: p.permalink,
+                          nome: p.nome,
+                          publicacao_id: p.id,
+                        }}
+                        automacoes={automacoes.data}
+                      />
                     )}
                     {p.status === "agendado" && (
                       <Button size="sm" variant="ghost" className="h-8" onClick={() => cancelar(p)}>
