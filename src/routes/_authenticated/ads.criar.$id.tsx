@@ -40,6 +40,7 @@ import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
 import { BotaoCopiar } from "@/components/BotaoCopiar";
 import {
+  baixarPacote,
   baixarPngs,
   carregarFontes,
   chamarAgente,
@@ -51,6 +52,7 @@ import {
 } from "@/lib/criativos";
 import { db } from "@/lib/vedit";
 import {
+  FORMATOS,
   FUNDOS,
   LAYOUTS,
   NOME_LAYOUT,
@@ -59,8 +61,15 @@ import {
   type CriaMensagem,
   type CriaProjeto,
   type Design,
+  type Formato,
   type Slide,
 } from "@/criativos/design";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/ads/criar/$id")({
@@ -93,6 +102,9 @@ function EditorCriativo() {
   const [msg, setMsg] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [exportando, setExportando] = useState(false);
+  // Exportar em todos os formatos: desenha os slides escondidos em cada um e zipa por pasta.
+  const [exportandoTodos, setExportandoTodos] = useState(false);
+  const nosPorFormato = useRef<Record<string, (HTMLDivElement | null)[]>>({});
   const [publicar, setPublicar] = useState(false);
   const versaoVista = useRef(-1);
   const nos = useRef<(HTMLDivElement | null)[]>([]);
@@ -212,6 +224,33 @@ function EditorCriativo() {
     }
   }
 
+  async function exportarTodos() {
+    if (!design || !p) return;
+    nosPorFormato.current = {};
+    setExportandoTodos(true);
+    try {
+      const formatos = Object.keys(FORMATOS) as Formato[];
+      for (let i = 0; i < 60; i++) {
+        const prontos = formatos.every(
+          (f) => (nosPorFormato.current[f] ?? []).filter(Boolean).length >= slides.length,
+        );
+        if (prontos) break;
+        await new Promise((ok) => setTimeout(ok, 50));
+      }
+      const porFormato: Partial<Record<Formato, string[]>> = {};
+      for (const f of formatos)
+        porFormato[f] = await exportarPngs(
+          (nosPorFormato.current[f] ?? []).slice(0, slides.length).filter(Boolean) as HTMLElement[],
+          f,
+        );
+      await baixarPacote(porFormato, p.nome);
+    } catch (e) {
+      toast.error(`Exportar: ${(e as Error).message}`);
+    } finally {
+      setExportandoTodos(false);
+    }
+  }
+
   async function exportar() {
     if (!design || !p) return;
     nos.current = [];
@@ -304,19 +343,30 @@ function EditorCriativo() {
           >
             <Undo2 className="h-4 w-4 mr-1.5" /> Desfazer
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={exportar}
-            disabled={!slides.length || exportando}
-          >
-            {exportando ? (
-              <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4 mr-1.5" />
-            )}
-            {slides.length > 1 ? "Baixar PNGs (.zip)" : "Baixar PNG"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!slides.length || exportando || exportandoTodos}
+              >
+                {exportando || exportandoTodos ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4 mr-1.5" />
+                )}
+                Baixar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={exportar}>
+                Neste formato ({p.formato}){slides.length > 1 ? " · .zip" : " · PNG"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportarTodos}>
+                Todos os formatos (feed 4:5, quadrado 1:1, stories 9:16) · .zip
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" onClick={() => setPublicar(true)} disabled={!slides.length || gerando}>
             <Send className="h-4 w-4 mr-1.5" /> Publicar
           </Button>
@@ -1009,6 +1059,27 @@ function EditorCriativo() {
       />
 
       {/* Slides em tamanho real, fora da tela, só para exportar. */}
+      {exportandoTodos &&
+        createPortal(
+          <div
+            style={{ position: "fixed", left: -20000, top: 0, pointerEvents: "none" }}
+            aria-hidden
+          >
+            {(Object.keys(FORMATOS) as Formato[]).map((f) =>
+              slides.map((s, i) => (
+                <SlideView
+                  key={`${f}-${s.id}`}
+                  ref={(el) => {
+                    (nosPorFormato.current[f] ??= [])[i] = el;
+                  }}
+                  {...props(s, i)}
+                  formato={f}
+                />
+              )),
+            )}
+          </div>,
+          document.body,
+        )}
       {exportando &&
         design &&
         createPortal(
