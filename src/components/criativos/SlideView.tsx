@@ -159,7 +159,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           letterSpacing: 0.5,
         }}
       >
-        <span>@{autor.arroba}</span>
+        <span>{s.botao ? "" : `@${autor.arroba}`}</span>
         <span>
           {indice + 1}/{total}
           {!ultimo ? "  →" : ""}
@@ -454,6 +454,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             />
           </div>
         )}
+        {s.botao && <BotaoSlide texto={s.botao} c={cores} />}
       </div>
     );
   } else if (s.layout === "lista") {
@@ -526,6 +527,10 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
       </div>
     );
   } else if (s.layout === "foto") {
+    // Foto inteira com o texto apoiado numa sombra que cresce conforme a quantidade de texto:
+    // a foto nunca disputa com a leitura. Rótulo em pílula, título grande, texto curto e botão.
+    const palavras = `${s.titulo ?? ""} ${s.texto ?? ""}`.trim().split(/\s+/).length;
+    const sombra = palavras > 28 ? 62 : palavras > 16 ? 55 : 48;
     corpo = (
       <>
         <Foto
@@ -537,8 +542,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           style={{
             position: "absolute",
             inset: 0,
-            background:
-              "linear-gradient(0deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.35) 35%, rgba(0,0,0,0) 55%)",
+            background: `linear-gradient(0deg, rgba(0,0,0,.94) 0%, rgba(0,0,0,.86) ${sombra - 18}%, rgba(0,0,0,.45) ${sombra}%, rgba(0,0,0,0) ${sombra + 14}%)`,
           }}
         />
         <div
@@ -546,18 +550,37 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             position: "absolute",
             left: 72,
             right: 72,
-            bottom: 130,
+            bottom: s.botao ? 110 : 130,
             display: "flex",
             flexDirection: "column",
-            gap: 18,
+            gap: 22,
           }}
         >
+          {s.rotulo && (
+            <div
+              style={{
+                alignSelf: "flex-start",
+                padding: "10px 22px",
+                borderRadius: 999,
+                background: `${t.destaque}26`,
+                border: `2px solid ${t.destaque}`,
+                color: t.destaque,
+                fontSize: 26,
+                fontWeight: 800,
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+              }}
+            >
+              {s.rotulo}
+            </div>
+          )}
           {s.titulo && (
             <div
               style={{
-                fontSize: ajusta(s.titulo, 80, 52, 30),
+                fontFamily: f(t.fonteTitulo, "Inter, sans-serif"),
+                fontSize: ajusta(s.titulo, 96, 64, 30),
                 fontWeight: 900,
-                lineHeight: 1.05,
+                lineHeight: 1.04,
                 letterSpacing: -2,
                 color: "#fff",
               }}
@@ -566,8 +589,22 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             </div>
           )}
           {s.texto && (
-            <div style={{ fontSize: 38, lineHeight: 1.32, color: "#FFFFFFDD" }}>
+            <div
+              style={{
+                fontSize: ajusta(s.texto, 44, 36, 120),
+                lineHeight: 1.3,
+                color: "#FFFFFFE6",
+              }}
+            >
               <Rico t={s.texto} cor={t.destaque} peso={700} />
+            </div>
+          )}
+          {s.botao && (
+            <div style={{ marginTop: 10, display: "flex" }}>
+              <BotaoSlide
+                texto={s.botao}
+                c={{ bg: "#0B0B0F", tx: "#fff", sub: "#FFFFFFB3", hi: t.destaque }}
+              />
             </div>
           )}
         </div>
@@ -698,9 +735,18 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     );
   }
 
+  // Layouts que não posicionam o botão no próprio corpo: ele entra embaixo, acima do rodapé.
+  const botaoSolto =
+    s.botao && ["capa", "tweet", "comando", "cta"].includes(s.layout) ? (
+      <div style={{ position: "absolute", left: 72, right: 72, bottom: 120, display: "flex" }}>
+        <BotaoSlide texto={s.botao} c={cores} />
+      </div>
+    ) : null;
+
   return (
     <div ref={ref} style={raiz}>
       {corpo}
+      {botaoSolto}
       {s.layout !== "capa" && rodape}
     </div>
   );
