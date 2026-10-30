@@ -628,7 +628,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           gap: 40,
         }}
       >
-        <Avatar url={avatar} s={220} borda={cores.hi} />
+        <Avatar url={avatar} s={s.botao ? 180 : 220} borda={cores.hi} />
         <div
           style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 40, fontWeight: 800 }}
         >
@@ -649,31 +649,39 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <Rico t={s.texto} cor={cores.tx} peso={800} />
           </div>
         )}
-        <div style={{ display: "flex", gap: 22, marginTop: 10 }}>
-          {(
-            [
-              [Bookmark, "Salve"],
-              [Send, "Envie"],
-              [UserPlus, "Siga"],
-            ] as const
-          ).map(([I, l]) => (
-            <div
-              key={l}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "16px 28px",
-                borderRadius: 999,
-                border: `2px solid ${cores.tx}33`,
-                fontSize: 30,
-                fontWeight: 700,
-              }}
-            >
-              <I size={30} strokeWidth={2.4} color={cores.hi} /> {l}
-            </div>
-          ))}
-        </div>
+        {s.botao ? (
+          // Com botão, ele entra no fluxo do slide (nunca por cima do texto) e substitui
+          // as pílulas Salve/Envie/Siga.
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 6 }}>
+            <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 22, marginTop: 10 }}>
+            {(
+              [
+                [Bookmark, "Salve"],
+                [Send, "Envie"],
+                [UserPlus, "Siga"],
+              ] as const
+            ).map(([I, l]) => (
+              <div
+                key={l}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "16px 28px",
+                  borderRadius: 999,
+                  border: `2px solid ${cores.tx}33`,
+                  fontSize: 30,
+                  fontWeight: 700,
+                }}
+              >
+                <I size={30} strokeWidth={2.4} color={cores.hi} /> {l}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   } else {
@@ -764,7 +772,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
 
   // Layouts que não posicionam o botão no próprio corpo: ele entra embaixo, acima do rodapé.
   const botaoSolto =
-    s.botao && ["capa", "tweet", "comando", "cta"].includes(s.layout) ? (
+    s.botao && ["capa", "tweet", "comando"].includes(s.layout) ? (
       <div style={{ position: "absolute", left: 72, right: 72, bottom: 120, display: "flex" }}>
         <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} />
       </div>
