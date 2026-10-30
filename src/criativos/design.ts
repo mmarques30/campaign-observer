@@ -124,6 +124,8 @@ export const designSchema = z.object({
     .default({}),
   // rodapé "deslize" nos slides intermediários e numeração
   mostrarNumeracao: z.boolean().default(true),
+  // "marca": onde entraria nome + foto + selo da autora, entra a logo da IAplicada
+  assinatura: z.enum(["autor", "marca"]).default("autor").catch("autor"),
   // logo da IAplicada no canto de cima (cor certa para fundo claro ou escuro)
   logo: z
     .object({

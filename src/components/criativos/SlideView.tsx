@@ -115,6 +115,14 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   const t = design.tema;
   const autor = design.autor;
   const avatar = autor.foto ? fotos.get(autor.foto)?.url : undefined;
+  const comMarca = design.assinatura === "marca";
+  const marcaImg = (largura: number, claro = false) => (
+    <img
+      src={claro ? "/brand/iaplicada-logo-light.png" : "/brand/iaplicada-logo-dark.png"}
+      alt="IAplicada"
+      style={{ width: largura, height: "auto", display: "block" }}
+    />
+  );
   const foto = (i: number) => (s.fotos?.[i] ? fotos.get(s.fotos[i])?.url : undefined);
   const ultimo = indice === total - 1;
   // Ajustes finos do slide (capa e foto): escala do texto e altura do bloco de texto.
@@ -162,7 +170,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           letterSpacing: 0.5,
         }}
       >
-        <span>{s.botao ? "" : `@${autor.arroba}`}</span>
+        <span>{s.botao || comMarca ? "" : `@${autor.arroba}`}</span>
         <span>
           {indice + 1}/{total}
           {!ultimo ? "  →" : ""}
@@ -170,24 +178,27 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
       </div>
     ) : null;
 
-  const pilulaAutor = (claro = true) => (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "10px 22px 10px 10px",
-        borderRadius: 999,
-        background: claro ? "rgba(0,0,0,.45)" : "rgba(255,255,255,.08)",
-        border: "1px solid rgba(255,255,255,.18)",
-        backdropFilter: "blur(8px)",
-      }}
-    >
-      <Avatar url={avatar} s={56} />
-      <span style={{ fontSize: 28, fontWeight: 600, color: "#fff" }}>{autor.nome}</span>
-      {autor.verificado && <Verificado s={28} />}
-    </div>
-  );
+  const pilulaAutor = (claro = true) =>
+    comMarca ? (
+      marcaImg(240)
+    ) : (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "10px 22px 10px 10px",
+          borderRadius: 999,
+          background: claro ? "rgba(0,0,0,.45)" : "rgba(255,255,255,.08)",
+          border: "1px solid rgba(255,255,255,.18)",
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        <Avatar url={avatar} s={56} />
+        <span style={{ fontSize: 28, fontWeight: 600, color: "#fff" }}>{autor.nome}</span>
+        {autor.verificado && <Verificado s={28} />}
+      </div>
+    );
 
   let corpo: ReactNode = null;
 
@@ -289,23 +300,27 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           gap: 40,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-          <Avatar url={avatar} s={104} />
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                fontSize: 40,
-                fontWeight: 800,
-              }}
-            >
-              {autor.nome} {autor.verificado && <Verificado s={36} />}
+        {comMarca ? (
+          marcaImg(300, fundo === "claro")
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+            <Avatar url={avatar} s={104} />
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  fontSize: 40,
+                  fontWeight: 800,
+                }}
+              >
+                {autor.nome} {autor.verificado && <Verificado s={36} />}
+              </div>
+              <div style={{ fontSize: 34, color: cores.sub }}>@{autor.arroba}</div>
             </div>
-            <div style={{ fontSize: 34, color: cores.sub }}>@{autor.arroba}</div>
           </div>
-        </div>
+        )}
         {s.titulo && (
           <div style={{ fontSize: tam + 6, fontWeight: 800, lineHeight: 1.25 }}>
             <Rico t={s.titulo} cor={cores.hi} />
@@ -634,12 +649,24 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           gap: 40,
         }}
       >
-        <Avatar url={avatar} s={s.botao ? 180 : 220} borda={cores.hi} />
-        <div
-          style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 40, fontWeight: 800 }}
-        >
-          {autor.nome} {autor.verificado && <Verificado s={38} />}
-        </div>
+        {comMarca ? (
+          marcaImg(380, fundo === "claro")
+        ) : (
+          <>
+            <Avatar url={avatar} s={s.botao ? 180 : 220} borda={cores.hi} />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                fontSize: 40,
+                fontWeight: 800,
+              }}
+            >
+              {autor.nome} {autor.verificado && <Verificado s={38} />}
+            </div>
+          </>
+        )}
         {s.rotulo && (
           // Etiqueta de qualificação ("PRA QUEM ..."): pílula na cor de destaque, acima do título.
           <div
@@ -774,7 +801,13 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
 
   // Logo da IAplicada no canto de cima (versão de texto branco em fundo escuro/foto).
   const lg = design.logo;
+  // Com assinatura "marca", cta/tweet/comando (e capa impacto com pílula) já mostram a logo no corpo.
+  const marcaNoCorpo =
+    comMarca &&
+    (["cta", "tweet", "comando"].includes(s.layout) ||
+      (s.layout === "capa" && s.variante !== "elegante" && !s.semAutor));
   const comLogo =
+    !marcaNoCorpo &&
     !!lg &&
     (lg.onde === "todos" ||
       (indice === 0 && (lg.onde === "primeiro" || lg.onde === "primeiro-e-ultimo")) ||

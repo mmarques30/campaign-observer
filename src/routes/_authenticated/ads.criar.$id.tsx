@@ -921,6 +921,18 @@ function EditorCriativo() {
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <Switch
+                        checked={design.assinatura === "marca"}
+                        onCheckedChange={(v) =>
+                          mudar((d) => {
+                            d.assinatura = v ? "marca" : "autor";
+                            return d;
+                          })
+                        }
+                      />
+                      Logo no lugar do nome e foto
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
                         checked={!!design.logo}
                         onCheckedChange={(v) =>
                           mudar((d) => {
