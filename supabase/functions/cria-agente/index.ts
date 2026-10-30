@@ -313,6 +313,7 @@ O design é um JSON. Você o grava com a ferramenta salvar_design (sempre o desi
  "tema": {"fundo":"#hex","texto":"#hex","destaque":"#hex","marca":"#hex","claro":"#hex","textoClaro":"#hex","fonteTitulo":"Anton","fonteTexto":"Inter"},
  "autor": {"nome":"Mariana Marques","arroba":"marimarquescb","foto":"<id de foto de rosto para o avatar>","verificado":true},
  "mostrarNumeracao": true,
+ "logo": {"onde":"todos|primeiro|ultimo|primeiro-e-ultimo","lado":"esquerda|direita"} (logo da IAplicada no canto de cima, na cor certa para o fundo; null = sem logo. Use quando a Mariana pedir a logo e, em anúncio, de preferência no primeiro e no último slide),
  "legendaPost": "legenda sugerida para o post: 1ª linha que prende, parágrafos curtos, CTA igual ao do último slide e no máximo 3 hashtags no fim",
  "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar" } ]
 }

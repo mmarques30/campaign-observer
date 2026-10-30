@@ -117,6 +117,14 @@ export const designSchema = z.object({
     .default({}),
   // rodapé "deslize" nos slides intermediários e numeração
   mostrarNumeracao: z.boolean().default(true),
+  // logo da IAplicada no canto de cima (cor certa para fundo claro ou escuro)
+  logo: z
+    .object({
+      onde: z.enum(["todos", "primeiro", "ultimo", "primeiro-e-ultimo"]).default("todos"),
+      lado: z.enum(["esquerda", "direita"]).default("esquerda"),
+    })
+    .nullish()
+    .catch(null),
   legendaPost: z.string().nullish(), // texto sugerido para a legenda do Instagram
   slides: z.array(slideSchema).default([]),
 });

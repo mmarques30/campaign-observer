@@ -829,6 +829,39 @@ function EditorCriativo() {
                       />
                       Numeração e @ no rodapé
                     </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={!!design.logo}
+                        onCheckedChange={(v) =>
+                          mudar((d) => {
+                            d.logo = v ? { onde: "todos", lado: "esquerda" } : null;
+                            return d;
+                          })
+                        }
+                      />
+                      Logo IAplicada
+                    </label>
+                    {design.logo && (
+                      <Select
+                        value={design.logo.onde}
+                        onValueChange={(v) =>
+                          mudar((d) => {
+                            if (d.logo) d.logo.onde = v as NonNullable<Design["logo"]>["onde"];
+                            return d;
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-44 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Em todos os slides</SelectItem>
+                          <SelectItem value="primeiro">Só no primeiro</SelectItem>
+                          <SelectItem value="ultimo">Só no último</SelectItem>
+                          <SelectItem value="primeiro-e-ultimo">Primeiro e último</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <div className="flex items-center justify-between">
