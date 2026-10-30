@@ -560,15 +560,15 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             <div
               style={{
                 alignSelf: "flex-start",
-                padding: "10px 22px",
+                padding: "12px 26px",
                 borderRadius: 999,
-                background: `${t.destaque}26`,
-                border: `2px solid ${t.destaque}`,
-                color: t.destaque,
-                fontSize: 26,
-                fontWeight: 800,
+                background: t.destaque,
+                color: "#0B0B0F",
+                fontSize: 30,
+                fontWeight: 900,
                 letterSpacing: 1.5,
                 textTransform: "uppercase",
+                boxShadow: `0 8px 28px ${t.destaque}55`,
               }}
             >
               {s.rotulo}
