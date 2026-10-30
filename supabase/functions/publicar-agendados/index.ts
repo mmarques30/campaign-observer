@@ -5,12 +5,13 @@
 //   POST { acao: "previa", audio_id, titulo?, artista? }    → prévia para ouvir antes de escolher (Instagram ou iTunes)
 //   POST { acao: "metricas", ids? }                         → atualiza alcance, curtidas, salvamentos…
 //   POST { acao: "agora", id }                              → publica esta agora (botão "Publicar agora")
-//   POST { acao: "vincular", simular? }                     → liga anúncios publicados direto na Meta ao vídeo/criativo
+//   POST { acao: "vincular", simular? }                     → liga anúncios e posts do Instagram publicados fora daqui ao vídeo/criativo
+//   POST { acao: "ligar_post", ig_media_id, origem, ref_id } → liga à mão um post do Instagram
 //                                                             (o cron também faz isso uma vez por hora)
 // O Instagram não agenda pela API: quem agenda é esta fila. Imagem e carrossel saem na hora;
 // Reel pode ficar processando e é concluído na rodada seguinte (status "publicando" + container_id).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { vincularAnuncios } from "./vincular.ts";
+import { ligarPost, vincularAnuncios, vincularInstagram } from "./vincular.ts";
 
 const V = "v22.0"; // a API de áudio (músicas em alta) está documentada a partir da v22
 const CORS = {
@@ -349,12 +350,17 @@ Deno.serve(async (req) => {
       // Métricas: a cada rodada, as mais desatualizadas (cada uma é revista a cada ~3 h).
       const medidas = await atualizarMetricas(sb).catch(() => 0);
       // Uma vez por hora: liga anúncios publicados direto na Meta ao vídeo/criativo de origem.
-      const vinculos =
-        new Date().getUTCMinutes() < 5
-          ? await vincularAnuncios(sb, graphMeta(await tokenMeta(sb))).catch((e) => ({
-              erro: String(e),
-            }))
-          : null;
+      // e posts publicados direto no Instagram ao vídeo/criativo de origem.
+      let vinculos: unknown = null;
+      if (new Date().getUTCMinutes() < 5) {
+        const tk = await tokenMeta(sb);
+        vinculos = {
+          anuncios: await vincularAnuncios(sb, graphMeta(tk)).catch((e) => ({ erro: String(e) })),
+          instagram: await contaInstagram(sb, tk)
+            .then((ig) => vincularInstagram(sb, graphMeta(tk), ig))
+            .catch((e) => ({ erro: String(e) })),
+        };
+      }
       return json({ ok: true, resultados, medidas, vinculos });
     }
     const b = await req.json().catch(() => ({}));
@@ -419,11 +425,26 @@ Deno.serve(async (req) => {
         ok: true,
         medidas: await atualizarMetricas(sb, Array.isArray(b.ids) ? b.ids : undefined),
       });
-    if (b.acao === "vincular")
+    if (b.acao === "vincular") {
+      const tk = await tokenMeta(sb);
+      const anuncios = await vincularAnuncios(sb, graphMeta(tk), 45, !!b.simular);
+      const instagram = await contaInstagram(sb, tk)
+        .then((ig) => vincularInstagram(sb, graphMeta(tk), ig, 60, !!b.simular))
+        .catch((e) => ({ ligados: [], pendentes: [], erro: String(e) }));
+      // Métricas dos posts recém-ligados já na mesma chamada.
+      if (!b.simular && instagram.ligados.length) await atualizarMetricas(sb).catch(() => 0);
       return json({
         ok: true,
-        ...(await vincularAnuncios(sb, graphMeta(await tokenMeta(sb)), 45, !!b.simular)),
+        ligados: anuncios.ligados,
+        pendentes: anuncios.pendentes,
+        instagram,
       });
+    }
+    if (b.acao === "ligar_post") {
+      const r = await ligarPost(sb, graphMeta(await tokenMeta(sb)), b);
+      await atualizarMetricas(sb, [r.id]).catch(() => 0);
+      return json(r);
+    }
     if (b.acao === "agora") {
       const p = await pegar(sb, String(b.id ?? ""));
       if (!p) return json({ error: "publicação não encontrada ou já publicada" }, 409);

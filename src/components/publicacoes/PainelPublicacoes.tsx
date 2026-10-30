@@ -1,6 +1,6 @@
 // Painel "Publicados": tudo que saiu da edição (Instagram e anúncios), com status, link e desempenho,
 // e o botão de reaproveitar (nova versão a partir do que performou). Serve criativos e vídeos.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -199,27 +199,58 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
     }
   }
 
-  // Liga anúncios publicados direto na Meta (fora daqui) ao vídeo/criativo de origem.
-  // O servidor também faz isso sozinho uma vez por hora.
+  // Liga ao vídeo/criativo de origem o que foi publicado fora daqui: anúncios criados direto na
+  // Meta e posts feitos direto no Instagram. Roda sozinho ao abrir a página (e o servidor repete
+  // uma vez por hora); o que não deu para ligar com segurança aparece para ligar à mão.
   const [vinculando, setVinculando] = useState(false);
-  async function vincular() {
+  const [pendentes, setPendentes] = useState<PostPendente[]>([]);
+  const jaBuscou = useRef(false);
+  async function vincular(silencioso = false) {
     setVinculando(true);
     try {
       const r = await callEdgeFunction("publicar-agendados", { acao: "vincular" });
       if (r.error) throw new Error(r.error);
-      const n = (r.ligados ?? []).length;
-      await qc.invalidateQueries({ queryKey: ["publicacoes", origem] });
-      toast.success(
-        n
-          ? `${n} anúncio${n > 1 ? "s" : ""} da Meta ligado${n > 1 ? "s" : ""}: ${(r.ligados as { anuncio: string }[]).map((x) => x.anuncio).join(", ")}`
-          : "Nenhum anúncio novo para ligar.",
+      const ads = (r.ligados ?? []) as { anuncio: string }[];
+      const posts = ((r.instagram?.ligados ?? []) as { projeto: string; tipo: string }[]).filter(
+        (x) => (origem === "video") === (x.tipo === "reel"),
       );
+      const pend = ((r.instagram?.pendentes ?? []) as PostPendente[]).filter(
+        (x) => (origem === "video") === (x.tipo === "reel"),
+      );
+      setPendentes(pend);
+      if (ads.length || posts.length) {
+        await qc.invalidateQueries({ queryKey: ["publicacoes", origem] });
+        toast.success(
+          [
+            posts.length
+              ? `${posts.length} post${posts.length > 1 ? "s" : ""} do Instagram ligado${posts.length > 1 ? "s" : ""}: ${posts.map((x) => x.projeto).join(", ")}`
+              : "",
+            ads.length
+              ? `${ads.length} anúncio${ads.length > 1 ? "s" : ""} da Meta ligado${ads.length > 1 ? "s" : ""}: ${ads.map((x) => x.anuncio).join(", ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
+      } else if (!silencioso)
+        toast.success(
+          pend.length
+            ? "Nada novo ligado automaticamente. Veja abaixo os posts para ligar à mão."
+            : "Tudo que foi publicado já está ligado.",
+        );
+      if (r.instagram?.erro && !silencioso) toast.error(`Instagram: ${r.instagram.erro}`);
     } catch (e) {
-      toast.error((e as Error).message);
+      if (!silencioso) toast.error((e as Error).message);
     } finally {
       setVinculando(false);
     }
   }
+  useEffect(() => {
+    if (jaBuscou.current) return;
+    jaBuscou.current = true;
+    void vincular(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function cancelar(p: Pub) {
     await db()
@@ -341,16 +372,16 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
           variant="outline"
           size="sm"
           className="ml-auto"
-          onClick={vincular}
+          onClick={() => vincular()}
           disabled={vinculando}
-          title="Liga ao vídeo ou criativo os anúncios que você publicou direto na Meta"
+          title="Liga ao vídeo ou criativo o que você publicou direto no Instagram ou na Meta"
         >
           {vinculando ? (
             <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
           ) : (
             <Link2 className="h-4 w-4 mr-1.5" />
           )}
-          Buscar anúncios da Meta
+          Buscar publicações de fora
         </Button>
         <Button
           variant="outline"
@@ -366,6 +397,17 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
           Atualizar métricas
         </Button>
       </div>
+
+      {pendentes.length > 0 && (
+        <PostsSemVinculo
+          posts={pendentes}
+          origem={origem}
+          onLigado={(id) => {
+            setPendentes((l) => l.filter((x) => x.ig_media_id !== id));
+            void qc.invalidateQueries({ queryKey: ["publicacoes", origem] });
+          }}
+        />
+      )}
 
       {pubs.isLoading ? (
         <div className="py-16 flex justify-center">
@@ -534,5 +576,136 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
         </div>
       )}
     </div>
+  );
+}
+
+type PostPendente = {
+  ig_media_id: string;
+  permalink: string | null;
+  publicado_em: string;
+  tipo: "reel" | "carrossel" | "imagem";
+  legenda: string;
+  thumb: string | null;
+  duracao: number | null;
+  motivo: string;
+};
+
+/** Posts do Instagram publicados fora daqui que a busca não conseguiu ligar sozinha. */
+function PostsSemVinculo({
+  posts,
+  origem,
+  onLigado,
+}: {
+  posts: PostPendente[];
+  origem: Origem;
+  onLigado: (igMediaId: string) => void;
+}) {
+  const [escolha, setEscolha] = useState<Record<string, string>>({});
+  const [ligando, setLigando] = useState<string | null>(null);
+  const projetos = useQuery({
+    queryKey: ["publicacoes", "projetos-para-ligar", origem],
+    queryFn: async () => {
+      const { data } = await db()
+        .from(origem === "video" ? "vedit_projetos" : "cria_projetos")
+        .select("id, nome, created_at")
+        .order("created_at", { ascending: false })
+        .limit(150);
+      return (data ?? []) as { id: string; nome: string | null; created_at: string }[];
+    },
+  });
+  async function ligar(p: PostPendente) {
+    const ref = escolha[p.ig_media_id];
+    if (!ref) return toast.error("Escolha o vídeo ou criativo de origem.");
+    setLigando(p.ig_media_id);
+    try {
+      const r = await callEdgeFunction("publicar-agendados", {
+        acao: "ligar_post",
+        ig_media_id: p.ig_media_id,
+        origem,
+        ref_id: ref,
+      });
+      if (r.error) throw new Error(r.error);
+      toast.success("Post ligado. As métricas já estão sendo puxadas.");
+      onLigado(p.ig_media_id);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLigando(null);
+    }
+  }
+  return (
+    <Card className="border-amber-300 dark:border-amber-700">
+      <CardContent className="p-3 space-y-3">
+        <div>
+          <div className="font-semibold text-sm">
+            {posts.length} post{posts.length > 1 ? "s" : ""} do Instagram publicado
+            {posts.length > 1 ? "s" : ""} fora daqui sem ligação
+          </div>
+          <p className="text-xs text-muted-foreground">
+            A busca não teve certeza de qual {origem === "video" ? "vídeo" : "criativo"} gerou cada
+            um. Escolha a origem para acompanhar o desempenho aqui.
+          </p>
+        </div>
+        <div className="divide-y">
+          {posts.map((p) => (
+            <div key={p.ig_media_id} className="py-2 flex gap-3 items-start">
+              <div className="h-16 w-12 shrink-0 rounded overflow-hidden border bg-muted">
+                {p.thumb && <img src={p.thumb} className="h-full w-full object-cover" />}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(p.publicado_em), "dd/MM HH:mm", { locale: ptBR })}
+                  {p.duracao ? ` · ${p.duracao.toFixed(1)} s` : ""} · {p.motivo}
+                  {p.permalink && (
+                    <a
+                      href={p.permalink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ml-2 underline"
+                    >
+                      abrir
+                    </a>
+                  )}
+                </div>
+                <p className="text-sm line-clamp-2">{p.legenda || "(sem legenda)"}</p>
+                <div className="flex gap-2">
+                  <Select
+                    value={escolha[p.ig_media_id] ?? ""}
+                    onValueChange={(v) => setEscolha((e) => ({ ...e, [p.ig_media_id]: v }))}
+                  >
+                    <SelectTrigger className="h-8 text-xs flex-1 min-w-0">
+                      <SelectValue
+                        placeholder={origem === "video" ? "Qual vídeo é?" : "Qual criativo é?"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(projetos.data ?? []).map((x) => (
+                        <SelectItem key={x.id} value={x.id}>
+                          {x.nome || "Sem nome"} ·{" "}
+                          {format(new Date(x.created_at), "dd/MM", { locale: ptBR })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    className="h-8"
+                    onClick={() => ligar(p)}
+                    disabled={ligando === p.ig_media_id || !escolha[p.ig_media_id]}
+                  >
+                    {ligando === p.ig_media_id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="h-4 w-4 mr-1" />
+                    )}
+                    Ligar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
