@@ -417,7 +417,7 @@ async function gerarFotoIA(input: any) {
 }
 
 async function contexto(sb: any, p: any) {
-  const [{ data: fotos }, { data: marca }, ref, { data: msgs }] = await Promise.all([
+  const [{ data: fotos }, { data: marca }, ref, { data: msgs }, modelo] = await Promise.all([
     sb
       .from("cria_fotos")
       .select("id, nome, descricao, origem, favorita, created_at")
@@ -444,6 +444,9 @@ async function contexto(sb: any, p: any) {
       .eq("projeto_id", p.id)
       .order("created_at", { ascending: false })
       .limit(14),
+    p.modelo_id
+      ? sb.from("cria_modelos").select("nome, descricao").eq("id", p.modelo_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const lista = (fotos ?? [])
     .map(
@@ -458,7 +461,7 @@ Briefing: ${p.briefing || "(sem briefing)"}
 ${p.roteiro ? `\nROTEIRO da Mariana (distribua slide a slide, nesta ordem, sem perder nada):\n"""\n${p.roteiro}\n"""\n` : ""}
 MARCA (padrão do editor de vídeo): ${JSON.stringify(marca?.marca ?? {})}${marca?.instrucoes ? `\nInstruções da marca: ${marca.instrucoes}` : ""}
 
-${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
+${modelo?.data ? `MODELO SALVO da Mariana: "${modelo.data.nome}"${modelo.data.descricao ? ` (${modelo.data.descricao})` : ""}. O criativo nasceu como cópia dele (DESIGN ATUAL). Mantenha a ESTRUTURA do modelo (a não ser que a Mariana peça para mudar) e troque o CONTEÚDO.\n` : ""}${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
 BIBLIOTECA DE FOTOS (id | tipo | nome — descrição):
 ${lista || "(vazia: faça sem fotos ou gere do zero)"}
 
@@ -641,7 +644,7 @@ Deno.serve(async (req) => {
       const id = String(body.projeto_id ?? "");
       const { data: p } = await sb
         .from("cria_projetos")
-        .select("id, status, tipo, updated_at, referencia_id, roteiro")
+        .select("id, status, tipo, updated_at, referencia_id, roteiro, modelo_id")
         .eq("id", id)
         .single();
       if (!p) return json({ error: "projeto não encontrado" }, 404);
@@ -681,8 +684,9 @@ Deno.serve(async (req) => {
               conteudo: "Não consegui ler a referência; vou montar sem ela.",
             });
         }
-        pedido =
-          p.tipo === "unico"
+        pedido = p.modelo_id
+          ? `Crie o ${p.tipo === "unico" ? "post único" : "carrossel"} NO MODELO SALVO (o DESIGN ATUAL é a cópia dele). Mantenha a estrutura: a mesma quantidade de slides (só mude se o roteiro tiver mais ou menos blocos), o mesmo layout em cada posição, os mesmos tipos de visual (cards, fluxo, linhas), botões, etiquetas, tema, cores, fontes e tamanhos. Troque todo o conteúdo (textos, itens dos visuais, fotos) pelo ${p.roteiro ? "do ROTEIRO, distribuído slide a slide" : "do briefing"}. Não pode sobrar nenhum texto do criativo original do modelo.`
+          : p.tipo === "unico"
             ? `Crie o post único a partir ${p.roteiro ? "do ROTEIRO" : "do briefing"}${comRef ? ", no modelo da REFERÊNCIA" : ""}.`
             : p.roteiro
               ? `Crie o carrossel distribuindo o ROTEIRO slide a slide${comRef ? ", no molde da REFERÊNCIA (slide N segue o slide N dela)" : ""}. Use o briefing como contexto.`
