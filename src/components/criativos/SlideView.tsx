@@ -570,7 +570,8 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                 borderRadius: 999,
                 background: t.destaque,
                 color: "#0B0B0F",
-                fontSize: 30,
+                // Etiquetas longas ("PRA QUEM ...") diminuem para caber numa linha.
+                fontSize: ajusta(s.rotulo, 30, 22, 30),
                 fontWeight: 900,
                 letterSpacing: 1.5,
                 textTransform: "uppercase",
@@ -639,6 +640,24 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         >
           {autor.nome} {autor.verificado && <Verificado s={38} />}
         </div>
+        {s.rotulo && (
+          // Etiqueta de qualificação ("PRA QUEM ..."): pílula na cor de destaque, acima do título.
+          <div
+            style={{
+              padding: "12px 26px",
+              borderRadius: 999,
+              background: t.destaque,
+              color: "#0B0B0F",
+              fontSize: ajusta(s.rotulo, 28, 22, 34),
+              fontWeight: 900,
+              letterSpacing: 1.5,
+              textTransform: "uppercase",
+              marginBottom: -8,
+            }}
+          >
+            {s.rotulo}
+          </div>
+        )}
         <div
           style={{
             fontSize: ajusta(s.titulo, 88, 56, 30),
