@@ -112,6 +112,11 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   ref,
 ) {
   const [W, H] = FORMATOS[formato];
+  // Stories/Reels (9:16): a interface do Instagram cobre o topo e a base, e o feed corta o 9:16
+  // para 4:5 pelo centro. Tudo que importa fica entre 290px do topo e 340px da base.
+  const story = formato === "9:16";
+  const segTopo = story ? 290 : 0;
+  const segBase = story ? 340 : 0;
   const t = design.tema;
   const autor = design.autor;
   const avatar = autor.foto ? fotos.get(autor.foto)?.url : undefined;
@@ -160,7 +165,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           position: "absolute",
           left: 80,
           right: 80,
-          bottom: 52,
+          bottom: 52 + segBase,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -224,7 +229,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             position: "absolute",
             left: 72,
             right: 72,
-            bottom: (total > 1 ? 120 : 80) + subir * H,
+            bottom: (total > 1 ? 120 : 80) + segBase + subir * H,
             display: "flex",
             flexDirection: "column",
             alignItems: elegante ? "center" : "flex-start",
@@ -270,7 +275,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           <div
             style={{
               position: "absolute",
-              bottom: 52,
+              bottom: 52 + segBase,
               left: 0,
               right: 0,
               textAlign: "center",
@@ -293,7 +298,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "0 84px",
+          padding: `${segTopo}px 84px ${segBase}px`,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
@@ -352,7 +357,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "96px 72px 130px",
+          padding: `${96 + segTopo}px 72px ${130 + segBase}px`,
           display: "flex",
           flexDirection: "column",
           gap: 26,
@@ -361,7 +366,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         <div
           style={{
             position: "absolute",
-            top: 40,
+            top: 40 + segTopo,
             right: 48,
             transform: "scale(.8)",
             transformOrigin: "top right",
@@ -423,7 +428,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "88px 72px 130px",
+          padding: `${88 + segTopo}px 72px ${130 + segBase}px`,
           display: "flex",
           flexDirection: "column",
           gap: 30,
@@ -484,7 +489,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "100px 76px 130px",
+          padding: `${100 + segTopo}px 76px ${130 + segBase}px`,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
@@ -571,7 +576,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
             position: "absolute",
             left: 72,
             right: 72,
-            bottom: (s.botao ? 110 : 130) + subir * H,
+            bottom: (s.botao ? 110 : 130) + segBase + subir * H,
             display: "flex",
             flexDirection: "column",
             gap: 22,
@@ -640,7 +645,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: "0 90px",
+          padding: `${segTopo}px 90px ${segBase}px`,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -742,7 +747,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         style={{
           position: "absolute",
           inset: 0,
-          padding: s.visual ? "70px 80px 110px" : "0 84px",
+          padding: s.visual
+            ? `${70 + segTopo}px 80px ${110 + segBase}px`
+            : `${segTopo}px 84px ${segBase}px`,
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
@@ -819,7 +826,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
       alt="IAplicada"
       style={{
         position: "absolute",
-        top: 64,
+        top: 64 + (story ? 230 : 0),
         [lg!.lado === "direita" ? "right" : "left"]: 72,
         width: 260,
         height: "auto",
@@ -832,7 +839,15 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   // Layouts que não posicionam o botão no próprio corpo: ele entra embaixo, acima do rodapé.
   const botaoSolto =
     s.botao && ["capa", "tweet", "comando"].includes(s.layout) ? (
-      <div style={{ position: "absolute", left: 72, right: 72, bottom: 120, display: "flex" }}>
+      <div
+        style={{
+          position: "absolute",
+          left: 72,
+          right: 72,
+          bottom: 120 + segBase,
+          display: "flex",
+        }}
+      >
         <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
       </div>
     ) : null;
