@@ -18,3 +18,7 @@ alter table public.vedit_nicho_ads enable row level security;
 drop policy if exists "auth crud vedit_nicho_ads" on public.vedit_nicho_ads;
 create policy "auth crud vedit_nicho_ads" on public.vedit_nicho_ads for all to authenticated using (true) with check (true);
 notify pgrst, 'reload schema';
+
+alter table public.vedit_jobs drop constraint if exists vedit_jobs_tipo_check;
+alter table public.vedit_jobs add constraint vedit_jobs_tipo_check
+  check (tipo in ('proxy','recorte','voz','baixar','referencia','cria_referencia','slideshow','ads_busca'));
