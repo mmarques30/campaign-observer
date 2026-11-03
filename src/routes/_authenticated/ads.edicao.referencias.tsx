@@ -291,7 +291,9 @@ function CartaoRef({
           </div>
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline">{STATUS_REF[r.status]}</Badge>
-            <Badge variant="outline">{r.plataforma}</Badge>
+            <Badge variant="outline">
+              {r.plataforma === "ads_library" ? "anúncio Meta" : r.plataforma}
+            </Badge>
             {r.duracao ? <Badge variant="outline">{fmtTempo(Number(r.duracao))}</Badge> : null}
           </div>
           {a ? (
@@ -386,9 +388,9 @@ function NovaReferencia({
         <DialogHeader>
           <DialogTitle>Nova referência</DialogTitle>
           <DialogDescription>
-            Cole o link do vídeo (Reel do Instagram, TikTok ou YouTube Shorts): o sistema baixa,
-            analisa a edição e você aplica num vídeo seu, mesmo já editado. Se o post for privado,
-            solte o arquivo.
+            Cole o link do vídeo (Reel do Instagram, TikTok, YouTube Shorts ou um anúncio da
+            Biblioteca de Anúncios da Meta): o sistema baixa, analisa a edição e você aplica num
+            vídeo seu, mesmo já editado. Se o post for privado, solte o arquivo.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -397,7 +399,7 @@ function NovaReferencia({
             <Input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.instagram.com/reel/… ou link do TikTok"
+              placeholder="https://www.instagram.com/reel/… ou https://www.facebook.com/ads/library/?id=…"
             />
           </div>
           <div className="space-y-1.5">
@@ -487,7 +489,8 @@ function Detalhe({
                 )}
               </SheetTitle>
               <SheetDescription>
-                {STATUS_REF[r.status]} · {r.plataforma}
+                {STATUS_REF[r.status]} ·{" "}
+                {r.plataforma === "ads_library" ? "anúncio Meta" : r.plataforma}
                 {r.duracao ? ` · ${fmtTempo(Number(r.duracao))}` : ""}
                 {r.metricas && Object.keys(r.metricas).length
                   ? " · " +

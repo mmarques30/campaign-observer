@@ -44,6 +44,7 @@ async function logUso(sb: any, origem: string, usage: any, refId: string | null)
 
 // ─── metadados por oEmbed ───────────────────────────────────────────────────
 function plataformaDe(url: string) {
+  if (/facebook\.com\/ads\/library/i.test(url)) return "ads_library";
   if (/instagram\.com/i.test(url)) return "instagram";
   if (/tiktok\.com/i.test(url)) return "tiktok";
   if (/youtube\.com|youtu\.be/i.test(url)) return "youtube";

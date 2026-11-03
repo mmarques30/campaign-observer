@@ -243,9 +243,144 @@ export async function gerarVoz(projetoId: string) {
 }
 
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
+const EH_AD_LIBRARY = /facebook\.com\/ads\/library/i;
+
+/** Caminho do Chrome que o Remotion já baixou (chrome-headless-shell) para usar no Playwright. */
+async function chromeDoRemotion() {
+  const raiz = path.join(process.cwd(), "node_modules", ".remotion");
+  const candidatos = [
+    path.join(
+      raiz,
+      "chrome-headless-shell/linux64/chrome-headless-shell-linux64/chrome-headless-shell",
+    ),
+    path.join(
+      raiz,
+      "chrome-headless-shell/mac_arm64/chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    ),
+  ];
+  for (const c of candidatos)
+    if (
+      await fs.stat(c).then(
+        () => true,
+        () => false,
+      )
+    )
+      return c;
+  const { ensureBrowser } = await import("@remotion/renderer");
+  await ensureBrowser();
+  for (const c of candidatos)
+    if (
+      await fs.stat(c).then(
+        () => true,
+        () => false,
+      )
+    )
+      return c;
+  throw new Error("navegador do Remotion não encontrado");
+}
+
+/**
+ * Biblioteca de Anúncios da Meta (facebook.com/ads/library/?id=…): a página exige rodar o
+ * desafio em JavaScript, então abre no Chrome do Remotion, lê o JSON embutido (vídeo HD, texto,
+ * anunciante, CTA, link, data de início, plataformas) e baixa o MP4 com a sessão do navegador.
+ */
+async function baixarAdLibrary(id: string, url: string) {
+  const idAd = url.match(/[?&]id=(\d+)/)?.[1];
+  if (!idAd) throw new Error("link da Biblioteca de Anúncios sem id (?id=…)");
+  let pw: typeof import("playwright-core");
+  try {
+    pw = await import("playwright-core");
+  } catch {
+    throw new Error(
+      "worker sem playwright-core: refaça o build do worker (render-worker/Dockerfile)",
+    );
+  }
+  const exe = await chromeDoRemotion();
+  const navegador = await pw.chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+  try {
+    const ctx = await navegador.newContext({
+      locale: "pt-BR",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 1000 },
+    });
+    const pagina = await ctx.newPage();
+    await pagina.goto(`https://www.facebook.com/ads/library/?id=${idAd}`, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000,
+    });
+    // O desafio resolve e a página recarrega com o anúncio; espera o JSON do snapshot aparecer.
+    let html = "";
+    for (let i = 0; i < 40; i++) {
+      await pagina.waitForTimeout(1500);
+      html = await pagina.content().catch(() => "");
+      if (
+        /"video_hd_url"|"video_sd_url"|"original_image_url"|"page_name"/.test(html) &&
+        /"page_name"/.test(html)
+      ) {
+        if (/"video_hd_url"|"video_sd_url"|"original_image_url"/.test(html)) break;
+      }
+    }
+    const campo = (re: RegExp) => {
+      const m = html.match(re);
+      if (!m) return null;
+      try {
+        return JSON.parse(`"${m[1]}"`) as string;
+      } catch {
+        return m[1];
+      }
+    };
+    const video = campo(/"video_hd_url":"([^"]+)"/) ?? campo(/"video_sd_url":"([^"]+)"/);
+    const imagem =
+      campo(/"original_image_url":"([^"]+)"/) ?? campo(/"resized_image_url":"([^"]+)"/);
+    const anunciante = campo(/"page_name":"([^"]*)"/);
+    const corpo = campo(/"body":\{"text":"((?:[^"\\]|\\.)*)"/);
+    const titulo = campo(/"title":"((?:[^"\\]|\\.)*)"/);
+    const cta = campo(/"cta_text":"([^"]*)"/);
+    const link = campo(/"link_url":"([^"]*)"/);
+    const inicio = html.match(/"start_date":(\d+)/)?.[1];
+    const plataformas =
+      html
+        .match(/"publisher_platform":\[([^\]]*)\]/)?.[1]
+        ?.replace(/"/g, "")
+        .toLowerCase() ?? null;
+    if (!anunciante && !video && !imagem)
+      throw new Error(
+        "a Biblioteca de Anúncios não mostrou esse anúncio (link errado, anúncio removido ou bloqueio da Meta)",
+      );
+    if (!video)
+      throw new Error(
+        `este anúncio de ${anunciante ?? "?"} é só imagem${corpo ? ` ("${corpo.slice(0, 80)}…")` : ""}: a análise de vídeo precisa de um anúncio em vídeo`,
+      );
+    const r = await ctx.request.get(video, { timeout: 120000 });
+    if (!r.ok()) throw new Error(`download do vídeo do anúncio falhou (${r.status()})`);
+    const arquivo = path.join(os.tmpdir(), `ref-${id}.mp4`);
+    await fs.writeFile(arquivo, await r.body());
+    return {
+      arquivo,
+      username: anunciante,
+      legenda: [titulo, corpo].filter(Boolean).join("\n\n") || null,
+      curtidas: null as number | null,
+      metricas: {
+        origem: "ads_library",
+        id_anuncio: idAd,
+        anunciante,
+        cta,
+        link,
+        inicio: inicio ? new Date(Number(inicio) * 1000).toISOString() : null,
+        plataformas,
+        imagem,
+      },
+    };
+  } finally {
+    await navegador.close().catch(() => null);
+  }
+}
+
 /** Baixa o vídeo do link (Instagram, TikTok, YouTube…) com o yt-dlp para o disco, em H.264. */
 async function baixarLocal(id: string, url: string) {
   if (!/^https?:\/\//.test(url)) throw new Error("link inválido");
+  if (EH_AD_LIBRARY.test(url)) return baixarAdLibrary(id, url);
   const base = path.join(os.tmpdir(), `ref-${id}`);
   try {
     await execFileP(
@@ -313,6 +448,12 @@ async function baixarLocal(id: string, url: string) {
     username: (info.channel || info.uploader_id || info.uploader || null) as string | null,
     legenda: (info.description || info.title || null) as string | null,
     curtidas: (info.like_count ?? null) as number | null,
+    metricas: {
+      curtidas: info.like_count ?? null,
+      comentarios: info.comment_count ?? null,
+      visualizacoes: info.view_count ?? null,
+      publicado_em: info.timestamp ? new Date(info.timestamp * 1000).toISOString() : null,
+    } as Record<string, unknown>,
   };
 }
 
@@ -438,6 +579,7 @@ async function processarReferencia(jobId: string, refId: string, url: string) {
       altura,
       autor: atual?.autor ?? r.username,
       legenda: atual?.legenda ?? r.legenda,
+      metricas: r.metricas ?? {},
       status: "transcrevendo",
     });
     await fs.rm(r.arquivo, { force: true });

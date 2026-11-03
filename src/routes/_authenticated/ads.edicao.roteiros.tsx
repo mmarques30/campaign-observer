@@ -2,7 +2,7 @@
 // Referências), com assunto e idioma escolhidos e conversa de ajustes.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,8 +14,14 @@ import {
   IDIOMAS_ROTEIRO,
   NovoRoteiro,
   PainelRoteiro,
+  STATUS_ROTEIRO,
+  excluirRoteiro,
   type RoteiroLinha,
 } from "@/components/edicao/RoteiroReferencia";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/roteiros")({
   validateSearch: (s: Record<string, unknown>): { id?: string } =>
@@ -29,6 +35,18 @@ function RoteirosPage() {
   const busca = Route.useSearch();
   const navigate = Route.useNavigate();
   const [aberto, setAberto] = useState<string | null>(busca.id ?? null);
+  const [filtro, setFiltro] = useState<"todos" | "rascunho" | "aprovado" | "reprovado">("todos");
+  const qc = useQueryClient();
+  async function excluirDaLista(e: MouseEvent, r: RoteiroLinha) {
+    e.stopPropagation();
+    if (!confirm(`Excluir "${r.roteiro?.titulo ?? r.tema}"?`)) return;
+    try {
+      await excluirRoteiro(r.id);
+      qc.invalidateQueries({ queryKey: ["vedit", "roteiros"] });
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
   const [nova, setNova] = useState<RefPronta | null>(null);
   const lista = useQuery({
     queryKey: ["vedit", "roteiros"],
@@ -106,43 +124,75 @@ function RoteirosPage() {
         </CardContent>
       </Card>
 
+      {(lista.data?.length ?? 0) > 0 && (
+        <Tabs value={filtro} onValueChange={(v) => setFiltro(v as typeof filtro)}>
+          <TabsList>
+            <TabsTrigger value="todos">Todos ({lista.data!.length})</TabsTrigger>
+            <TabsTrigger value="rascunho">
+              Em revisão (
+              {lista.data!.filter((r) => (r.aprovacao ?? "rascunho") === "rascunho").length})
+            </TabsTrigger>
+            <TabsTrigger value="aprovado">
+              Aprovados ({lista.data!.filter((r) => r.aprovacao === "aprovado").length})
+            </TabsTrigger>
+            <TabsTrigger value="reprovado">
+              Reprovados ({lista.data!.filter((r) => r.aprovacao === "reprovado").length})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
       {lista.isLoading ? (
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
       ) : !lista.data?.length ? (
         <p className="text-sm text-muted-foreground">Nenhum roteiro ainda.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {lista.data.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => abrir(r.id)}
-              className="text-left rounded-lg border p-3 hover:bg-muted space-y-1.5"
-            >
-              <div className="flex items-start gap-2">
-                <span className="font-medium text-sm line-clamp-2 flex-1">
-                  {r.roteiro?.titulo ?? r.tema}
+          {lista.data
+            .filter((r) => filtro === "todos" || (r.aprovacao ?? "rascunho") === filtro)
+            .map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => abrir(r.id)}
+                className="group relative text-left rounded-lg border p-3 hover:bg-muted space-y-1.5"
+              >
+                <span
+                  role="button"
+                  title="Excluir"
+                  className="absolute top-2 right-2 hidden group-hover:inline-flex h-6 w-6 items-center justify-center rounded hover:text-red-600"
+                  onClick={(e) => excluirDaLista(e, r)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
                 </span>
-                {r.status === "gerando" ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
-                ) : r.status === "erro" && !r.roteiro ? (
-                  <Badge variant="destructive">erro</Badge>
-                ) : null}
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-2">{r.tema}</p>
-              <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
-                <Badge variant="outline">{IDIOMAS_ROTEIRO[r.idioma] ?? r.idioma}</Badge>
-                {r.estrutura?.fonte?.autor && (
-                  <Badge variant="outline">@{r.estrutura.fonte.autor}</Badge>
-                )}
-                {r.versao > 1 && <Badge variant="outline">v{r.versao}</Badge>}
-                {r.content_item_id && <Badge variant="outline">no Marketing</Badge>}
-                <span className="ml-auto">
-                  {formatDistanceToNow(new Date(r.updated_at), { locale: ptBR, addSuffix: true })}
-                </span>
-              </div>
-            </button>
-          ))}
+                <div className="flex items-start gap-2">
+                  <span className="font-medium text-sm line-clamp-2 flex-1">
+                    {r.roteiro?.titulo ?? r.tema}
+                  </span>
+                  {r.status === "gerando" ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                  ) : r.status === "erro" && !r.roteiro ? (
+                    <Badge variant="destructive">erro</Badge>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground line-clamp-2">{r.tema}</p>
+                <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
+                  {r.aprovacao && r.aprovacao !== "rascunho" && (
+                    <Badge variant="outline" className={STATUS_ROTEIRO[r.aprovacao].cor}>
+                      {STATUS_ROTEIRO[r.aprovacao].nome}
+                    </Badge>
+                  )}
+                  <Badge variant="outline">{IDIOMAS_ROTEIRO[r.idioma] ?? r.idioma}</Badge>
+                  {r.estrutura?.fonte?.autor && (
+                    <Badge variant="outline">@{r.estrutura.fonte.autor}</Badge>
+                  )}
+                  {r.versao > 1 && <Badge variant="outline">v{r.versao}</Badge>}
+                  {r.content_item_id && <Badge variant="outline">no Marketing</Badge>}
+                  <span className="ml-auto">
+                    {formatDistanceToNow(new Date(r.updated_at), { locale: ptBR, addSuffix: true })}
+                  </span>
+                </div>
+              </button>
+            ))}
         </div>
       )}
 
