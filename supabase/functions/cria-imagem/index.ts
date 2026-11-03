@@ -97,9 +97,9 @@ Deno.serve(async (req) => {
     // (fundo quase preto, verde-lima nos detalhes, logo repetida no backdrop como parede de imprensa).
     const comMarca = body.marca === true;
     if (comMarca)
-      prompt += `\n\nBRAND: the last reference image is the IAplicada logo (four-leaf green mark + wordmark). Set the scene in IAplicada's identity: near-black background (#0B0B0F) with subtle lime-green (#A3CB20) accents and soft rim light; the backdrop behind the person is a press wall / step-and-repeat with the IAplicada logo repeated in a regular grid, printed in muted light tones on the dark panel, slightly out of focus, never covering the face. Reproduce the logo exactly, without distortion or extra text.`;
+      prompt += `\n\nBRAND: the last reference image is the IAplicada logo (four-leaf green mark + wordmark). Set the scene in IAplicada's identity, kept CLEAN and well lit: a plain matte dark-charcoal studio wall (#15181A), evenly lit, with the IAplicada logo appearing only 3 or 4 times, large and widely spaced, printed tone-on-tone in a slightly lighter grey so it reads as subtle texture, never a dense grid, never behind the face. Strong soft key light on the face (well exposed, no murky shadows), a thin lime-green (#A3CB20) rim light on hair and shoulder. Reproduce the logo exactly, without distortion or extra text.`;
     // Nitidez: o rosto é o que mais sofre em edição, então pede foco e detalhe de pele sempre.
-    prompt += `\n\nQUALITY: photorealistic, tack-sharp focus on the face with real skin texture and fine detail, no softness, no plastic skin, no smoothing, no AI look, natural color.`;
+    prompt += `\n\nQUALITY: photorealistic, tack-sharp focus on the eyes and face with real skin texture (pores, fine lines), crisp hair strands, high micro-contrast, no softness, no plastic skin, no smoothing, no AI look, natural color, well exposed.`;
 
     if (body.acao === "editar") {
       const ids: string[] = body.fotos_ids ?? (body.foto_id ? [body.foto_id] : []);
