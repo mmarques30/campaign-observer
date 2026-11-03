@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { db } from "@/lib/vedit";
 import { BotaoSalvarReferencia, NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
+import { PesquisaPorLink } from "@/components/edicao/PesquisaPorLink";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/pesquisa")({
   component: PesquisaPage,
@@ -118,6 +119,7 @@ const fmtN = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 
 
 function PesquisaPage() {
   const qc = useQueryClient();
+  const navegar = useNavigate();
   const cfgQ = useQuery({
     queryKey: ["vedit", "nicho", "config"],
     queryFn: async () => {
@@ -236,6 +238,10 @@ function PesquisaPage() {
           </CardContent>
         </Card>
       )}
+
+      <PesquisaPorLink
+        onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
+      />
 
       <Nicho
         cfg={cfgQ.data}

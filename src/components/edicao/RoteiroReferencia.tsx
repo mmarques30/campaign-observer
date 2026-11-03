@@ -13,6 +13,10 @@ import {
   BookmarkCheck,
   FileText,
   Timer,
+  ThumbsUp,
+  ThumbsDown,
+  Trash2,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,7 +100,40 @@ export type RoteiroLinha = {
   mensagens: { papel: "usuario" | "claude"; texto: string; em: string; versao?: number }[];
   versao: number;
   content_item_id: string | null;
+  aprovacao?: "rascunho" | "aprovado" | "reprovado";
+  aprovacao_em?: string | null;
+  aprovacao_nota?: string | null;
 };
+
+export const STATUS_ROTEIRO: Record<
+  NonNullable<RoteiroLinha["aprovacao"]>,
+  { nome: string; cor: string }
+> = {
+  rascunho: { nome: "Em revisão", cor: "" },
+  aprovado: { nome: "Aprovado", cor: "border-emerald-500 text-emerald-600" },
+  reprovado: { nome: "Reprovado", cor: "border-red-500 text-red-600" },
+};
+
+/** Aprova, reprova ou volta para revisão. */
+export async function mudarStatusRoteiro(
+  id: string,
+  status: NonNullable<RoteiroLinha["aprovacao"]>,
+  nota?: string,
+) {
+  const { error } = await db()
+    .from("vedit_roteiros")
+    .update({
+      aprovacao: status,
+      aprovacao_em: new Date().toISOString(),
+      aprovacao_nota: nota ?? null,
+    })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+export async function excluirRoteiro(id: string) {
+  const { error } = await db().from("vedit_roteiros").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
 
 /** Texto corrido para gravar: fala por fala com as pausas marcadas. */
 export function roteiroCorrido(r: NonNullable<RoteiroLinha["roteiro"]>) {
@@ -376,6 +413,39 @@ export function PainelRoteiro({ id, onFechar }: { id: string | null; onFechar: (
       setEnviando(false);
     }
   }
+  async function mudarStatus(status: NonNullable<RoteiroLinha["aprovacao"]>) {
+    if (!id) return;
+    let nota: string | undefined;
+    if (status === "reprovado") nota = prompt("Motivo (opcional):") ?? undefined;
+    setEnviando(true);
+    try {
+      await mudarStatusRoteiro(id, status, nota);
+      await q.refetch();
+      qc.invalidateQueries({ queryKey: ["vedit", "roteiros"] });
+      toast.success(
+        status === "aprovado"
+          ? "Roteiro aprovado."
+          : status === "reprovado"
+            ? "Roteiro reprovado."
+            : "Voltou para revisão.",
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  }
+  async function excluir() {
+    if (!id || !confirm("Excluir este roteiro? Não dá para desfazer.")) return;
+    try {
+      await excluirRoteiro(id);
+      qc.invalidateQueries({ queryKey: ["vedit", "roteiros"] });
+      toast.success("Roteiro excluído.");
+      onFechar();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
   async function ajustar() {
     if (!pedido.trim()) return;
     const p = pedido;
@@ -504,6 +574,52 @@ export function PainelRoteiro({ id, onFechar }: { id: string | null; onFechar: (
                 }}
               >
                 <RefreshCw className="h-4 w-4 mr-2" /> Refazer
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border p-2">
+              <Badge variant="outline" className={STATUS_ROTEIRO[r.aprovacao ?? "rascunho"].cor}>
+                {STATUS_ROTEIRO[r.aprovacao ?? "rascunho"].nome}
+              </Badge>
+              {r.aprovacao !== "aprovado" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-emerald-700"
+                  disabled={enviando}
+                  onClick={() => mudarStatus("aprovado")}
+                >
+                  <ThumbsUp className="h-4 w-4 mr-1.5" /> Aprovar
+                </Button>
+              )}
+              {r.aprovacao !== "reprovado" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-700"
+                  disabled={enviando}
+                  onClick={() => mudarStatus("reprovado")}
+                >
+                  <ThumbsDown className="h-4 w-4 mr-1.5" /> Reprovar
+                </Button>
+              )}
+              {r.aprovacao && r.aprovacao !== "rascunho" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={enviando}
+                  onClick={() => mudarStatus("rascunho")}
+                >
+                  <Undo2 className="h-4 w-4 mr-1.5" /> Voltar para revisão
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto text-red-600"
+                disabled={enviando}
+                onClick={excluir}
+              >
+                <Trash2 className="h-4 w-4 mr-1.5" /> Excluir
               </Button>
             </div>
           </>

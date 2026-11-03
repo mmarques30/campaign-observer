@@ -58,7 +58,7 @@ export type Referencia = {
   created_at: string;
   updated_at: string;
   url: string | null;
-  plataforma: "instagram" | "tiktok" | "youtube" | "arquivo";
+  plataforma: "instagram" | "tiktok" | "youtube" | "arquivo" | "ads_library";
   codigo: string | null;
   autor: string | null;
   titulo: string | null;
@@ -309,13 +309,15 @@ export async function urlAssinada(path: string) {
 const plataformaDe = (url: string | null): Referencia["plataforma"] =>
   !url
     ? "arquivo"
-    : /instagram\.com/i.test(url)
-      ? "instagram"
-      : /tiktok\.com/i.test(url)
-        ? "tiktok"
-        : /youtube\.com|youtu\.be/i.test(url)
-          ? "youtube"
-          : "arquivo";
+    : /facebook\.com\/ads\/library/i.test(url)
+      ? "ads_library"
+      : /instagram\.com/i.test(url)
+        ? "instagram"
+        : /tiktok\.com/i.test(url)
+          ? "tiktok"
+          : /youtube\.com|youtu\.be/i.test(url)
+            ? "youtube"
+            : "arquivo";
 
 /**
  * Referência só pelo link: o servidor baixa, separa áudio e quadros, transcreve e analisa.
@@ -328,7 +330,9 @@ export async function criarReferenciaPorLink(dados: {
 }): Promise<string> {
   const url = dados.url.trim();
   // Mesmo vídeo já analisado: reaproveita na hora (não baixa nem analisa de novo).
-  const codigo = url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1];
+  const codigo =
+    url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1] ??
+    url.match(/ads\/library\/?\?.*\bid=(\d+)/)?.[1];
   const { data: ja } = await db()
     .from("vedit_referencias")
     .select("id, analise")
@@ -345,7 +349,10 @@ export async function criarReferenciaPorLink(dados: {
     .insert({
       url,
       plataforma: plataformaDe(url),
-      codigo: url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1] ?? null,
+      codigo:
+        url.match(/\/(?:p|reel|reels|video)\/([A-Za-z0-9_-]+)/)?.[1] ??
+        url.match(/ads\/library\/?\?.*\bid=(\d+)/)?.[1] ??
+        null,
       notas: dados.notas?.trim() || null,
       legenda: dados.legenda?.trim() || null,
       status: "enviando",
