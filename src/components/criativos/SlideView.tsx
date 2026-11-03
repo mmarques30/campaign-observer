@@ -483,7 +483,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     );
   } else if (s.layout === "lista") {
     const itens = s.itens ?? [];
-    const tam = itens.length > 5 ? 36 : 42;
+    const tam = itens.length > 5 ? 38 : itens.length > 3 ? 44 : 50;
     corpo = (
       <div
         style={{
@@ -530,21 +530,46 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         {s.botao && (
           <BotaoSlide texto={s.botao} c={cores} tamanho={s.botaoTamanho} estilo={s.botaoEstilo} />
         )}
-        <div style={{ display: s.visual ? "none" : "flex", flexDirection: "column", gap: 26 }}>
+        {/* Itens como linhas de uma tabela: número em bloco na cor de destaque, texto grande e
+            uma linha fina entre eles, ocupando a altura toda (nada de lista solta no meio). */}
+        <div
+          style={{
+            display: s.visual ? "none" : "flex",
+            flexDirection: "column",
+            flex: 1,
+            justifyContent: "center",
+          }}
+        >
           {itens.map((it, i) => (
-            <div key={i} style={{ display: "flex", gap: 26, alignItems: "flex-start" }}>
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                gap: 28,
+                alignItems: "center",
+                padding: `${itens.length > 5 ? 20 : 26}px 0`,
+                borderTop: i ? `2px solid ${cores.tx}1A` : undefined,
+              }}
+            >
               <div
                 style={{
+                  width: tam * 1.9,
+                  height: tam * 1.9,
+                  borderRadius: 18,
+                  background: cores.hi,
+                  color: fundo === "destaque" ? "#fff" : t.fundo,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   fontFamily: f(t.fonteTitulo, "Impact, sans-serif"),
-                  fontSize: tam * 1.5,
-                  lineHeight: 1,
-                  color: cores.hi,
-                  minWidth: tam * 1.6,
+                  fontSize: tam * 1.1,
+                  fontWeight: 900,
+                  flexShrink: 0,
                 }}
               >
                 {String(i + 1).padStart(2, "0")}
               </div>
-              <div style={{ fontSize: tam, lineHeight: 1.32, paddingTop: 4 }}>
+              <div style={{ fontSize: tam, lineHeight: 1.25, fontWeight: 600 }}>
                 <Rico t={it} cor={cores.hi} peso={800} />
               </div>
             </div>
