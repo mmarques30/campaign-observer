@@ -13,6 +13,7 @@ export const LAYOUTS = [
   "texto",
   "lista",
   "foto",
+  "cortes",
   "cta",
 ] as const;
 export type Layout = (typeof LAYOUTS)[number];
@@ -25,6 +26,7 @@ export const NOME_LAYOUT: Record<Layout, string> = {
   texto: "Frase de impacto",
   lista: "Lista numerada",
   foto: "Foto com legenda",
+  cortes: "Cortes de vídeo (frames empilhados)",
   cta: "Chamada final",
 };
 
@@ -81,8 +83,10 @@ export const slideSchema = z.object({
   // corpo; **palavra** vira destaque
   texto: z.string().nullish(),
   itens: z.array(z.string()).nullish(),
-  // ids de cria_fotos (até 2: antes/depois no layout "comando")
+  // ids de cria_fotos (até 2: antes/depois no layout "comando"; 2 a 4 frames no layout "cortes")
   fotos: z.array(z.string()).nullish(),
+  // layout "cortes": a fala de cada frame, na ordem das fotos (legenda queimada, como vídeo)
+  falas: z.array(z.string()).nullish(),
   fundo: z.enum(FUNDOS).nullish(),
   // capa: "impacto" (condensada caixa alta) ou "elegante" (grande, minúscula, centralizada)
   variante: z.enum(["impacto", "elegante"]).nullish(),
