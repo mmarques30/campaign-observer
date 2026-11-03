@@ -656,7 +656,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           height: alturaUtil,
           display: "flex",
           flexDirection: "column",
-          background: s.fundo === "claro" ? "#FFFFFF" : "#000",
+          background: s.fundo === "claro" || s.fundo === "destaque" ? "#FFFFFF" : "#000",
         }}
       >
         {Array.from({ length: n }, (_, i) => {
@@ -667,8 +667,11 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           const foco = focos[i] || focos[0] || "50% 30%";
           // Fundo "marca": parede escura com a logo da IAplicada esparsa, desenhada aqui, para
           // receber uma foto real recortada (fundo transparente): a pele fica a da foto, sem IA.
-          const parede = s.fundo === "marca" || s.fundo === "claro";
-          const paredeClara = s.fundo === "claro";
+          // "marca" = parede escura desenhada; "destaque" = parede clara desenhada (as duas para
+          // foto recortada); "claro" = foto normal com as falas em texto escuro.
+          const parede = s.fundo === "marca" || s.fundo === "destaque";
+          const paredeClara = s.fundo === "destaque";
+          const falaEscura = s.fundo === "claro" || paredeClara;
           // Deslocamento sutil da parede por frame, como se a câmera tivesse mudado de posição.
           const desloc = [0, -140, 90, -60][i] ?? 0;
           return (
@@ -678,7 +681,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                 position: "relative",
                 height: hFrame,
                 overflow: "hidden",
-                borderTop: i ? `4px solid ${paredeClara ? "#FFFFFF" : "#000"}` : undefined,
+                borderTop: i ? `4px solid ${falaEscura ? "#FFFFFF" : "#000"}` : undefined,
                 background: parede
                   ? paredeClara
                     ? `radial-gradient(ellipse 70% 90% at 50% 40%, #FFFFFF 0%, ${t.claro} 60%, #D9D3C7 100%)`
@@ -764,13 +767,13 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                     fontWeight: 700,
                     lineHeight: 1.15,
                     letterSpacing: -0.5,
-                    color: paredeClara ? t.textoClaro : "#fff",
-                    textShadow: paredeClara
+                    color: falaEscura ? t.textoClaro : "#fff",
+                    textShadow: falaEscura
                       ? "0 0 2px rgba(255,255,255,.9), 0 2px 6px rgba(255,255,255,.8), 0 6px 24px rgba(255,255,255,.6)"
                       : "0 0 2px rgba(0,0,0,.9), 0 2px 6px rgba(0,0,0,.8), 0 6px 24px rgba(0,0,0,.6)",
                   }}
                 >
-                  <Rico t={fala} cor={paredeClara ? t.marca : t.destaque} />
+                  <Rico t={fala} cor={falaEscura ? t.marca : t.destaque} />
                 </div>
               )}
             </div>
