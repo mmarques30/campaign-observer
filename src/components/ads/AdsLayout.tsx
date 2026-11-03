@@ -277,6 +277,15 @@ export function AdsLayout() {
     !!recursoAtual &&
     (recursoAtual.key === "admin" ? !perm.isAdmin : !perm.podeVer(recursoAtual.key));
 
+  // Na raiz (/ads) sem permissão de Dashboard, vai direto para a primeira tela
+  // liberada em vez de mostrar "sem acesso" — a raiz não foi escolha da pessoa.
+  useEffect(() => {
+    if (semAcesso && path === "/ads") {
+      const destino = itensVisiveis.find((it) => it.to !== "/ads")?.to;
+      if (destino) navigate({ to: destino as any, replace: true });
+    }
+  }, [semAcesso, path]);
+
   // Log de acessos: registra cada tela aberta.
   useEffect(() => {
     void registrarAcesso("page_view", recursoDoPath(path)?.key ?? path);

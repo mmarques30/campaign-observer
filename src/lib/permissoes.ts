@@ -122,6 +122,17 @@ export function nivelDe(p: Permissoes, key: string): Nivel {
 export const podeVer = (p: Permissoes, key: string) => nivelDe(p, key) !== "none";
 export const podeEditar = (p: Permissoes, key: string) => nivelDe(p, key) === "edit";
 
+/**
+ * Primeira tela que a pessoa pode abrir, na ordem da sidebar. Usada para levar
+ * direto ao lugar certo depois do login (quem não vê o Dashboard não cai numa
+ * tela "sem acesso"). Admin vai para o Dashboard.
+ */
+export function primeiraTelaLiberada(p: Permissoes): string {
+  if (p.isAdmin) return "/ads";
+  const r = RECURSOS.find((x) => podeVer(p, x.key));
+  return r?.path ?? "/ads";
+}
+
 export function usePermissoes() {
   const qc = useQueryClient();
   const q = useQuery({

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Logo, LogoMark } from "@/components/ads/Logo";
 import { ArrowRight, ShieldCheck } from "lucide-react";
-import { limparPermissoesCache, registrarAcesso } from "@/lib/permissoes";
+import { carregarPermissoes, limparPermissoesCache, primeiraTelaLiberada, registrarAcesso } from "@/lib/permissoes";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -21,7 +21,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) navigate({ to: "/ads" });
+      if (data.user) carregarPermissoes(true).then((p) => navigate({ to: primeiraTelaLiberada(p) as any }));
     });
   }, [navigate]);
 
@@ -39,8 +39,10 @@ function AuthPage() {
     }
     limparPermissoesCache();
     await registrarAcesso("login");
+    // Leva direto para a primeira tela liberada (quem não vê o Dashboard não cai em "sem acesso").
+    const p = await carregarPermissoes(true);
     setLoading(false);
-    navigate({ to: "/ads" });
+    navigate({ to: primeiraTelaLiberada(p) as any });
   }
 
   return (
