@@ -107,7 +107,12 @@ function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
               style={{
                 marginTop: "auto",
                 alignSelf: "flex-start",
-                fontSize: 22,
+                maxWidth: "100%",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                // Etiqueta longa encolhe em vez de quebrar linha dentro do card.
+                fontSize: it.tag.length > 14 ? 17 : it.tag.length > 10 ? 19 : 22,
                 fontWeight: 800,
                 letterSpacing: 1,
                 textTransform: "uppercase",

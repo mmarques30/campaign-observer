@@ -385,9 +385,10 @@ const FERRAMENTAS = [
         formato: { type: "string", enum: ["4:5", "1:1", "9:16", "16:9"] },
         nome: { type: "string", description: "nome curto em português" },
         com_marca: {
-          type: "boolean",
+          type: ["boolean", "string"],
+          enum: [true, false, "clara"],
           description:
-            "true = cenário na identidade da IAplicada (fundo quase preto, verde-lima nos detalhes, backdrop com a logo repetida). Use em evento, palco, entrevista, escritório da IAplicada.",
+            'true = cenário na identidade escura da IAplicada (parede quase preta, logo discreta); "clara" = identidade clara (parede off-white com tom verde-lima da marca, logo discreta). Use em evento, palco, entrevista, escritório da IAplicada; "clara" quando ela pedir fundo claro/esverdeado.',
         },
       },
       required: ["prompt"],
@@ -420,7 +421,7 @@ async function gerarFotoIA(input: any) {
         : input.prompt,
       formato: input.formato ?? "4:5",
       nome: input.nome,
-      marca: input.com_marca === true,
+      marca: input.com_marca === "clara" ? "clara" : input.com_marca === true,
     }),
   });
   const j = await r.json().catch(() => ({}));
