@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -45,7 +44,10 @@ import { cn } from "@/lib/utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { db } from "@/lib/vedit";
 import { BotaoSalvarReferencia, NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
-import { PesquisaPorLink } from "@/components/edicao/PesquisaPorLink";
+import { CampoLink, CartaoLink, useReferenciasPorLink } from "@/components/edicao/PesquisaPorLink";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown, Link2, Users } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/pesquisa")({
   component: PesquisaPage,
@@ -154,6 +156,11 @@ function PesquisaPage() {
 
   const [filtroPerfil, setFiltroPerfil] = useState<string>("todos");
   const [soTema, setSoTema] = useState(true);
+  const [modo, setModo] = useState<"tema" | "link">("tema");
+  // Mostra 10 por vez; "Ver outros 10" avança para os próximos (e volta ao começo no fim).
+  const [pagina, setPagina] = useState(0);
+  const [ajustesAbertos, setAjustesAbertos] = useState(false);
+  const linksQ = useReferenciasPorLink();
   const salvarNichoPendente = useRef<(() => Promise<void>) | null>(null);
   const [ordem, setOrdem] = useState<"indice" | "engajamento" | "recentes">("indice");
   const [sel, setSel] = useState<Reel | null>(null);
@@ -173,6 +180,7 @@ function PesquisaPage() {
         `${r.coletados} reels atualizados${r.sugeridos ? `, ${r.sugeridos} perfil(is) novo(s) do tema` : ""}${r.tema ? `, ${r.no_tema ?? 0} no tema` : ""}.${r.erros?.length ? ` ${r.erros.length} erro(s).` : ""}`,
       );
       if (r.erros?.length) r.erros.slice(0, 3).forEach((e: string) => toast.warning(e));
+      setPagina(0);
       invalidar();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -202,6 +210,21 @@ function PesquisaPage() {
       ord.sort((a, b) => (b.publicado_em ?? "").localeCompare(a.publicado_em ?? ""));
     return ord;
   }, [reelsQ.data, filtroPerfil, ordem, soTema, cfgQ.data?.tema_buscado]);
+  const POR_PAGINA = 10;
+  const totalPaginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  const pag = Math.min(pagina, totalPaginas - 1);
+  const visiveis = lista.slice(pag * POR_PAGINA, pag * POR_PAGINA + POR_PAGINA);
+  // Referências por link ainda processando ou das últimas 48h entram no topo dos resultados;
+  // as mais antigas ficam em Referências.
+  const linksRecentes = useMemo(
+    () =>
+      (linksQ.data ?? []).filter(
+        (r) =>
+          !["pronta", "erro"].includes(r.status) ||
+          Date.now() - new Date(r.created_at).getTime() < 48 * 3600 * 1000,
+      ),
+    [linksQ.data],
+  );
   const perfisComReels = useMemo(
     () => [...new Set((reelsQ.data ?? []).map((r) => r.username).filter(Boolean))] as string[],
     [reelsQ.data],
@@ -209,25 +232,12 @@ function PesquisaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pesquisa de nicho</h1>
-          <p className="text-sm text-muted-foreground max-w-2xl">
-            Monitora perfis e hashtags do seu nicho pela API oficial do Instagram, acha os Reels que
-            mais viralizaram (quantas vezes acima do normal de cada perfil), explica por que
-            funcionaram e escreve um roteiro original para você gravar.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => coletar.mutate()} disabled={coletar.isPending}>
-            {coletar.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4 mr-2" />
-            )}
-            Buscar agora
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Pesquisa</h1>
+        <p className="text-sm text-muted-foreground max-w-2xl">
+          Ache os vídeos que mais funcionaram, entenda por que e crie o roteiro na estrutura deles.
+          Por tema (perfis do seu nicho) ou por link (um Reel ou um anúncio da Biblioteca da Meta).
+        </p>
       </div>
 
       {(cfgQ.isError || perfisQ.isError) && (
@@ -239,22 +249,55 @@ function PesquisaPage() {
         </Card>
       )}
 
-      <PesquisaPorLink
-        onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
-      />
-
-      <Nicho
-        cfg={cfgQ.data}
-        perfis={perfisQ.data ?? []}
-        onMudou={invalidar}
-        registrarSalvar={(f) => (salvarNichoPendente.current = f)}
-      />
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <Tabs value={modo} onValueChange={(v) => setModo(v as typeof modo)}>
+            <TabsList>
+              <TabsTrigger value="tema">
+                <Users className="h-3.5 w-3.5 mr-1.5" /> Por tema
+              </TabsTrigger>
+              <TabsTrigger value="link">
+                <Link2 className="h-3.5 w-3.5 mr-1.5" /> Por link
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="tema" className="mt-3 space-y-3">
+              <BuscaPorTema
+                cfg={cfgQ.data}
+                perfis={perfisQ.data ?? []}
+                buscando={coletar.isPending}
+                onBuscar={() => coletar.mutate()}
+                registrarSalvar={(f) => (salvarNichoPendente.current = f)}
+              />
+              <Collapsible open={ajustesAbertos} onOpenChange={setAjustesAbertos}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
+                  >
+                    <ChevronDown
+                      className={cn("h-3.5 w-3.5 transition", ajustesAbertos && "rotate-180")}
+                    />
+                    Perfis monitorados ({(perfisQ.data ?? []).filter((p) => p.ativo).length}{" "}
+                    ativos), hashtags e alcance
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3">
+                  <Nicho cfg={cfgQ.data} perfis={perfisQ.data ?? []} onMudou={invalidar} />
+                </CollapsibleContent>
+              </Collapsible>
+            </TabsContent>
+            <TabsContent value="link" className="mt-3">
+              <CampoLink onEnviado={() => void linksQ.refetch()} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       <div className="flex flex-wrap items-center gap-2">
         <Flame className="h-4 w-4 text-primary" />
-        <span className="font-semibold">Ranking</span>
+        <span className="font-semibold">Resultados</span>
         <span className="text-xs text-muted-foreground">
-          {lista.length} reels
+          {visiveis.length} de {lista.length}
           {cfgQ.data?.ultima_busca
             ? ` · última busca ${formatDistanceToNow(new Date(cfgQ.data.ultima_busca), { locale: ptBR, addSuffix: true })}`
             : ""}
@@ -303,18 +346,11 @@ function PesquisaPage() {
               Analisar {marcados.size}
             </Button>
           )}
-          {marcados.size === 0 && lista.some((r) => !r.analise) && (
+          {marcados.size === 0 && visiveis.some((r) => !r.analise) && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() =>
-                analisar.mutate(
-                  lista
-                    .filter((r) => !r.analise)
-                    .slice(0, 8)
-                    .map((r) => r.id),
-                )
-              }
+              onClick={() => analisar.mutate(visiveis.filter((r) => !r.analise).map((r) => r.id))}
               disabled={analisar.isPending}
             >
               {analisar.isPending ? (
@@ -322,36 +358,64 @@ function PesquisaPage() {
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Analisar top 8
+              Analisar estes
             </Button>
           )}
         </div>
       </div>
 
-      {lista.length === 0 && !reelsQ.isLoading ? (
+      {lista.length === 0 && linksRecentes.length === 0 && !reelsQ.isLoading ? (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Cadastre perfis do nicho (ou peça sugestões) e clique em <b>Buscar agora</b>.
+            Digite o tema e clique em <b>Buscar</b>, ou cole um link na aba <b>Por link</b>.
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {lista.map((r) => (
-            <CartaoReel
-              key={r.id}
-              r={r}
-              marcado={marcados.has(r.id)}
-              onMarcar={() =>
-                setMarcados((m) => {
-                  const n = new Set(m);
-                  n.has(r.id) ? n.delete(r.id) : n.add(r.id);
-                  return n;
-                })
-              }
-              onAbrir={() => setSel(r)}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {linksRecentes.map((r) => (
+              <CartaoLink
+                key={r.id}
+                r={r}
+                onMudou={() => void linksQ.refetch()}
+                onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
+              />
+            ))}
+            {visiveis.map((r) => (
+              <CartaoReel
+                key={r.id}
+                r={r}
+                marcado={marcados.has(r.id)}
+                onMarcar={() =>
+                  setMarcados((m) => {
+                    const n = new Set(m);
+                    n.has(r.id) ? n.delete(r.id) : n.add(r.id);
+                    return n;
+                  })
+                }
+                onAbrir={() => setSel(r)}
+              />
+            ))}
+          </div>
+          {lista.length > POR_PAGINA && (
+            <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+              <span>
+                {pag + 1} de {totalPaginas}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPagina((pag + 1) % totalPaginas);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              >
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                {pag + 1 < totalPaginas ? "Ver outros 10" : "Voltar aos primeiros"}
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       <DetalheReel
@@ -365,33 +429,88 @@ function PesquisaPage() {
   );
 }
 
-function Nicho({
+function BuscaPorTema({
   cfg,
   perfis,
-  onMudou,
+  buscando,
+  onBuscar,
   registrarSalvar,
 }: {
   cfg?: Config;
   perfis: Perfil[];
-  onMudou: () => void;
-  registrarSalvar?: (f: (() => Promise<void>) | null) => void;
+  buscando: boolean;
+  onBuscar: () => void;
+  registrarSalvar: (f: (() => Promise<void>) | null) => void;
 }) {
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [nicho, setNicho] = useState<string | null>(null);
   const [publico, setPublico] = useState<string | null>(null);
+  const vNicho = nicho ?? cfg?.nicho ?? "";
+  const vPublico = publico ?? cfg?.publico ?? "";
+  const sujo = nicho !== null || publico !== null;
+  async function salvar() {
+    const { error } = await db()
+      .from("vedit_nicho_config")
+      .update({
+        nicho: vNicho.trim() || null,
+        publico: vPublico.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", 1);
+    if (error) throw error;
+    setNicho(null);
+    setPublico(null);
+  }
+  // "Buscar" salva o que está digitado antes de buscar.
+  useEffect(() => {
+    registrarSalvar(sujo ? salvar : null);
+    return () => registrarSalvar(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sujo, vNicho, vPublico]);
+  const ativos = perfis.filter((p) => p.ativo).length;
+  return (
+    <div className="grid gap-2 md:grid-cols-[1.4fr_1fr_auto] items-end">
+      <div className="space-y-1">
+        <Label className="text-xs">Tema (sobre o que você quer vídeos)</Label>
+        <Input
+          value={vNicho}
+          onChange={(e) => setNicho(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onBuscar()}
+          placeholder="ex.: IA no financeiro de empresas, fechamento de mês, conciliação"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Quem assiste</Label>
+        <Input
+          value={vPublico}
+          onChange={(e) => setPublico(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onBuscar()}
+          placeholder="ex.: donos de empresas acima de R$ 3 mi"
+        />
+      </div>
+      <Button onClick={onBuscar} disabled={buscando || !vNicho.trim()}>
+        {buscando ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Search className="h-4 w-4 mr-2" />
+        )}
+        Buscar
+      </Button>
+      <p className="text-xs text-muted-foreground md:col-span-3">
+        Procura nos {ativos} perfil(is) monitorado(s) do nicho (sugere novos se o tema mudou), pega
+        os Reels que mais viralizaram e mostra 10 por vez. Quer outros? "Ver outros 10" ou busque de
+        novo.
+      </p>
+    </div>
+  );
+}
+
+function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMudou: () => void }) {
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [hashtags, setHashtags] = useState<string | null>(null);
   const [novo, setNovo] = useState("");
   const [ocupado, setOcupado] = useState<string | null>(null);
-  const vNicho = nicho ?? cfg?.nicho ?? "";
-  const vPublico = publico ?? cfg?.publico ?? "";
   const vTags = hashtags ?? (cfg?.hashtags ?? []).join(", ");
-  const sujo = nicho !== null || publico !== null || hashtags !== null;
-  // "Buscar agora" (na página) salva o que está digitado antes de buscar.
-  useEffect(() => {
-    registrarSalvar?.(sujo ? () => salvar(true) : null);
-    return () => registrarSalvar?.(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sujo, vNicho, vPublico, vTags]);
+  const sujo = hashtags !== null;
 
   async function salvar(silencioso = false) {
     setOcupado("salvar");
@@ -399,8 +518,6 @@ function Nicho({
       const { error } = await db()
         .from("vedit_nicho_config")
         .update({
-          nicho: vNicho.trim() || null,
-          publico: vPublico.trim() || null,
           hashtags: vTags
             .split(/[,\s]+/)
             .map((t) => t.replace(/^#/, "").trim())
@@ -409,10 +526,8 @@ function Nicho({
         })
         .eq("id", 1);
       if (error) throw error;
-      setNicho(null);
-      setPublico(null);
       setHashtags(null);
-      if (!silencioso) toast.success("Nicho salvo.");
+      if (!silencioso) toast.success("Hashtags salvas.");
       onMudou();
     } catch (e) {
       toast.error((e as Error).message);
@@ -485,223 +600,194 @@ function Nicho({
   }
 
   return (
-    <Card>
-      <CardContent className="p-4 grid gap-4 lg:grid-cols-[1fr_1.2fr]">
-        <div className="space-y-3">
-          <div className="font-semibold">Seu nicho</div>
-          <div className="space-y-1.5">
-            <Label>Sobre o que é o conteúdo</Label>
-            <Textarea
-              rows={2}
-              value={vNicho}
-              onChange={(e) => setNicho(e.target.value)}
-              onBlur={() => sujo && void salvar(true)}
-              placeholder="ex.: IA aplicada ao dia a dia de empresas: WhatsApp, CRM, vendas, automação"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Quem assiste</Label>
-            <Input
-              value={vPublico}
-              onChange={(e) => setPublico(e.target.value)}
-              onBlur={() => sujo && void salvar(true)}
-              placeholder="ex.: donos e gestores de empresas que faturam acima de R$ 3 mi"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Hashtags (até 10; o Meta limita a 30 diferentes por semana)</Label>
-            <p className="text-[11px] text-muted-foreground">
-              A busca por hashtag só funciona depois que o Meta aprovar o recurso "Instagram Public
-              Content Access" no app (revisão do app no developers.facebook.com). Até lá, a pesquisa
-              usa os perfis monitorados.
-            </p>
-            <Input
-              value={vTags}
-              onChange={(e) => setHashtags(e.target.value)}
-              onBlur={() => sujo && void salvar(true)}
-              placeholder="vazio = padrão pelo alcance (ex.: artificialintelligence, aitools, inteligenciaartificial)"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Onde buscar</Label>
-            <Select
-              value={cfg?.alcance ?? "ambos"}
-              onValueChange={async (v) => {
-                const { error } = await db()
-                  .from("vedit_nicho_config")
-                  .update({ alcance: v })
-                  .eq("id", 1);
-                if (error) return toast.error(error.message);
-                toast.success(
-                  v === "brasil"
-                    ? "Só perfis do Brasil."
-                    : v === "internacional"
-                      ? "Só perfis de fora."
-                      : "Brasil e internacional.",
-                );
-                onMudou();
-              }}
-            >
-              <SelectTrigger className="h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ambos">Brasil e internacional</SelectItem>
-                <SelectItem value="internacional">Só internacional</SelectItem>
-                <SelectItem value="brasil">Só Brasil</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">
-              Vale para "Sugerir perfis" e para as hashtags padrão. Os roteiros saem sempre em
-              português, adaptados ao Brasil.
-            </p>
-          </div>
-          {sujo && (
-            <Button size="sm" onClick={() => void salvar()} disabled={ocupado === "salvar"}>
-              {ocupado === "salvar" ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4 mr-2" />
-              )}
-              Salvar nicho
-            </Button>
-          )}
+    <div className="rounded-md border p-4 grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+      <div className="space-y-3">
+        <div className="font-semibold">Ajustes da busca</div>
+        <div className="space-y-1.5">
+          <Label>Hashtags (até 10; o Meta limita a 30 diferentes por semana)</Label>
+          <p className="text-[11px] text-muted-foreground">
+            A busca por hashtag só funciona depois que o Meta aprovar o recurso "Instagram Public
+            Content Access" no app (revisão do app no developers.facebook.com). Até lá, a pesquisa
+            usa os perfis monitorados.
+          </p>
+          <Input
+            value={vTags}
+            onChange={(e) => setHashtags(e.target.value)}
+            onBlur={() => sujo && void salvar(true)}
+            placeholder="vazio = padrão pelo alcance (ex.: artificialintelligence, aitools, inteligenciaartificial)"
+          />
         </div>
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold">Perfis monitorados</span>
-            <span className="text-xs text-muted-foreground">
-              {perfis.filter((p) => p.ativo).length} ativos
-            </span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto"
-              onClick={sugerir}
-              disabled={ocupado === "sugerir"}
-            >
-              {ocupado === "sugerir" ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Wand2 className="h-4 w-4 mr-2" />
-              )}
-              Sugerir perfis
-            </Button>
+        <div className="space-y-1.5">
+          <Label>Onde buscar</Label>
+          <Select
+            value={cfg?.alcance ?? "ambos"}
+            onValueChange={async (v) => {
+              const { error } = await db()
+                .from("vedit_nicho_config")
+                .update({ alcance: v })
+                .eq("id", 1);
+              if (error) return toast.error(error.message);
+              toast.success(
+                v === "brasil"
+                  ? "Só perfis do Brasil."
+                  : v === "internacional"
+                    ? "Só perfis de fora."
+                    : "Brasil e internacional.",
+              );
+              onMudou();
+            }}
+          >
+            <SelectTrigger className="h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ambos">Brasil e internacional</SelectItem>
+              <SelectItem value="internacional">Só internacional</SelectItem>
+              <SelectItem value="brasil">Só Brasil</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Vale para "Sugerir perfis" e para as hashtags padrão. Os roteiros saem sempre em
+            português, adaptados ao Brasil.
+          </p>
+        </div>
+        {sujo && (
+          <Button size="sm" onClick={() => void salvar()} disabled={ocupado === "salvar"}>
+            {ocupado === "salvar" ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4 mr-2" />
+            )}
+            Salvar hashtags
+          </Button>
+        )}
+      </div>
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">Perfis monitorados</span>
+          <span className="text-xs text-muted-foreground">
+            {perfis.filter((p) => p.ativo).length} ativos
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto"
+            onClick={sugerir}
+            disabled={ocupado === "sugerir"}
+          >
+            {ocupado === "sugerir" ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4 mr-2" />
+            )}
+            Sugerir perfis
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Input
+            value={novo}
+            onChange={(e) => setNovo(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addPerfil()}
+            placeholder="@username de uma conta business/creator"
+          />
+          <Button size="sm" onClick={addPerfil} disabled={ocupado === "perfil" || !novo.trim()}>
+            {ocupado === "perfil" ? <Loader2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          </Button>
+        </div>
+        {perfis.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <label className="flex items-center gap-2">
+              <Checkbox
+                checked={todosSel}
+                onCheckedChange={(v) =>
+                  setSelecionados(v ? new Set(perfis.map((p) => p.id)) : new Set())
+                }
+              />
+              Selecionar todos
+            </label>
+            {ids.length > 0 && (
+              <>
+                <span className="text-muted-foreground">{ids.length} selecionado(s)</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => emLote("ativar")}
+                >
+                  Ativar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  onClick={() => emLote("desativar")}
+                >
+                  Desativar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-red-600"
+                  onClick={() => emLote("remover")}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover
+                </Button>
+              </>
+            )}
           </div>
-          <div className="flex gap-2">
-            <Input
-              value={novo}
-              onChange={(e) => setNovo(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addPerfil()}
-              placeholder="@username de uma conta business/creator"
-            />
-            <Button size="sm" onClick={addPerfil} disabled={ocupado === "perfil" || !novo.trim()}>
-              {ocupado === "perfil" ? (
-                <Loader2 className="h-4 w-4" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-          {perfis.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <label className="flex items-center gap-2">
-                <Checkbox
-                  checked={todosSel}
-                  onCheckedChange={(v) =>
-                    setSelecionados(v ? new Set(perfis.map((p) => p.id)) : new Set())
-                  }
-                />
-                Selecionar todos
-              </label>
-              {ids.length > 0 && (
-                <>
-                  <span className="text-muted-foreground">{ids.length} selecionado(s)</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7"
-                    onClick={() => emLote("ativar")}
-                  >
-                    Ativar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7"
-                    onClick={() => emLote("desativar")}
-                  >
-                    Desativar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-red-600"
-                    onClick={() => emLote("remover")}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover
-                  </Button>
-                </>
-              )}
+        )}
+        <div className="max-h-56 overflow-y-auto divide-y rounded-md border">
+          {perfis.length === 0 && (
+            <div className="p-3 text-sm text-muted-foreground">
+              Nenhum perfil ainda. Adicione ou peça sugestões.
             </div>
           )}
-          <div className="max-h-56 overflow-y-auto divide-y rounded-md border">
-            {perfis.length === 0 && (
-              <div className="p-3 text-sm text-muted-foreground">
-                Nenhum perfil ainda. Adicione ou peça sugestões.
-              </div>
-            )}
-            {perfis.map((p) => (
-              <div
-                key={p.id}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 text-sm",
-                  !p.ativo && "opacity-60",
-                )}
-              >
-                <Checkbox
-                  checked={selecionados.has(p.id)}
-                  onCheckedChange={(v) =>
-                    setSelecionados((l) => {
-                      const n = new Set(l);
-                      v ? n.add(p.id) : n.delete(p.id);
-                      return n;
-                    })
-                  }
-                />
-                <Switch checked={p.ativo} onCheckedChange={() => alternar(p)} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">
-                    @{p.username}{" "}
-                    <span className="font-normal text-muted-foreground">{p.nome}</span>
-                    {p.regiao === "intl" && (
-                      <Badge variant="outline" className="ml-1.5 h-4 px-1 text-[10px]">
-                        internacional
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    {p.followers ? `${fmtN(p.followers)} seguidores` : ""}
-                    {p.mediana_engajamento
-                      ? ` · normal ${fmtN(Math.round(Number(p.mediana_engajamento)))} interações/reel`
-                      : ""}
-                    {p.erro ? ` · ${p.erro}` : ""}
-                  </div>
+          {perfis.map((p) => (
+            <div
+              key={p.id}
+              className={cn("flex items-center gap-3 px-3 py-2 text-sm", !p.ativo && "opacity-60")}
+            >
+              <Checkbox
+                checked={selecionados.has(p.id)}
+                onCheckedChange={(v) =>
+                  setSelecionados((l) => {
+                    const n = new Set(l);
+                    v ? n.add(p.id) : n.delete(p.id);
+                    return n;
+                  })
+                }
+              />
+              <Switch checked={p.ativo} onCheckedChange={() => alternar(p)} />
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">
+                  @{p.username} <span className="font-normal text-muted-foreground">{p.nome}</span>
+                  {p.regiao === "intl" && (
+                    <Badge variant="outline" className="ml-1.5 h-4 px-1 text-[10px]">
+                      internacional
+                    </Badge>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-muted-foreground hover:text-red-600"
-                  onClick={() => remover(p)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+                <div className="text-[11px] text-muted-foreground">
+                  {p.followers ? `${fmtN(p.followers)} seguidores` : ""}
+                  {p.mediana_engajamento
+                    ? ` · normal ${fmtN(Math.round(Number(p.mediana_engajamento)))} interações/reel`
+                    : ""}
+                  {p.erro ? ` · ${p.erro}` : ""}
+                </div>
               </div>
-            ))}
-          </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                onClick={() => remover(p)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
