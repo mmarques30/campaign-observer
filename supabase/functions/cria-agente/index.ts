@@ -345,7 +345,7 @@ Regras de qualidade:
 - Carrossel: 5 a 9 slides (com ROTEIRO, quantos o roteiro pedir, até 15), começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto, foto ou cortes). Num post único NUNCA crie mais de um slide: se a referência tem vários frames numa imagem só, é o layout "cortes" num único slide.
 - Varie layouts com ritmo, mas mantenha a mesma identidade (cores e fontes) do começo ao fim.
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
-- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. Cenário de evento, palco, entrevista ou escritório da IAplicada: passe com_marca: true (o fundo vem com a logo repetida e as cores da marca; não descreva outra marca nem outro backdrop no prompt). No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com enquadramento FECHADO: cabeça e ombros preenchendo a altura do quadro (o rosto ocupa pelo menos 40% da altura), pessoa centralizada, topo da cabeça perto da borda de cima (a fala entra embaixo do queixo). Enquadramento aberto deixa o rosto pequeno e sem nitidez depois do recorte. Nunca use uma foto solta da biblioteca que destoe dos outros frames.
+- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos REAIS dela (marcadas "foto real" na biblioteca; nunca use uma foto "gerada por IA" como base, porque IA em cima de IA fica artificial e a ferramenta recusa). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. Cenário de evento, palco, entrevista ou escritório da IAplicada: passe com_marca: true (o fundo vem com a logo repetida e as cores da marca; não descreva outra marca nem outro backdrop no prompt). No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com enquadramento FECHADO: cabeça e ombros preenchendo a altura do quadro (o rosto ocupa pelo menos 40% da altura), pessoa centralizada, topo da cabeça perto da borda de cima (a fala entra embaixo do queixo). Enquadramento aberto deixa o rosto pequeno e sem nitidez depois do recorte. Nunca use uma foto solta da biblioteca que destoe dos outros frames.
 - Para conferir uma foto antes de usar, chame ver_fotos.
 - Fontes disponíveis: Anton, Archivo Black, Bricolage Grotesque, Inter, Montserrat, DM Mono, Instrument Serif, Playfair Display, Fraunces, Caveat.
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
@@ -579,6 +579,22 @@ async function rodar(
                 throw new Error(
                   "limite de 3 fotos novas por pedido atingido; use as que já existem",
                 );
+              // Base tem que ser foto REAL: IA em cima de IA vai ficando artificial a cada geração.
+              const baseIds: string[] = (u.input?.fotos_base ?? []).filter(Boolean);
+              if (baseIds.length) {
+                const { data: bases } = await sb
+                  .from("cria_fotos")
+                  .select("id, origem, base_id")
+                  .in("id", baseIds);
+                const reais = (bases ?? [])
+                  .filter((b: any) => b.origem !== "ia")
+                  .map((b: any) => b.id);
+                if (!reais.length)
+                  throw new Error(
+                    "fotos_base só aceita fotos REAIS da biblioteca (origem 'foto real'); as que você passou foram geradas por IA. Escolha uma foto real dela.",
+                  );
+                u.input.fotos_base = reais;
+              }
               geradas++;
               await sb.from("cria_mensagens").insert({
                 projeto_id: projetoId,
