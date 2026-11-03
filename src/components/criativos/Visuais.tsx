@@ -312,8 +312,10 @@ function Fluxo({ v, c }: { v: Extract<Visual, { tipo: "fluxo" }>; c: Cores }) {
 function Linhas({ v, c }: { v: Extract<Visual, { tipo: "linhas" }>; c: Cores }) {
   const W = 920,
     H = 460,
-    pe = 34,
-    dir = 190;
+    pe = 34;
+  // Espaço à direita para o nome das séries, conforme o nome mais longo.
+  const maiorNome = Math.max(4, ...v.series.map((s) => s.nome.length));
+  const dir = Math.min(430, Math.max(190, maiorNome * 19 + 50));
   const todos = v.series.flatMap((s) => s.pontos);
   const max = Math.max(1, ...todos);
   const n = Math.max(2, ...v.series.map((s) => s.pontos.length));
@@ -333,41 +335,54 @@ function Linhas({ v, c }: { v: Extract<Visual, { tipo: "linhas" }>; c: Cores }) 
             strokeWidth={2}
           />
         ))}
-        {v.series.map((s, k) => {
-          const cor = s.destaque ? c.hi : `${c.tx}88`;
-          const pts = s.pontos.map((p, i) => `${x(i)},${y(p)}`).join(" ");
-          const ult = s.pontos.length - 1;
-          return (
-            <g key={k}>
-              <polyline
-                points={pts}
-                fill="none"
-                stroke={cor}
-                strokeWidth={s.destaque ? 9 : 6}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx={x(ult)} cy={y(s.pontos[ult])} r={s.destaque ? 13 : 10} fill={cor} />
-              <text
-                x={x(ult) + 24}
-                y={y(s.pontos[ult]) + 12}
-                fill={cor}
-                fontSize={34}
-                fontWeight={800}
-                fontFamily="Inter, sans-serif"
-              >
-                {s.nome}
-              </text>
-            </g>
-          );
-        })}
+        {(() => {
+          // Rótulos no fim de cada linha: quando duas linhas terminam perto, afasta os rótulos
+          // (um sobe, outro desce) para não se sobreporem.
+          const fins = v.series.map((s) => y(s.pontos[s.pontos.length - 1]));
+          const ordem = fins.map((f, i) => [f, i] as const).sort((a, b) => a[0] - b[0]);
+          const yRot: number[] = [];
+          let anterior = -Infinity;
+          for (const [f, i] of ordem) {
+            const yy = Math.max(f, anterior + 40);
+            yRot[i] = yy;
+            anterior = yy;
+          }
+          return v.series.map((s, k) => {
+            const cor = s.destaque ? c.hi : `${c.tx}88`;
+            const pts = s.pontos.map((p, i) => `${x(i)},${y(p)}`).join(" ");
+            const ult = s.pontos.length - 1;
+            return (
+              <g key={k}>
+                <polyline
+                  points={pts}
+                  fill="none"
+                  stroke={cor}
+                  strokeWidth={s.destaque ? 9 : 6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <circle cx={x(ult)} cy={y(s.pontos[ult])} r={s.destaque ? 13 : 10} fill={cor} />
+                <text
+                  x={x(ult) + 24}
+                  y={yRot[k] + 12}
+                  fill={cor}
+                  fontSize={36}
+                  fontWeight={800}
+                  fontFamily="Inter, sans-serif"
+                >
+                  {s.nome}
+                </text>
+              </g>
+            );
+          });
+        })()}
         {(v.eixo ?? []).map((r, i) => (
           <text
             key={i}
             x={x(i)}
             y={H - 4}
             fill={c.sub}
-            fontSize={24}
+            fontSize={28}
             textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}
             fontFamily="Inter, sans-serif"
           >
