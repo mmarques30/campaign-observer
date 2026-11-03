@@ -33,6 +33,9 @@ import {
   Send,
   FileText,
   Bot,
+  ShieldCheck,
+  ScrollText,
+  Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -65,8 +68,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useTheme, type Theme } from "@/lib/theme";
 import { Logo, LogoMark } from "@/components/ads/Logo";
 import { cn } from "@/lib/utils";
+import { usePermissoes, recursoDoPath, registrarAcesso } from "@/lib/permissoes";
 
-type NavItem = { to: string; label: string; icon: any; exact?: boolean; keywords?: string };
+type NavItem ={ to: string; label: string; icon: any; exact?: boolean; keywords?: string };
 type NavGroup = { id: string; label: string; icon: any; items: NavItem[] };
 
 // Item avulso no topo.
@@ -217,8 +221,20 @@ const GROUPS: NavGroup[] = [
   },
 ];
 
+// Administração: só aparece para administradores (profiles.is_admin).
+const ADMIN_GROUP: NavGroup = {
+  id: "admin",
+  label: "Administração",
+  icon: ShieldCheck,
+  items: [
+    { to: "/ads/admin", label: "Usuários", icon: Users, exact: true, keywords: "usuários permissões acessos cadastro senha" },
+    { to: "/ads/admin/acessos", label: "Log de acessos", icon: ScrollText, keywords: "log auditoria quem acessou" },
+  ],
+};
+const TODOS_GRUPOS: NavGroup[] = [...GROUPS, ADMIN_GROUP];
+
 // Lista achatada (modo recolhido e busca).
-const ALL_ITEMS: NavItem[] = [DASHBOARD, ...GROUPS.flatMap((g) => g.items)];
+const ALL_ITEMS: NavItem[] = [DASHBOARD, ...TODOS_GRUPOS.flatMap((g) => g.items)];
 
 const COLLAPSE_KEY = "ads-sidebar-collapsed";
 const GROUPS_KEY = "ads-sidebar-groups";
@@ -239,6 +255,32 @@ export function AdsLayout() {
   const [tick, setTick] = useState(0);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+
+  // Permissões por tela: a sidebar e a busca só mostram o que a pessoa pode ver;
+  // Administração só para admins. Enquanto carrega, mostra tudo (evita piscar).
+  const perm = usePermissoes();
+  const visivel = (it: NavItem) => {
+    const r = recursoDoPath(it.to);
+    if (!r) return true;
+    if (r.key === "admin") return perm.isAdmin;
+    return perm.carregando || perm.podeVer(r.key);
+  };
+  const dashVisivel = visivel(DASHBOARD);
+  const gruposVisiveis = TODOS_GRUPOS.map((g) => ({ ...g, items: g.items.filter(visivel) })).filter(
+    (g) => g.items.length > 0,
+  );
+  const itensVisiveis = [DASHBOARD, ...gruposVisiveis.flatMap((g) => g.items)].filter(visivel);
+  const recursoAtual = recursoDoPath(path);
+  const semAcesso =
+    !perm.carregando &&
+    !!perm.userId &&
+    !!recursoAtual &&
+    (recursoAtual.key === "admin" ? !perm.isAdmin : !perm.podeVer(recursoAtual.key));
+
+  // Log de acessos: registra cada tela aberta.
+  useEffect(() => {
+    void registrarAcesso("page_view", recursoDoPath(path)?.key ?? path);
+  }, [path]);
 
   // Última sincronização REAL: vem do banco (quando a meta-ads-sync gravou por
   // último), não do relógio do navegador.
@@ -349,7 +391,7 @@ export function AdsLayout() {
 
   // Grupo e item da página atual (título do topo + auto-expand do grupo).
   const activeGroup = useMemo(
-    () => GROUPS.find((g) => g.items.some((it) => isActive(it.to, it.exact))),
+    () => TODOS_GRUPOS.find((g) => g.items.some((it) => isActive(it.to, it.exact))),
     [path],
   );
   const activeItem = useMemo(() => {
@@ -389,6 +431,7 @@ export function AdsLayout() {
   }
 
   async function signOut() {
+    await registrarAcesso("logout");
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   }
@@ -513,8 +556,8 @@ export function AdsLayout() {
               ALL_ITEMS.map((it) => <NavLink key={it.to} it={it} />)
             ) : (
               <>
-                <NavLink it={DASHBOARD} />
-                {GROUPS.map((g) => {
+                {dashVisivel && <NavLink it={DASHBOARD} />}
+                {gruposVisiveis.map((g) => {
                   const open = !!openGroups[g.id];
                   const groupActive = g.items.some((it) => isActive(it.to, it.exact));
                   return (
@@ -790,7 +833,24 @@ export function AdsLayout() {
 
           <div className="flex-1 overflow-auto bg-aurora">
             <div className="relative z-[1] p-4 sm:p-6 lg:p-8 w-full max-w-[1680px] mx-auto">
-              <Outlet />
+              {semAcesso ? (
+                <div className="min-h-[50vh] flex items-center justify-center animate-fade-up">
+                  <div className="text-center max-w-sm">
+                    <div className="mx-auto h-11 w-11 rounded-2xl bg-muted border border-border/60 flex items-center justify-center mb-3">
+                      <Lock className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="text-base font-semibold">Sem acesso a {recursoAtual?.label}</div>
+                    <div className="text-sm text-muted-foreground mt-1">
+                      Peça a um administrador para liberar esta tela para você.
+                    </div>
+                    <Button variant="outline" size="sm" className="mt-4" asChild>
+                      <Link to={(itensVisiveis[0]?.to ?? "/ads") as any}>Ir para o início</Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Outlet />
+              )}
             </div>
             <footer className="relative z-[1] mt-6 py-4 px-6 text-center text-[11px] text-muted-foreground/70">
               Dados da Meta sincronizados automaticamente a cada 15 min · use o indicador no topo
@@ -805,7 +865,7 @@ export function AdsLayout() {
           <CommandList>
             <CommandEmpty>Nada encontrado.</CommandEmpty>
             <CommandGroup heading="Navegar">
-              {ALL_ITEMS.map((it) => (
+              {itensVisiveis.map((it) => (
                 <CommandItem
                   key={it.to}
                   value={`${it.label} ${it.keywords ?? ""}`}
