@@ -5,6 +5,8 @@
 //   sugerir_perfis {}            → Claude propõe perfis do nicho; só entram os que a API valida
 //   perfil { username }          → valida e cadastra um perfil
 //   coletar {}                   → business_discovery dos perfis ativos + top_media das hashtags
+//   buscar {}                    → sugere perfis do tema se faltar, coleta e classifica a relevância (0-3)
+//   classificar {}               → reclassifica todos os reels pelo tema atual
 //   analisar { ids: [] }         → por que funcionou + roteiro original (até 8 por chamada)
 //   enviar_marketing { id }      → cria o roteiro em content_items (página de Marketing)
 //   reel_por_link { url, username } → acha o reel na conta (business_discovery), baixa o vídeo para o
@@ -39,7 +41,8 @@ async function igUserId(sb: any, tk: string) {
     `https://graph.facebook.com/${V}/me/accounts?fields=instagram_business_account&access_token=${tk}`,
   );
   const j = await r.json();
-  const id = (j.data ?? []).find((p: any) => p.instagram_business_account)?.instagram_business_account?.id;
+  const id = (j.data ?? []).find((p: any) => p.instagram_business_account)
+    ?.instagram_business_account?.id;
   if (!id) throw new Error("conta Instagram business não encontrada");
   return id as string;
 }
@@ -53,18 +56,21 @@ async function graph(path: string, params: Record<string, string>, tk: string) {
 const CAMPOS_MEDIA =
   "id,caption,like_count,comments_count,media_type,media_product_type,permalink,timestamp,thumbnail_url,media_url";
 
-async function logUso(sb: any, origem: string, usage: any) {
+async function logUso(sb: any, origem: string, usage: any, model = MODELO) {
   try {
     const input = usage?.input_tokens ?? 0,
       output = usage?.output_tokens ?? 0;
     if (!input && !output) return;
+    const barato = /haiku/.test(model);
     await sb.from("api_usage_log").insert({
       provider: "anthropic",
       origem,
-      model: MODELO,
+      model,
       input_tokens: input,
       output_tokens: output,
-      custo_usd: (input * 5 + output * 25) / 1_000_000,
+      custo_usd: barato
+        ? (input * 1 + output * 5) / 1_000_000
+        : (input * 5 + output * 25) / 1_000_000,
     });
   } catch (_) {
     /* telemetria */
@@ -73,7 +79,11 @@ async function logUso(sb: any, origem: string, usage: any) {
 async function claude(sb: any, key: string, body: any, origem: string) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
     body: JSON.stringify({ model: MODELO, ...body }),
   });
   const txt = await r.text();
@@ -83,7 +93,7 @@ async function claude(sb: any, key: string, body: any, origem: string) {
   } catch (_) {
     /* */
   }
-  await logUso(sb, origem, j?.usage);
+  await logUso(sb, origem, j?.usage, body.model ?? MODELO);
   if (!r.ok) throw new Error(`Claude ${r.status}: ${txt.slice(0, 300)}`);
   return j;
 }
@@ -111,7 +121,8 @@ async function cadastrarPerfil(
 ) {
   const d = await descobrir(username, ig, tk, 1);
   // Sugestão com poucos seguidores quase sempre é o username errado (homônimo): descarta.
-  if (origem === "sugerido" && (d.followers_count ?? 0) < 10000) throw new Error("poucos seguidores");
+  if (origem === "sugerido" && (d.followers_count ?? 0) < 10000)
+    throw new Error("poucos seguidores");
   const { data, error } = await sb
     .from("vedit_nicho_perfis")
     .upsert(
@@ -192,7 +203,9 @@ async function sugerirPerfis(sb: any, key: string, ig: string, tk: string) {
     const lista: { username: string; regiao: "br" | "intl" }[] =
       j.content?.find((c: any) => c.type === "tool_use")?.input?.perfis ?? [];
     for (const p of lista.slice(0, 25)) {
-      const u = String(p.username ?? "").replace(/^@/, "").trim();
+      const u = String(p.username ?? "")
+        .replace(/^@/, "")
+        .trim();
       if (!u || ja.has(u.toLowerCase()) || invalidos.includes(u)) continue;
       ja.add(u.toLowerCase());
       try {
@@ -250,7 +263,9 @@ async function coletar(sb: any, ig: string, tk: string) {
           };
         });
       if (linhas.length) {
-        const { error } = await sb.from("vedit_nicho_reels").upsert(linhas, { onConflict: "ig_media_id" });
+        const { error } = await sb
+          .from("vedit_nicho_reels")
+          .upsert(linhas, { onConflict: "ig_media_id" });
         if (error) throw new Error(error.message);
       }
       total += linhas.length;
@@ -268,7 +283,10 @@ async function coletar(sb: any, ig: string, tk: string) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       erros.push(`@${p.username}: ${msg}`);
-      await sb.from("vedit_nicho_perfis").update({ erro: msg.slice(0, 300) }).eq("id", p.id);
+      await sb
+        .from("vedit_nicho_perfis")
+        .update({ erro: msg.slice(0, 300) })
+        .eq("id", p.id);
     }
   }
   // Hashtags: top_media (limite do Meta: 30 hashtags distintas por 7 dias).
@@ -328,8 +346,124 @@ async function coletar(sb: any, ig: string, tk: string) {
       erros.push(`#${h}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
-  await sb.from("vedit_nicho_config").update({ ultima_busca: new Date().toISOString() }).eq("id", 1);
+  await sb
+    .from("vedit_nicho_config")
+    .update({ ultima_busca: new Date().toISOString() })
+    .eq("id", 1);
   return { coletados: total, erros };
+}
+
+// ─── relevância para o tema ──────────────────────────────────────────────────
+// A API só devolve o que os perfis monitorados postaram; para a busca responder ao ASSUNTO
+// digitado, cada reel ganha uma nota (0 = nada a ver, 3 = exatamente o tema) pela legenda.
+async function classificarRelevancia(sb: any, key: string, tema: string, soNovos = true) {
+  let q = sb.from("vedit_nicho_reels").select("id, caption, username").eq("descartado", false);
+  if (soNovos) q = q.or(`relevancia.is.null,relevancia_tema.neq.${JSON.stringify(tema)}`);
+  const { data: reels } = await q.limit(600);
+  if (!reels?.length) return 0;
+  let n = 0;
+  for (let i = 0; i < reels.length; i += 60) {
+    const lote = reels.slice(i, i + 60);
+    const lista = lote
+      .map(
+        (r: any, k: number) =>
+          `${k}. @${r.username ?? "?"}: ${
+            String(r.caption ?? "")
+              .replace(/\s+/g, " ")
+              .slice(0, 280) || "(sem legenda)"
+          }`,
+      )
+      .join("\n");
+    try {
+      const j = await claude(
+        sb,
+        key,
+        {
+          model: "claude-haiku-5-5",
+          max_tokens: 1500,
+          system: `Você classifica Reels do Instagram pela legenda, quanto ao TEMA pedido. Nota: 3 = é exatamente sobre o tema; 2 = toca no tema ou num assunto vizinho (mesmo setor, mesma dor, mesma ferramenta); 1 = relação fraca (só o setor OU só a tecnologia); 0 = nada a ver. Seja rigoroso: conteúdo genérico de motivação, lifestyle ou notícia sem ligação com o tema é 0.`,
+          tools: [
+            {
+              name: "notas",
+              input_schema: {
+                type: "object",
+                properties: {
+                  notas: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        i: { type: "integer" },
+                        nota: { type: "integer", minimum: 0, maximum: 3 },
+                      },
+                      required: ["i", "nota"],
+                    },
+                  },
+                },
+                required: ["notas"],
+              },
+            },
+          ],
+          tool_choice: { type: "tool", name: "notas" },
+          messages: [
+            {
+              role: "user",
+              content: `TEMA: ${tema}\n\nREELS:\n${lista}\n\nDê a nota de cada um (índice i).`,
+            },
+          ],
+        },
+        "vedit-pesquisa:relevancia",
+      );
+      const notas: { i: number; nota: number }[] =
+        j.content?.find((c: any) => c.type === "tool_use")?.input?.notas ?? [];
+      for (const x of notas) {
+        const r = lote[x.i];
+        if (!r) continue;
+        await sb
+          .from("vedit_nicho_reels")
+          .update({
+            relevancia: Math.max(0, Math.min(3, Number(x.nota) || 0)),
+            relevancia_tema: tema,
+          })
+          .eq("id", r.id);
+        n++;
+      }
+    } catch (_) {
+      /* lote com erro: fica sem nota e entra na próxima busca */
+    }
+  }
+  return n;
+}
+
+/** Buscar agora: garante perfis do tema, coleta e classifica pelo assunto digitado. */
+async function buscar(sb: any, key: string, ig: string, tk: string) {
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
+  const tema = String(cfg?.nicho ?? "").trim();
+  const { count: ativos } = await sb
+    .from("vedit_nicho_perfis")
+    .select("id", { count: "exact", head: true })
+    .eq("ativo", true);
+  let sugeridos = 0;
+  // Tema novo (ou nenhum perfil ativo): o Claude sugere perfis do assunto antes de coletar.
+  if (tema && (!ativos || cfg?.tema_buscado !== tema)) {
+    const r = await sugerirPerfis(sb, key, ig, tk).catch(() => ({ validos: [] as any[] }));
+    sugeridos = r.validos.length;
+  }
+  const col = await coletar(sb, ig, tk);
+  let classificados = 0;
+  if (tema) {
+    classificados = await classificarRelevancia(sb, key, tema, cfg?.tema_buscado === tema);
+    await sb.from("vedit_nicho_config").update({ tema_buscado: tema }).eq("id", 1);
+  }
+  const { count: noTema } = tema
+    ? await sb
+        .from("vedit_nicho_reels")
+        .select("id", { count: "exact", head: true })
+        .eq("descartado", false)
+        .eq("relevancia_tema", tema)
+        .gte("relevancia", 2)
+    : { count: null };
+  return { ...col, sugeridos, classificados, no_tema: noTema ?? null, tema };
 }
 
 // ─── análise + roteiro original ────────────────────────────────────────────
@@ -349,12 +483,19 @@ const FERRAMENTA_ANALISE = {
               type: "object",
               properties: {
                 resumo: { type: "string", description: "1 frase: o que o reel entrega." },
-                gancho: { type: "string", description: "A promessa/gancho inferida da legenda e do título." },
+                gancho: {
+                  type: "string",
+                  description: "A promessa/gancho inferida da legenda e do título.",
+                },
                 mecanismo: {
                   type: "string",
-                  description: "Por que viralizou: curiosidade, dor, novidade, prova, polêmica, lista, tutorial, etc.",
+                  description:
+                    "Por que viralizou: curiosidade, dor, novidade, prova, polêmica, lista, tutorial, etc.",
                 },
-                estrutura: { type: "string", description: "Como o conteúdo é organizado (gancho → passos → CTA…)." },
+                estrutura: {
+                  type: "string",
+                  description: "Como o conteúdo é organizado (gancho → passos → CTA…).",
+                },
                 cta: { type: "string" },
                 transferivel: {
                   type: "string",
@@ -366,13 +507,26 @@ const FERRAMENTA_ANALISE = {
             roteiro: {
               type: "object",
               properties: {
-                titulo: { type: "string", description: "Nome curto do roteiro (sem acento, padrão 'gancho curto')." },
+                titulo: {
+                  type: "string",
+                  description: "Nome curto do roteiro (sem acento, padrão 'gancho curto').",
+                },
                 gancho: { type: "string", description: "Primeiras 1–2 frases faladas (≤ 3 s)." },
-                falas: { type: "string", description: "Roteiro falado completo, em primeira pessoa, 30–60 s, parágrafos curtos." },
+                falas: {
+                  type: "string",
+                  description:
+                    "Roteiro falado completo, em primeira pessoa, 30–60 s, parágrafos curtos.",
+                },
                 cta: { type: "string" },
-                palavra_chave: { type: ["string", "null"], description: "Palavra para 'comenta X', se fizer sentido." },
+                palavra_chave: {
+                  type: ["string", "null"],
+                  description: "Palavra para 'comenta X', se fizer sentido.",
+                },
                 legenda: { type: "string", description: "Legenda do post, sem emojis." },
-                formato: { type: "string", description: "Ex.: falando para a câmera + prints; lista; bastidor." },
+                formato: {
+                  type: "string",
+                  description: "Ex.: falando para a câmera + prints; lista; bastidor.",
+                },
                 efeitos_sugeridos: {
                   type: "array",
                   items: { type: "string" },
@@ -395,7 +549,11 @@ async function analisar(sb: any, key: string, ids: string[]) {
   const { data: reels } = await sb.from("vedit_nicho_reels").select("*").in("id", ids.slice(0, 8));
   if (!reels?.length) return json({ error: "nenhum reel" }, 400);
   const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
-  const { data: marca } = await sb.from("vedit_marcas").select("instrucoes").eq("padrao", true).maybeSingle();
+  const { data: marca } = await sb
+    .from("vedit_marcas")
+    .select("instrucoes")
+    .eq("padrao", true)
+    .maybeSingle();
   const { data: catalogo } = await sb
     .from("content_items")
     .select("titulo, finalidade, roteiro")
@@ -403,7 +561,10 @@ async function analisar(sb: any, key: string, ids: string[]) {
     .order("updated_at", { ascending: false })
     .limit(6);
   const exemplos = (catalogo ?? [])
-    .map((c: any) => `- "${c.titulo}" (${c.finalidade}): ${String(c.roteiro).replace(/\s+/g, " ").slice(0, 300)}`)
+    .map(
+      (c: any) =>
+        `- "${c.titulo}" (${c.finalidade}): ${String(c.roteiro).replace(/\s+/g, " ").slice(0, 300)}`,
+    )
     .join("\n");
   const lista = reels
     .map(
@@ -422,7 +583,9 @@ NICHO: ${cfg?.nicho ?? "IA aplicada a negócios"} · PÚBLICO: ${cfg?.publico ??
 EXEMPLOS DE ROTEIROS NOSSOS (para o tom):\n${exemplos || "(nenhum)"}`,
       tools: [FERRAMENTA_ANALISE],
       tool_choice: { type: "tool", name: "registrar" },
-      messages: [{ role: "user", content: `REELS:\n\n${lista}\n\nAnalise todos e chame registrar.` }],
+      messages: [
+        { role: "user", content: `REELS:\n\n${lista}\n\nAnalise todos e chame registrar.` },
+      ],
     },
     "vedit-pesquisa:analisar",
   );
@@ -440,7 +603,13 @@ EXEMPLOS DE ROTEIROS NOSSOS (para o tom):\n${exemplos || "(nenhum)"}`,
 }
 
 /** Reel de uma conta business/creator a partir do link: a API oficial dá o arquivo de vídeo. */
-async function reelPorLink(sb: any, url: string, username: string | undefined, ig: string, tk: string) {
+async function reelPorLink(
+  sb: any,
+  url: string,
+  username: string | undefined,
+  ig: string,
+  tk: string,
+) {
   const codigo = url.match(/\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)?.[1];
   if (!codigo) throw new Error("link de reel inválido");
   // 1) Já coletado na Pesquisa? (dá o @ da conta)
@@ -473,11 +642,16 @@ async function reelPorLink(sb: any, url: string, username: string | undefined, i
     }
   }
   if (!alvo) throw new Error(`não achei esse reel nas publicações recentes de @${user}`);
-  if (!alvo.media_url) throw new Error("o Instagram não liberou o arquivo deste reel (pode ter música licenciada ou ser de outra conta)");
+  if (!alvo.media_url)
+    throw new Error(
+      "o Instagram não liberou o arquivo deste reel (pode ter música licenciada ou ser de outra conta)",
+    );
   const r = await fetch(alvo.media_url, { signal: AbortSignal.timeout(60000) });
   if (!r.ok) throw new Error(`download do vídeo falhou (${r.status})`);
   const path = `referencias/links/${codigo}.mp4`;
-  const up = await sb.storage.from("video-edicao").upload(path, await r.blob(), { contentType: "video/mp4", upsert: true });
+  const up = await sb.storage
+    .from("video-edicao")
+    .upload(path, await r.blob(), { contentType: "video/mp4", upsert: true });
   if (up.error) throw new Error(up.error.message);
   return {
     path,
@@ -510,7 +684,9 @@ async function enviarMarketing(sb: any, id: string) {
       legenda: ro.legenda ?? null,
       auto_resposta_palavra_chave: ro.palavra_chave ?? null,
       auto_resposta_ativa: !!ro.palavra_chave,
-      recomendacoes_edicao: [ro.formato, ...(ro.efeitos_sugeridos ?? [])].filter(Boolean).join("\n"),
+      recomendacoes_edicao: [ro.formato, ...(ro.efeitos_sugeridos ?? [])]
+        .filter(Boolean)
+        .join("\n"),
     })
     .select("id")
     .single();
@@ -521,7 +697,10 @@ async function enviarMarketing(sb: any, id: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
-  const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const sb = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
   const body = await req.json().catch(() => ({}));
   const { acao } = body as { acao?: string };
   try {
@@ -533,7 +712,19 @@ Deno.serve(async (req) => {
     if (acao === "perfil") return json(await cadastrarPerfil(sb, body.username, "manual", ig, tk));
     if (acao === "sugerir_perfis") return json(await sugerirPerfis(sb, key, ig, tk));
     if (acao === "coletar") return json(await coletar(sb, ig, tk));
-    if (acao === "reel_por_link") return json(await reelPorLink(sb, body.url, body.username, ig, tk));
+    if (acao === "buscar") return json(await buscar(sb, key, ig, tk));
+    if (acao === "classificar") {
+      const { data: cfg } = await sb
+        .from("vedit_nicho_config")
+        .select("nicho")
+        .eq("id", 1)
+        .single();
+      const tema = String(cfg?.nicho ?? "").trim();
+      if (!tema) return json({ error: "descreva o conteúdo (tema) antes" }, 400);
+      return json({ classificados: await classificarRelevancia(sb, key, tema, false), tema });
+    }
+    if (acao === "reel_por_link")
+      return json(await reelPorLink(sb, body.url, body.username, ig, tk));
     return json({ error: "ação desconhecida" }, 400);
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
