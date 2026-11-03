@@ -91,8 +91,15 @@ Deno.serve(async (req) => {
     const modelo = await modeloImagem(key);
     const size = TAMANHO[String(body.formato ?? "4:5")] ?? "1024x1536";
     const quality = body.qualidade === "rapida" ? "medium" : "high";
-    const prompt = String(body.prompt ?? "").slice(0, 3800);
+    let prompt = String(body.prompt ?? "").slice(0, 3400);
     if (!prompt) return json({ error: "prompt vazio" }, 400);
+    // Com a marca: a logo da IAplicada entra como referência extra e o cenário segue a identidade
+    // (fundo quase preto, verde-lima nos detalhes, logo repetida no backdrop como parede de imprensa).
+    const comMarca = body.marca === true;
+    if (comMarca)
+      prompt += `\n\nBRAND: the last reference image is the IAplicada logo (four-leaf green mark + wordmark). Set the scene in IAplicada's identity: near-black background (#0B0B0F) with subtle lime-green (#A3CB20) accents and soft rim light; the backdrop behind the person is a press wall / step-and-repeat with the IAplicada logo repeated in a regular grid, printed in muted light tones on the dark panel, slightly out of focus, never covering the face. Reproduce the logo exactly, without distortion or extra text.`;
+    // Nitidez: o rosto é o que mais sofre em edição, então pede foco e detalhe de pele sempre.
+    prompt += `\n\nQUALITY: photorealistic, tack-sharp focus on the face with real skin texture and fine detail, no softness, no plastic skin, no smoothing, no AI look, natural color.`;
 
     if (body.acao === "editar") {
       const ids: string[] = body.fotos_ids ?? (body.foto_id ? [body.foto_id] : []);
@@ -117,6 +124,12 @@ Deno.serve(async (req) => {
           "image[]",
           new File([blob], `foto.${ext === "png" ? "png" : "jpg"}`, { type: `image/${ext}` }),
         );
+      }
+      if (comMarca) {
+        const { data: logo } = await sb.storage
+          .from(BUCKET)
+          .download("criativos/marca/iaplicada-logo-light.png");
+        if (logo) form.append("image[]", new File([logo], "logo.png", { type: "image/png" }));
       }
       const enviar = (fd: FormData) =>
         fetch("https://api.openai.com/v1/images/edits", {
