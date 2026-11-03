@@ -711,15 +711,40 @@ function EditorCriativo() {
                     </div>
                   ))}
                   {slide.layout === "cortes" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Falas (uma por frame, na ordem das fotos)</Label>
-                      <Textarea
-                        rows={4}
-                        className="text-sm"
-                        value={(slide.falas ?? []).join("\n")}
-                        onChange={(e) => mudarSlide({ falas: e.target.value.split("\n") })}
-                      />
-                    </div>
+                    <>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Falas (uma por frame, na ordem das fotos)</Label>
+                        <Textarea
+                          rows={4}
+                          className="text-sm"
+                          value={(slide.falas ?? []).join("\n")}
+                          onChange={(e) => mudarSlide({ falas: e.target.value.split("\n") })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">
+                          Zoom por frame (ex.: 1|1.3|1.1) e enquadramento (ex.: 50% 0%|50% 10%)
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            className="h-8 text-sm"
+                            placeholder="1|1.3|1.1"
+                            value={slide.zoom ?? ""}
+                            onChange={(e) => mudarSlide({ zoom: e.target.value || null })}
+                          />
+                          <Input
+                            className="h-8 text-sm"
+                            placeholder="50% 0%|50% 10%|50% 0%"
+                            value={slide.foco ?? ""}
+                            onChange={(e) => mudarSlide({ foco: e.target.value || null })}
+                          />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Fundo "Marca" desenha a parede da IAplicada atrás de uma foto real com o
+                          fundo removido: a pele fica a da foto, sem IA.
+                        </p>
+                      </div>
+                    </>
                   )}
                   {slide.layout === "lista" && (
                     <div className="space-y-1">

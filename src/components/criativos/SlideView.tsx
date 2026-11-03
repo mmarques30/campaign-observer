@@ -662,6 +662,14 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         {Array.from({ length: n }, (_, i) => {
           const fala = s.falas?.[i] ?? "";
           const focos = (s.foco ?? "").split("|").map((x) => x.trim());
+          const zooms = (s.zoom ?? "").split("|").map((x) => Number(x.trim()) || 0);
+          const zoom = Math.max(0.7, Math.min(2.2, zooms[i] || zooms[0] || 1));
+          const foco = focos[i] || focos[0] || "50% 30%";
+          // Fundo "marca": parede escura com a logo da IAplicada esparsa, desenhada aqui, para
+          // receber uma foto real recortada (fundo transparente): a pele fica a da foto, sem IA.
+          const parede = s.fundo === "marca";
+          // Deslocamento sutil da parede por frame, como se a câmera tivesse mudado de posição.
+          const desloc = [0, -140, 90, -60][i] ?? 0;
           return (
             <div
               key={i}
@@ -670,13 +678,70 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                 height: hFrame,
                 overflow: "hidden",
                 borderTop: i ? "4px solid #000" : undefined,
+                background: parede
+                  ? "radial-gradient(ellipse 70% 90% at 50% 40%, #23272A 0%, #15181A 60%, #0E1012 100%)"
+                  : undefined,
               }}
             >
-              <Foto
-                url={foto(i)}
-                foco={focos[i] || focos[0] || "50% 30%"}
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-              />
+              {parede &&
+                // Três logos grandes, esparsas e tom sobre tom, em posições que mudam por frame.
+                [
+                  [60 + desloc, 0.12, 300],
+                  [W - 420 + desloc, 0.5, 340],
+                  [W / 2 - 60 + desloc, 0.02, 220],
+                ].map(([x, y, w], k) => (
+                  <img
+                    key={k}
+                    src="/brand/iaplicada-logo-dark.png"
+                    alt=""
+                    style={{
+                      position: "absolute",
+                      left: x,
+                      top: Math.round(hFrame * (y as number)),
+                      width: w,
+                      opacity: 0.11,
+                      filter: "blur(0.8px)",
+                    }}
+                  />
+                ))}
+              {parede ? (
+                // Foto real recortada: altura relativa ao frame (zoom), centralizada, ancorada no
+                // topo pelo foco vertical: cabeça e ombros no quadro, como um corte de câmera.
+                (() => {
+                  const z = zoom === 1 ? 1.75 : zoom * 1.75;
+                  const hImg = hFrame * z;
+                  const fy = Number(/\s(\d+)%/.exec(foco)?.[1] ?? 20) / 100;
+                  const fx = Number(/^(\d+)%/.exec(foco)?.[1] ?? 50) / 100;
+                  return (
+                    <img
+                      src={foto(i)}
+                      crossOrigin="anonymous"
+                      style={{
+                        position: "absolute",
+                        height: hImg,
+                        width: "auto",
+                        left: `${fx * 100}%`,
+                        top: -Math.round(fy * (hImg - hFrame)),
+                        transform: "translateX(-50%)",
+                        filter: "drop-shadow(0 18px 40px rgba(0,0,0,.55))",
+                      }}
+                    />
+                  );
+                })()
+              ) : (
+                <Foto
+                  url={foto(i)}
+                  foco={foco}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    transform: zoom !== 1 ? `scale(${zoom})` : undefined,
+                    transformOrigin: foco,
+                  }}
+                />
+              )}
               {fala && (
                 <div
                   style={{

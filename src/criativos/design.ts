@@ -87,6 +87,9 @@ export const slideSchema = z.object({
   fotos: z.array(z.string()).nullish(),
   // layout "cortes": a fala de cada frame, na ordem das fotos (legenda queimada, como vídeo)
   falas: z.array(z.string()).nullish(),
+  // layout "cortes": zoom por frame separado por "|" (ex.: "1|1.4|1.15"), para simular cortes
+  // de câmera a partir de uma mesma foto real
+  zoom: z.string().nullish(),
   fundo: z.enum(FUNDOS).nullish(),
   // capa: "impacto" (condensada caixa alta) ou "elegante" (grande, minúscula, centralizada)
   variante: z.enum(["impacto", "elegante"]).nullish(),
