@@ -44,7 +44,14 @@ import { cn } from "@/lib/utils";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { db } from "@/lib/vedit";
 import { BotaoSalvarReferencia, NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
-import { CampoLink, CartaoLink, useReferenciasPorLink } from "@/components/edicao/PesquisaPorLink";
+import {
+  CampoLink,
+  CartaoLink,
+  DetalheReferencia,
+  useReferenciasPorLink,
+} from "@/components/edicao/PesquisaPorLink";
+import type { Referencia } from "@/lib/referencias";
+import { ListaAds, pedirBuscaAds } from "@/components/edicao/PesquisaAds";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, Link2, Users } from "lucide-react";
@@ -157,6 +164,13 @@ function PesquisaPage() {
   const [filtroPerfil, setFiltroPerfil] = useState<string>("todos");
   const [soTema, setSoTema] = useState(true);
   const [modo, setModo] = useState<"tema" | "link">("tema");
+  // Onde buscar por tema: reels orgânicos dos perfis do nicho ou anúncios da Biblioteca da Meta.
+  const [fonte, setFonte] = useState<"instagram" | "ads">("instagram");
+  const [adsTema, setAdsTema] = useState<string>("");
+  useEffect(() => {
+    if (!adsTema && cfgQ.data?.nicho) setAdsTema(cfgQ.data.nicho);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfgQ.data?.nicho]);
   // Mostra 10 por vez; "Ver outros 10" avança para os próximos (e volta ao começo no fim).
   const [pagina, setPagina] = useState(0);
   const [ajustesAbertos, setAjustesAbertos] = useState(false);
@@ -164,6 +178,7 @@ function PesquisaPage() {
   const salvarNichoPendente = useRef<(() => Promise<void>) | null>(null);
   const [ordem, setOrdem] = useState<"indice" | "engajamento" | "recentes">("indice");
   const [sel, setSel] = useState<Reel | null>(null);
+  const [selLink, setSelLink] = useState<Referencia | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
 
   // Buscar agora: salva o que está digitado, sugere perfis do tema se faltar, coleta e classifica
@@ -171,9 +186,26 @@ function PesquisaPage() {
   const coletar = useMutation({
     mutationFn: async () => {
       await salvarNichoPendente.current?.();
+      if (fonte === "ads") {
+        const { data: c } = await db()
+          .from("vedit_nicho_config")
+          .select("nicho")
+          .eq("id", 1)
+          .single();
+        const tema = String(c?.nicho ?? "").trim();
+        if (!tema) throw new Error("Digite o tema antes de buscar.");
+        await pedirBuscaAds(tema, "BR");
+        setAdsTema(tema);
+        return { ads: true };
+      }
       return callEdgeFunction("vedit-pesquisa", { acao: "buscar" });
     },
     onSuccess: (r: any) => {
+      if (r?.ads) {
+        setPagina(0);
+        qc.invalidateQueries({ queryKey: ["vedit", "nicho", "ads-job"] });
+        return toast.success("Procurando anúncios na Biblioteca da Meta (1 a 2 minutos).");
+      }
       if (r?.error) return toast.error(r.error);
       setSoTema(true);
       toast.success(
@@ -265,6 +297,8 @@ function PesquisaPage() {
                 cfg={cfgQ.data}
                 perfis={perfisQ.data ?? []}
                 buscando={coletar.isPending}
+                fonte={fonte}
+                onFonte={setFonte}
                 onBuscar={() => coletar.mutate()}
                 registrarSalvar={(f) => (salvarNichoPendente.current = f)}
               />
@@ -293,131 +327,160 @@ function PesquisaPage() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Flame className="h-4 w-4 text-primary" />
-        <span className="font-semibold">Resultados</span>
-        <span className="text-xs text-muted-foreground">
-          {visiveis.length} de {lista.length}
-          {cfgQ.data?.ultima_busca
-            ? ` · última busca ${formatDistanceToNow(new Date(cfgQ.data.ultima_busca), { locale: ptBR, addSuffix: true })}`
-            : ""}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
-          {cfgQ.data?.tema_buscado && (
-            <label className="flex items-center gap-2 text-xs">
-              <Switch checked={soTema} onCheckedChange={setSoTema} />
-              Só do tema
-            </label>
-          )}
-          <Select value={filtroPerfil} onValueChange={setFiltroPerfil}>
-            <SelectTrigger className="h-8 w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os perfis</SelectItem>
-              {perfisComReels.map((u) => (
-                <SelectItem key={u} value={u}>
-                  @{u}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={ordem} onValueChange={(v) => setOrdem(v as typeof ordem)}>
-            <SelectTrigger className="h-8 w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="indice">Mais viral (× o normal)</SelectItem>
-              <SelectItem value="engajamento">Mais engajamento</SelectItem>
-              <SelectItem value="recentes">Mais recentes</SelectItem>
-            </SelectContent>
-          </Select>
-          {marcados.size > 0 && (
-            <Button
-              size="sm"
-              onClick={() => analisar.mutate([...marcados])}
-              disabled={analisar.isPending}
-            >
-              {analisar.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              Analisar {marcados.size}
-            </Button>
-          )}
-          {marcados.size === 0 && visiveis.some((r) => !r.analise) && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => analisar.mutate(visiveis.filter((r) => !r.analise).map((r) => r.id))}
-              disabled={analisar.isPending}
-            >
-              {analisar.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4 mr-2" />
-              )}
-              Analisar estes
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {lista.length === 0 && linksRecentes.length === 0 && !reelsQ.isLoading ? (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Digite o tema e clique em <b>Buscar</b>, ou cole um link na aba <b>Por link</b>.
-          </CardContent>
-        </Card>
+      {fonte === "ads" && modo === "tema" ? (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Flame className="h-4 w-4 text-primary" />
+            <span className="font-semibold">Anúncios ativos</span>
+            <span className="text-xs text-muted-foreground">
+              {adsTema ? `tema "${adsTema}" · ordenados por tempo no ar` : ""}
+            </span>
+          </div>
+          <ListaAds
+            tema={adsTema}
+            refs={linksQ.data ?? []}
+            onAbrirRef={(r) => setSelLink(r)}
+            pagina={pagina}
+            onPagina={setPagina}
+          />
+        </>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {linksRecentes.map((r) => (
-              <CartaoLink
-                key={r.id}
-                r={r}
-                onMudou={() => void linksQ.refetch()}
-                onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
-              />
-            ))}
-            {visiveis.map((r) => (
-              <CartaoReel
-                key={r.id}
-                r={r}
-                marcado={marcados.has(r.id)}
-                onMarcar={() =>
-                  setMarcados((m) => {
-                    const n = new Set(m);
-                    n.has(r.id) ? n.delete(r.id) : n.add(r.id);
-                    return n;
-                  })
-                }
-                onAbrir={() => setSel(r)}
-              />
-            ))}
-          </div>
-          {lista.length > POR_PAGINA && (
-            <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
-              <span>
-                {pag + 1} de {totalPaginas}
-              </span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setPagina((pag + 1) % totalPaginas);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              >
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                {pag + 1 < totalPaginas ? "Ver outros 10" : "Voltar aos primeiros"}
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Flame className="h-4 w-4 text-primary" />
+            <span className="font-semibold">Resultados</span>
+            <span className="text-xs text-muted-foreground">
+              {visiveis.length} de {lista.length}
+              {cfgQ.data?.ultima_busca
+                ? ` · última busca ${formatDistanceToNow(new Date(cfgQ.data.ultima_busca), { locale: ptBR, addSuffix: true })}`
+                : ""}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              {cfgQ.data?.tema_buscado && (
+                <label className="flex items-center gap-2 text-xs">
+                  <Switch checked={soTema} onCheckedChange={setSoTema} />
+                  Só do tema
+                </label>
+              )}
+              <Select value={filtroPerfil} onValueChange={setFiltroPerfil}>
+                <SelectTrigger className="h-8 w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os perfis</SelectItem>
+                  {perfisComReels.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      @{u}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={ordem} onValueChange={(v) => setOrdem(v as typeof ordem)}>
+                <SelectTrigger className="h-8 w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="indice">Mais viral (× o normal)</SelectItem>
+                  <SelectItem value="engajamento">Mais engajamento</SelectItem>
+                  <SelectItem value="recentes">Mais recentes</SelectItem>
+                </SelectContent>
+              </Select>
+              {marcados.size > 0 && (
+                <Button
+                  size="sm"
+                  onClick={() => analisar.mutate([...marcados])}
+                  disabled={analisar.isPending}
+                >
+                  {analisar.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Analisar {marcados.size}
+                </Button>
+              )}
+              {marcados.size === 0 && visiveis.some((r) => !r.analise) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    analisar.mutate(visiveis.filter((r) => !r.analise).map((r) => r.id))
+                  }
+                  disabled={analisar.isPending}
+                >
+                  {analisar.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Analisar estes
+                </Button>
+              )}
             </div>
+          </div>
+
+          {lista.length === 0 && linksRecentes.length === 0 && !reelsQ.isLoading ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Digite o tema e clique em <b>Buscar</b>, ou cole um link na aba <b>Por link</b>.
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {linksRecentes.map((r) => (
+                  <CartaoLink
+                    key={r.id}
+                    r={r}
+                    onMudou={() => void linksQ.refetch()}
+                    onAbrir={() => setSelLink(r)}
+                    onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
+                  />
+                ))}
+                {visiveis.map((r) => (
+                  <CartaoReel
+                    key={r.id}
+                    r={r}
+                    marcado={marcados.has(r.id)}
+                    onMarcar={() =>
+                      setMarcados((m) => {
+                        const n = new Set(m);
+                        n.has(r.id) ? n.delete(r.id) : n.add(r.id);
+                        return n;
+                      })
+                    }
+                    onAbrir={() => setSel(r)}
+                  />
+                ))}
+              </div>
+              {lista.length > POR_PAGINA && (
+                <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {pag + 1} de {totalPaginas}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setPagina((pag + 1) % totalPaginas);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    {pag + 1 < totalPaginas ? "Ver outros 10" : "Voltar aos primeiros"}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
 
+      <DetalheReferencia
+        r={selLink ? ((linksQ.data ?? []).find((x) => x.id === selLink.id) ?? selLink) : null}
+        onFechar={() => setSelLink(null)}
+        onCriarRoteiro={(id) => navegar({ to: "/ads/edicao/roteiros", search: { id } })}
+      />
       <DetalheReel
         r={sel ? ((reelsQ.data ?? []).find((x) => x.id === sel.id) ?? sel) : null}
         onFechar={() => setSel(null)}
@@ -433,12 +496,16 @@ function BuscaPorTema({
   cfg,
   perfis,
   buscando,
+  fonte,
+  onFonte,
   onBuscar,
   registrarSalvar,
 }: {
   cfg?: Config;
   perfis: Perfil[];
   buscando: boolean;
+  fonte: "instagram" | "ads";
+  onFonte: (f: "instagram" | "ads") => void;
   onBuscar: () => void;
   registrarSalvar: (f: (() => Promise<void>) | null) => void;
 }) {
@@ -468,7 +535,7 @@ function BuscaPorTema({
   }, [sujo, vNicho, vPublico]);
   const ativos = perfis.filter((p) => p.ativo).length;
   return (
-    <div className="grid gap-2 md:grid-cols-[1.4fr_1fr_auto] items-end">
+    <div className="grid gap-2 md:grid-cols-[1.4fr_1fr_auto_auto] items-end">
       <div className="space-y-1">
         <Label className="text-xs">Tema (sobre o que você quer vídeos)</Label>
         <Input
@@ -487,6 +554,18 @@ function BuscaPorTema({
           placeholder="ex.: donos de empresas acima de R$ 3 mi"
         />
       </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Onde</Label>
+        <Select value={fonte} onValueChange={(v) => onFonte(v as "instagram" | "ads")}>
+          <SelectTrigger className="h-10 w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="instagram">Instagram orgânico (perfis)</SelectItem>
+            <SelectItem value="ads">Anúncios (Biblioteca da Meta)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <Button onClick={onBuscar} disabled={buscando || !vNicho.trim()}>
         {buscando ? (
           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -495,10 +574,10 @@ function BuscaPorTema({
         )}
         Buscar
       </Button>
-      <p className="text-xs text-muted-foreground md:col-span-3">
-        Procura nos {ativos} perfil(is) monitorado(s) do nicho (sugere novos se o tema mudou), pega
-        os Reels que mais viralizaram e mostra 10 por vez. Quer outros? "Ver outros 10" ou busque de
-        novo.
+      <p className="text-xs text-muted-foreground md:col-span-4">
+        {fonte === "ads"
+          ? "Procura anúncios de vídeo ativos no Brasil com esse tema na Biblioteca de Anúncios da Meta e ordena por tempo no ar (quem está rodando há mais tempo está pagando porque funciona). Clique em analisar para transcrever, ler a edição e criar o roteiro."
+          : `Procura nos ${ativos} perfil(is) monitorado(s) do nicho (sugere novos se o tema mudou), pega os Reels que mais viralizaram e mostra 10 por vez. Quer outros? "Ver outros 10" ou busque de novo.`}
       </p>
     </div>
   );
