@@ -214,7 +214,7 @@ async function analisarReferencia(sb: any, id: string) {
               ...imgs,
               {
                 type: "text",
-                text: `Estes são os slides, em ordem, de um ${imgs.length > 1 ? "carrossel" : "post"} do Instagram${ref.autor ? ` de @${ref.autor}` : ""} que a Mariana salvou como referência de qualidade.${ref.legenda ? `\nLegenda do post: ${String(ref.legenda).slice(0, 1200)}` : ""}
+                text: `Estes são os slides, em ordem, de um ${imgs.length > 1 ? "carrossel" : "post de imagem única"} do Instagram${ref.autor ? ` de @${ref.autor}` : ""} que a Mariana salvou como referência de qualidade.${ref.legenda ? `\nLegenda do post: ${String(ref.legenda).slice(0, 1200)}` : ""}
 
 Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
 {
@@ -223,7 +223,8 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
  "estrutura": ["slide 1: papel e conteúdo (1 frase curta)", "slide 2: ...", ...]  (um item por slide, todos os slides),
  "tipografia": "fontes/pesos/caixa, tamanhos relativos, alinhamento",
  "cores": ["#hex", ...],
- "layouts": ["capa", "tweet", "comando", "topico", "texto", "lista", "foto", "cta"]  (os do nosso editor que mais se parecem, na ordem dos slides),
+ "layouts": ["capa", "tweet", "comando", "topico", "texto", "lista", "foto", "cortes", "cta"]  (os do nosso editor que mais se parecem, na ordem dos slides; "cortes" = UMA imagem com 2 a 4 frames de vídeo empilhados, cada um com a própria legenda queimada — nesse caso é 1 slide só, não vários),
+ "frames": 3  (só quando a imagem é de frames empilhados: quantos frames e, em "estrutura", a fala de cada frame),
  "gancho": "como a capa prende",
  "dicas": ["detalhes de acabamento que fazem parecer profissional", ...],
  "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da Mariana"
@@ -316,7 +317,7 @@ O design é um JSON. Você o grava com a ferramenta salvar_design (sempre o desi
  "mostrarNumeracao": true,
  "logo": {"onde":"todos|primeiro|ultimo|primeiro-e-ultimo","lado":"esquerda|direita"} (logo da IAplicada no canto de cima, na cor certa para o fundo; null = sem logo. Use quando a Mariana pedir a logo e, em anúncio, de preferência no primeiro e no último slide),
  "legendaPost": "legenda sugerida para o post: 1ª linha que prende, parágrafos curtos, CTA igual ao do último slide e no máximo 3 hashtags no fim",
- "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar", "botaoTamanho":"pequeno|medio|grande", "botaoEstilo":"destaque|suave|contorno", "alturaTexto":"baixo|meio|alto", "escalaTexto":1, "semAutor":false } ]
+ "slides": [ { "id":"s1", "layout":"...", "rotulo":"", "titulo":"", "subtitulo":"", "texto":"", "itens":[], "fotos":["<id>"], "falas":["fala do frame 1","fala do frame 2"], "fundo":"escuro|claro|marca|destaque", "variante":"impacto|elegante", "foco":"50% 30%", "visual":{...}, "botao":"Quero conversar", "botaoTamanho":"pequeno|medio|grande", "botaoEstilo":"destaque|suave|contorno", "alturaTexto":"baixo|meio|alto", "escalaTexto":1, "semAutor":false } ]
 }
 
 Layouts (use só estes):
@@ -327,6 +328,7 @@ Layouts (use só estes):
 - texto: frase de impacto grande (titulo) e/ou parágrafos (texto). Sem foto.
 - lista: titulo + itens numerados (3 a 6 itens curtos).
 - foto: foto inteira com título/texto curto embaixo.
+- cortes: UMA imagem com 2 a 4 frames de vídeo empilhados (fotos[0..3], de cima para baixo), cada um com a própria fala queimada embaixo (falas[0..3], uma frase curta por frame, no máximo 2 linhas). Parece um trecho de entrevista recortado: mesma pessoa, mesma roupa e mesmo cenário nos frames, mudando só o enquadramento (plano médio com gesto, close, plano médio). Sem título, rótulo, botão ou rodapé. É o layout certo quando a referência é um post único com frames empilhados ("3 cortes e 3 falas"). "foco" aceita um valor por frame separado por "|" (ex.: "50% 20%|50% 30%|50% 25%").
 - cta: slide final com avatar grande, chamada e botões Salve/Envie/Siga automáticos.
 
 Visual que explica a fala (campo "visual", nos layouts texto e lista; na lista ele substitui os itens numerados e o texto vem antes dele). Use quando o slide fala de processo, números ou antes/depois e uma imagem ajudaria a entender:
@@ -340,10 +342,10 @@ Regras de qualidade:
 - **palavra** destaca na cor de destaque. Use em 1-3 palavras-chave por slide, nunca em frases inteiras.
 - Capa: gancho forte e específico (número, promessa, curiosidade, contraste). Nada genérico.
 - Um assunto por slide, no máximo ~45 palavras por slide. Texto em português do Brasil, direto, sem clichês de IA ("no mundo de hoje", "revolucionar", "desbloqueie").
-- Carrossel: 5 a 9 slides (com ROTEIRO, quantos o roteiro pedir, até 15), começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto ou foto).
+- Carrossel: 5 a 9 slides (com ROTEIRO, quantos o roteiro pedir, até 15), começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto, foto ou cortes). Num post único NUNCA crie mais de um slide: se a referência tem vários frames numa imagem só, é o layout "cortes" num único slide.
 - Varie layouts com ritmo, mas mantenha a mesma identidade (cores e fontes) do começo ao fim.
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
-- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real.
+- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com a pessoa centralizada e a cabeça na metade de cima do quadro (a fala entra embaixo do queixo). Nunca use uma foto solta da biblioteca que destoe dos outros frames.
 - Para conferir uma foto antes de usar, chame ver_fotos.
 - Fontes disponíveis: Anton, Archivo Black, Bricolage Grotesque, Inter, Montserrat, DM Mono, Instrument Serif, Playfair Display, Fraunces, Caveat.
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.

@@ -639,6 +639,70 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
         </div>
       </>
     );
+  } else if (s.layout === "cortes") {
+    // Cortes de vídeo: 2 a 4 frames empilhados, cada um com a própria fala queimada embaixo,
+    // como um trecho de entrevista recortado. Sem rótulo, sem botão, sem rodapé: só os frames.
+    const n = Math.max(2, Math.min(4, Math.max(s.fotos?.length ?? 0, s.falas?.length ?? 0, 2)));
+    const alturaUtil = H - segTopo - segBase;
+    const hFrame = alturaUtil / n;
+    const falaBase = n >= 4 ? 42 : n === 3 ? 48 : 56;
+    corpo = (
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: segTopo,
+          height: alturaUtil,
+          display: "flex",
+          flexDirection: "column",
+          background: "#000",
+        }}
+      >
+        {Array.from({ length: n }, (_, i) => {
+          const fala = s.falas?.[i] ?? "";
+          const focos = (s.foco ?? "").split("|").map((x) => x.trim());
+          return (
+            <div
+              key={i}
+              style={{
+                position: "relative",
+                height: hFrame,
+                overflow: "hidden",
+                borderTop: i ? "4px solid #000" : undefined,
+              }}
+            >
+              <Foto
+                url={foto(i)}
+                foco={focos[i] || focos[0] || "50% 30%"}
+                style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+              />
+              {fala && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 60,
+                    right: 60,
+                    bottom: Math.round(hFrame * 0.07),
+                    textAlign: "center",
+                    fontFamily: f(t.fonteTexto, "Inter, sans-serif"),
+                    fontSize: esc * ajusta(fala, falaBase, Math.round(falaBase * 0.72), 36),
+                    fontWeight: 700,
+                    lineHeight: 1.15,
+                    letterSpacing: -0.5,
+                    color: "#fff",
+                    textShadow:
+                      "0 0 2px rgba(0,0,0,.9), 0 2px 6px rgba(0,0,0,.8), 0 6px 24px rgba(0,0,0,.6)",
+                  }}
+                >
+                  <Rico t={fala} cor={t.destaque} />
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
   } else if (s.layout === "cta") {
     corpo = (
       <div
@@ -819,7 +883,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     (lg.onde === "todos" ||
       (indice === 0 && (lg.onde === "primeiro" || lg.onde === "primeiro-e-ultimo")) ||
       (ultimo && (lg.onde === "ultimo" || lg.onde === "primeiro-e-ultimo")));
-  const logoClaro = fundo === "claro" && !["foto", "capa"].includes(s.layout);
+  const logoClaro = fundo === "claro" && !["foto", "capa", "cortes"].includes(s.layout);
   const logo = comLogo ? (
     <img
       src={logoClaro ? "/brand/iaplicada-logo-light.png" : "/brand/iaplicada-logo-dark.png"}
@@ -857,7 +921,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
       {corpo}
       {botaoSolto}
       {logo}
-      {s.layout !== "capa" && rodape}
+      {s.layout !== "capa" && s.layout !== "cortes" && rodape}
     </div>
   );
 });

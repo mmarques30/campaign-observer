@@ -710,6 +710,17 @@ function EditorCriativo() {
                       />
                     </div>
                   ))}
+                  {slide.layout === "cortes" && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Falas (uma por frame, na ordem das fotos)</Label>
+                      <Textarea
+                        rows={4}
+                        className="text-sm"
+                        value={(slide.falas ?? []).join("\n")}
+                        onChange={(e) => mudarSlide({ falas: e.target.value.split("\n") })}
+                      />
+                    </div>
+                  )}
                   {slide.layout === "lista" && (
                     <div className="space-y-1">
                       <Label className="text-xs">Itens (um por linha)</Label>
@@ -723,14 +734,32 @@ function EditorCriativo() {
                   )}
                   <div className="space-y-1.5">
                     <Label className="text-xs">
-                      {slide.layout === "comando" ? "Fotos (2 = antes e depois)" : "Foto"}
+                      {slide.layout === "comando"
+                        ? "Fotos (2 = antes e depois)"
+                        : slide.layout === "cortes"
+                          ? "Frames (de cima para baixo)"
+                          : "Foto"}
                     </Label>
-                    <div className="flex gap-3">
-                      {(slide.layout === "comando" ? [0, 1] : [0]).map((i) => (
+                    <div className="flex gap-3 flex-wrap">
+                      {(slide.layout === "comando"
+                        ? [0, 1]
+                        : slide.layout === "cortes"
+                          ? [0, 1, 2, 3].slice(
+                              0,
+                              Math.min(4, Math.max(2, (slide.fotos?.length ?? 0) + 1)),
+                            )
+                          : [0]
+                      ).map((i) => (
                         <EscolherFoto
                           key={i}
                           rotulo={
-                            slide.layout === "comando" ? (i ? "Depois" : "Antes") : "Foto do slide"
+                            slide.layout === "comando"
+                              ? i
+                                ? "Depois"
+                                : "Antes"
+                              : slide.layout === "cortes"
+                                ? `Frame ${i + 1}`
+                                : "Foto do slide"
                           }
                           valor={slide.fotos?.[i]}
                           onEscolher={(fid) => {
