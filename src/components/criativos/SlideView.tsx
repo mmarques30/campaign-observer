@@ -656,7 +656,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           height: alturaUtil,
           display: "flex",
           flexDirection: "column",
-          background: "#000",
+          background: s.fundo === "claro" ? "#FFFFFF" : "#000",
         }}
       >
         {Array.from({ length: n }, (_, i) => {
@@ -667,7 +667,8 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
           const foco = focos[i] || focos[0] || "50% 30%";
           // Fundo "marca": parede escura com a logo da IAplicada esparsa, desenhada aqui, para
           // receber uma foto real recortada (fundo transparente): a pele fica a da foto, sem IA.
-          const parede = s.fundo === "marca";
+          const parede = s.fundo === "marca" || s.fundo === "claro";
+          const paredeClara = s.fundo === "claro";
           // Deslocamento sutil da parede por frame, como se a câmera tivesse mudado de posição.
           const desloc = [0, -140, 90, -60][i] ?? 0;
           return (
@@ -677,9 +678,11 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                 position: "relative",
                 height: hFrame,
                 overflow: "hidden",
-                borderTop: i ? "4px solid #000" : undefined,
+                borderTop: i ? `4px solid ${paredeClara ? "#FFFFFF" : "#000"}` : undefined,
                 background: parede
-                  ? "radial-gradient(ellipse 70% 90% at 50% 40%, #23272A 0%, #15181A 60%, #0E1012 100%)"
+                  ? paredeClara
+                    ? `radial-gradient(ellipse 70% 90% at 50% 40%, #FFFFFF 0%, ${t.claro} 60%, #D9D3C7 100%)`
+                    : "radial-gradient(ellipse 70% 90% at 50% 40%, #23272A 0%, #15181A 60%, #0E1012 100%)"
                   : undefined,
               }}
             >
@@ -692,14 +695,18 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                 ].map(([x, y, w], k) => (
                   <img
                     key={k}
-                    src="/brand/iaplicada-logo-dark.png"
+                    src={
+                      paredeClara
+                        ? "/brand/iaplicada-logo-light.png"
+                        : "/brand/iaplicada-logo-dark.png"
+                    }
                     alt=""
                     style={{
                       position: "absolute",
                       left: x,
                       top: Math.round(hFrame * (y as number)),
                       width: w,
-                      opacity: 0.11,
+                      opacity: paredeClara ? 0.1 : 0.11,
                       filter: "blur(0.8px)",
                     }}
                   />
@@ -723,7 +730,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                         left: `${fx * 100}%`,
                         top: -Math.round(fy * (hImg - hFrame)),
                         transform: "translateX(-50%)",
-                        filter: "drop-shadow(0 18px 40px rgba(0,0,0,.55))",
+                        filter: paredeClara
+                          ? "drop-shadow(0 18px 40px rgba(0,0,0,.22))"
+                          : "drop-shadow(0 18px 40px rgba(0,0,0,.55))",
                       }}
                     />
                   );
@@ -755,12 +764,13 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
                     fontWeight: 700,
                     lineHeight: 1.15,
                     letterSpacing: -0.5,
-                    color: "#fff",
-                    textShadow:
-                      "0 0 2px rgba(0,0,0,.9), 0 2px 6px rgba(0,0,0,.8), 0 6px 24px rgba(0,0,0,.6)",
+                    color: paredeClara ? t.textoClaro : "#fff",
+                    textShadow: paredeClara
+                      ? "0 0 2px rgba(255,255,255,.9), 0 2px 6px rgba(255,255,255,.8), 0 6px 24px rgba(255,255,255,.6)"
+                      : "0 0 2px rgba(0,0,0,.9), 0 2px 6px rgba(0,0,0,.8), 0 6px 24px rgba(0,0,0,.6)",
                   }}
                 >
-                  <Rico t={fala} cor={t.destaque} />
+                  <Rico t={fala} cor={paredeClara ? t.marca : t.destaque} />
                 </div>
               )}
             </div>
@@ -948,7 +958,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     (lg.onde === "todos" ||
       (indice === 0 && (lg.onde === "primeiro" || lg.onde === "primeiro-e-ultimo")) ||
       (ultimo && (lg.onde === "ultimo" || lg.onde === "primeiro-e-ultimo")));
-  const logoClaro = fundo === "claro" && !["foto", "capa", "cortes"].includes(s.layout);
+  const logoClaro = fundo === "claro" && !["foto", "capa"].includes(s.layout);
   const logo = comLogo ? (
     <img
       src={logoClaro ? "/brand/iaplicada-logo-light.png" : "/brand/iaplicada-logo-dark.png"}
