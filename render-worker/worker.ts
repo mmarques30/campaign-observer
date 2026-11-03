@@ -811,8 +811,154 @@ async function gerarSlideshow(jobId: string, publicacaoId: string) {
   }
 }
 
+/**
+ * Busca por tema na Biblioteca de Anúncios da Meta (anúncios de vídeo ativos no país): abre a
+ * página de busca no navegador, lê os cartões visíveis e grava em vedit_nicho_ads. A "prova" de
+ * performance é tempo no ar e quantas variações usam o mesmo criativo.
+ */
+const MESES_PT: Record<string, number> = {
+  jan: 1,
+  fev: 2,
+  mar: 3,
+  abr: 4,
+  mai: 5,
+  jun: 6,
+  jul: 7,
+  ago: 8,
+  set: 9,
+  out: 10,
+  nov: 11,
+  dez: 12,
+};
+function dataPt(s: string | null): string | null {
+  const m = s?.match(/(\d{1,2}) de (\w{3})\w* de (\d{4})/);
+  if (!m) return null;
+  const mes = MESES_PT[m[2].toLowerCase()];
+  return mes ? `${m[3]}-${String(mes).padStart(2, "0")}-${m[1].padStart(2, "0")}` : null;
+}
+async function buscarAdsLibrary(jobId: string, tema: string, pais: string) {
+  let pw: typeof import("playwright-core");
+  try {
+    pw = await import("playwright-core");
+  } catch {
+    throw new Error(
+      "worker sem playwright-core: refaça o build do worker (render-worker/Dockerfile)",
+    );
+  }
+  const exe = await chromeDoRemotion();
+  const navegador = await pw.chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+  try {
+    const ctx = await navegador.newContext({
+      locale: "pt-BR",
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+      viewport: { width: 1280, height: 1000 },
+    });
+    const pagina = await ctx.newPage();
+    const url = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${encodeURIComponent(pais)}&q=${encodeURIComponent(tema)}&search_type=keyword_unordered&media_type=video`;
+    await pagina.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    let achou = false;
+    for (let i = 0; i < 40; i++) {
+      await pagina.waitForTimeout(1500);
+      const t = await pagina.evaluate(() => document.body.innerText).catch(() => "");
+      if (/Identificação da biblioteca|Library ID/i.test(t)) {
+        achou = true;
+        break;
+      }
+      if (/Nenhum resultado|No results/i.test(t)) break;
+    }
+    if (!achou) return 0;
+    for (let i = 0; i < 5; i++) {
+      await pagina.mouse.wheel(0, 3000);
+      await pagina.waitForTimeout(1800);
+    }
+    const cartoes: { id: string; txt: string; poster: string | null }[] = await pagina.evaluate(
+      () => {
+        const res: Record<string, { id: string; txt: string; poster: string | null }> = {};
+        const nos = [...document.querySelectorAll("div,span")].filter(
+          (d) =>
+            d.childElementCount === 0 &&
+            /^(Identificação da biblioteca|Library ID):\s*\d+/.test((d.textContent ?? "").trim()),
+        );
+        for (const el of nos) {
+          const id = (el.textContent?.match(/(\d{10,})/) ?? [])[1];
+          if (!id || res[id]) continue;
+          let card: HTMLElement = el as HTMLElement;
+          for (let k = 0; k < 14 && card.parentElement; k++) {
+            card = card.parentElement;
+            if (
+              (card.innerText ?? "").includes("Patrocinado") ||
+              (card.innerText ?? "").includes("Sponsored")
+            )
+              break;
+          }
+          const vid = card.querySelector("video");
+          const imgs = [...card.querySelectorAll("img")]
+            .map((i) => ({
+              src: i.src,
+              w: i.naturalWidth || i.width,
+              h: i.naturalHeight || i.height,
+            }))
+            .filter((i) => i.w >= 100)
+            .sort((a, b) => b.w * b.h - a.w * a.h);
+          res[id] = { id, txt: card.innerText ?? "", poster: vid?.poster || imgs[0]?.src || null };
+        }
+        return Object.values(res);
+      },
+    );
+    const agora = new Date().toISOString();
+    const linhas = cartoes.map((c) => {
+      const linhas = c.txt
+        .split("\n")
+        .map((x) => x.trim())
+        .filter((x) => x && x !== "\u200b");
+      const inicio = dataPt(
+        (c.txt.match(/(?:Veiculação iniciada em|Started running on) (.+)/) ?? [])[1] ?? null,
+      );
+      const variantes = Number((c.txt.match(/(\d+) (?:anúncios usam|ads use)/) ?? [])[1] ?? 1);
+      const iP = linhas.findIndex((l) => l === "Patrocinado" || l === "Sponsored");
+      const anunciante = iP > 0 ? linhas[iP - 1] : null;
+      const corpo =
+        iP >= 0
+          ? linhas
+              .slice(iP + 1)
+              .filter(
+                (l) =>
+                  !/^(Saiba mais|Learn More|Cadastre-se|Sign Up|Enviar mensagem|Comprar agora|Shop Now|Estamos com problemas|Ver resumo|Abrir menu suspenso|Ver detalhes do anúncio|See ad details|See Details)/i.test(
+                    l,
+                  ),
+              )
+              .join(" ")
+          : "";
+      return {
+        id: c.id,
+        tema,
+        pais,
+        anunciante,
+        inicio,
+        variantes,
+        texto: corpo.slice(0, 1500),
+        poster: c.poster,
+        url: `https://www.facebook.com/ads/library/?id=${c.id}`,
+        buscado_em: agora,
+      };
+    });
+    if (linhas.length) {
+      const { error } = await sbc().from("vedit_nicho_ads").upsert(linhas, { onConflict: "id" });
+      if (error) throw new Error(error.message);
+    }
+    await sbc()
+      .from("vedit_jobs")
+      .update({ resultado: { encontrados: linhas.length } })
+      .eq("id", jobId);
+    return linhas.length;
+  } finally {
+    await navegador.close().catch(() => {});
+  }
+}
+
 /** Tipos leves que rodam numa fila paralela, sem esperar o render terminar. */
-const JOBS_RAPIDOS = ["baixar", "referencia", "cria_referencia", "slideshow"];
+const JOBS_RAPIDOS = ["baixar", "referencia", "cria_referencia", "slideshow", "ads_busca"];
 
 async function rodarJobs(tipos?: string[]): Promise<boolean> {
   const { data, error } = tipos
@@ -841,6 +987,12 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
         job.id,
         String(job.params?.referencia_id),
         String(job.params?.url ?? ""),
+      );
+    else if (job.tipo === "ads_busca")
+      await buscarAdsLibrary(
+        job.id,
+        String(job.params?.tema ?? ""),
+        String(job.params?.pais ?? "BR"),
       );
     else if (job.tipo === "baixar") {
       const resultado = await baixarPorLink(job.id, String(job.params?.url ?? ""));

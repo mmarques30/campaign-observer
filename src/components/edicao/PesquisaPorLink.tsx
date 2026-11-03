@@ -8,6 +8,13 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +29,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/vedit";
 import { analiseOk, criarReferenciaPorLink, STATUS_REF, type Referencia } from "@/lib/referencias";
+import { cn } from "@/lib/utils";
 import { NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
 
 const fmtN = (n?: number | null) =>
@@ -113,10 +121,12 @@ export function CartaoLink({
   r,
   onCriarRoteiro,
   onMudou,
+  onAbrir,
 }: {
   r: Referencia;
   onCriarRoteiro: (id: string) => void;
   onMudou?: () => void;
+  onAbrir?: () => void;
 }) {
   const [novo, setNovo] = useState(false);
   const m = (r.metricas ?? {}) as Record<string, any>;
@@ -124,7 +134,13 @@ export function CartaoLink({
   const pronta = r.status === "pronta";
   const an = pronta ? analiseOk(r.analise) : null;
   return (
-    <Card className="relative">
+    <Card
+      className={cn(
+        "relative",
+        onAbrir && "hover:border-primary/50 hover:shadow-md transition cursor-pointer",
+      )}
+      onClick={onAbrir}
+    >
       <CardContent className="p-3 flex gap-3">
         <div className="shrink-0 w-20 h-32 rounded-lg bg-muted overflow-hidden flex items-center justify-center text-muted-foreground">
           {m.imagem ? (
@@ -176,7 +192,7 @@ export function CartaoLink({
           </div>
           <p className="text-xs line-clamp-2">{an?.resumo || r.legenda || "(sem legenda)"}</p>
           {r.status === "erro" && <p className="text-xs text-red-600 line-clamp-2">{r.erro}</p>}
-          <div className="flex gap-1.5 flex-wrap items-center">
+          <div className="flex gap-1.5 flex-wrap items-center" onClick={(e) => e.stopPropagation()}>
             <Badge
               variant="outline"
               className={
@@ -253,5 +269,184 @@ export function CartaoLink({
         onCriado={onCriarRoteiro}
       />
     </Card>
+  );
+}
+
+/** Painel lateral de uma referência por link: desempenho, análise e criação de roteiro. */
+export function DetalheReferencia({
+  r,
+  onFechar,
+  onCriarRoteiro,
+}: {
+  r: Referencia | null;
+  onFechar: () => void;
+  onCriarRoteiro: (id: string) => void;
+}) {
+  const [novo, setNovo] = useState(false);
+  const [verFala, setVerFala] = useState(false);
+  const m = (r?.metricas ?? {}) as Record<string, any>;
+  const ad = r?.plataforma === "ads_library";
+  const an = r && r.status === "pronta" ? analiseOk(r.analise) : null;
+  return (
+    <Sheet open={!!r} onOpenChange={(o) => !o && onFechar()}>
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+        {r && (
+          <>
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                {ad
+                  ? m.anunciante || "Anúncio"
+                  : r.autor
+                    ? `@${r.autor}`
+                    : (r.titulo ?? "Referência")}
+                {r.url && (
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+                <Badge variant="outline" className="ml-auto">
+                  {ad ? "anúncio Meta" : r.plataforma}
+                </Badge>
+              </SheetTitle>
+              <SheetDescription>
+                {ad
+                  ? [
+                      m.inicio
+                        ? `no ar desde ${new Date(m.inicio).toLocaleDateString("pt-BR")}`
+                        : "",
+                      m.plataformas ? String(m.plataformas).replace(",", " e ") : "",
+                      m.cta ? `botão "${m.cta}"` : "",
+                      m.link
+                        ? `leva para ${String(m.link)
+                            .replace(/^https?:\/\//, "")
+                            .slice(0, 40)}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : [
+                      m.curtidas != null ? `${fmtN(m.curtidas)} curtidas` : "",
+                      m.comentarios != null ? `${fmtN(m.comentarios)} comentários` : "",
+                      m.visualizacoes != null ? `${fmtN(m.visualizacoes)} visualizações` : "",
+                      m.publicado_em ? new Date(m.publicado_em).toLocaleDateString("pt-BR") : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                {r.duracao ? ` · ${Number(r.duracao).toFixed(0)}s` : ""}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-4 flex gap-3">
+              {m.imagem && (
+                <img
+                  src={m.imagem}
+                  alt=""
+                  className="w-28 h-48 object-cover rounded-lg border"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                />
+              )}
+              <p className="text-xs whitespace-pre-wrap text-muted-foreground flex-1 max-h-48 overflow-y-auto">
+                {r.legenda || "(sem texto)"}
+              </p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={() => setNovo(true)} disabled={r.status !== "pronta"}>
+                <FileText className="h-4 w-4 mr-2" /> Criar roteiro com esta estrutura
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/ads/edicao/referencias">Análise da edição</Link>
+              </Button>
+              {r.status !== "pronta" && r.status !== "erro" && (
+                <Badge variant="outline">
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" /> {STATUS_REF[r.status]}
+                </Badge>
+              )}
+              {r.status === "erro" && <span className="text-xs text-red-600">{r.erro}</span>}
+            </div>
+            <NovoRoteiro
+              aberto={novo}
+              onFechar={() => setNovo(false)}
+              referenciaId={r.id}
+              origem={
+                ad
+                  ? `o anúncio de ${m.anunciante ?? "?"}`
+                  : r.autor
+                    ? `@${r.autor}`
+                    : "esta referência"
+              }
+              comTempos={!!r.palavras?.length}
+              onCriado={onCriarRoteiro}
+            />
+            {an && (
+              <div className="mt-4 space-y-4 text-sm">
+                <div className="rounded-lg border p-3 space-y-1.5">
+                  <div className="font-semibold">Por que funciona</div>
+                  <p>{an.resumo}</p>
+                  <p>
+                    <b>Gancho:</b> {an.gancho?.texto}
+                    {an.gancho?.tecnica ? ` (${an.gancho.tecnica})` : ""}
+                  </p>
+                  <p>
+                    <b>Estilo:</b> {an.estilo?.nome}
+                    {an.estilo?.descricao ? ` — ${an.estilo.descricao}` : ""}
+                  </p>
+                  {an.cta?.texto && (
+                    <p>
+                      <b>CTA:</b> {an.cta.texto}
+                    </p>
+                  )}
+                </div>
+                {an.aprendizados?.length ? (
+                  <div className="rounded-lg border p-3 space-y-1.5">
+                    <div className="font-semibold">O que copiar</div>
+                    <ul className="list-disc pl-4 space-y-1">
+                      {an.aprendizados.map((a, i) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {an.tecnicas?.length ? (
+                  <div className="rounded-lg border p-3 space-y-1.5">
+                    <div className="font-semibold">Técnicas, em ordem</div>
+                    <div className="space-y-1">
+                      {an.tecnicas.slice(0, 12).map((t, i) => (
+                        <div key={i} className="text-xs">
+                          <span className="font-mono text-muted-foreground">
+                            {t.de.toFixed(0)}–{t.ate.toFixed(0)}s
+                          </span>{" "}
+                          <b>{t.nome}</b>: {t.descricao}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {r.transcricao_texto && (
+                  <div className="rounded-lg border p-3 space-y-1.5">
+                    <button
+                      type="button"
+                      className="font-semibold hover:underline"
+                      onClick={() => setVerFala((v) => !v)}
+                    >
+                      Fala transcrita {verFala ? "(esconder)" : "(mostrar)"}
+                    </button>
+                    {verFala && (
+                      <p className="text-xs whitespace-pre-wrap text-muted-foreground">
+                        {r.transcricao_texto}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
