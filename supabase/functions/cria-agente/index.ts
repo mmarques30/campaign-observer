@@ -345,7 +345,7 @@ Regras de qualidade:
 - Carrossel: 5 a 9 slides (com ROTEIRO, quantos o roteiro pedir, até 15), começa em capa e termina em cta. Post único: 1 slide (capa, tweet, texto, foto ou cortes). Num post único NUNCA crie mais de um slide: se a referência tem vários frames numa imagem só, é o layout "cortes" num único slide.
 - Varie layouts com ritmo, mas mantenha a mesma identidade (cores e fontes) do começo ao fim.
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
-- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com a pessoa centralizada e a cabeça na metade de cima do quadro (a fala entra embaixo do queixo). Nunca use uma foto solta da biblioteca que destoe dos outros frames.
+- Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos reais dela (mantém o rosto). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. Cenário de evento, palco, entrevista ou escritório da IAplicada: passe com_marca: true (o fundo vem com a logo repetida e as cores da marca; não descreva outra marca nem outro backdrop no prompt). No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com a pessoa centralizada e a cabeça na metade de cima do quadro (a fala entra embaixo do queixo). Nunca use uma foto solta da biblioteca que destoe dos outros frames.
 - Para conferir uma foto antes de usar, chame ver_fotos.
 - Fontes disponíveis: Anton, Archivo Black, Bricolage Grotesque, Inter, Montserrat, DM Mono, Instrument Serif, Playfair Display, Fraunces, Caveat.
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
@@ -384,6 +384,11 @@ const FERRAMENTAS = [
         },
         formato: { type: "string", enum: ["4:5", "1:1", "9:16", "16:9"] },
         nome: { type: "string", description: "nome curto em português" },
+        com_marca: {
+          type: "boolean",
+          description:
+            "true = cenário na identidade da IAplicada (fundo quase preto, verde-lima nos detalhes, backdrop com a logo repetida). Use em evento, palco, entrevista, escritório da IAplicada.",
+        },
       },
       required: ["prompt"],
     },
@@ -415,6 +420,7 @@ async function gerarFotoIA(input: any) {
         : input.prompt,
       formato: input.formato ?? "4:5",
       nome: input.nome,
+      marca: input.com_marca === true,
     }),
   });
   const j = await r.json().catch(() => ({}));
