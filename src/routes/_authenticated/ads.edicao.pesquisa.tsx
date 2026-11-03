@@ -1,7 +1,7 @@
 // Edição → Pesquisa: os Reels que mais viralizaram no nicho, por que funcionaram e roteiro original.
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -57,6 +58,7 @@ type Config = {
   dias_janela: number;
   ultima_busca: string | null;
   alcance?: "brasil" | "internacional" | "ambos";
+  tema_buscado?: string | null;
 };
 type Perfil = {
   id: string;
@@ -107,6 +109,8 @@ type Reel = {
   } | null;
   content_item_id: string | null;
   referencia_id?: string | null;
+  relevancia?: number | null;
+  relevancia_tema?: string | null;
   descartado: boolean;
 };
 
@@ -147,16 +151,24 @@ function PesquisaPage() {
   const invalidar = () => qc.invalidateQueries({ queryKey: ["vedit", "nicho"] });
 
   const [filtroPerfil, setFiltroPerfil] = useState<string>("todos");
+  const [soTema, setSoTema] = useState(true);
+  const salvarNichoPendente = useRef<(() => Promise<void>) | null>(null);
   const [ordem, setOrdem] = useState<"indice" | "engajamento" | "recentes">("indice");
   const [sel, setSel] = useState<Reel | null>(null);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
 
+  // Buscar agora: salva o que está digitado, sugere perfis do tema se faltar, coleta e classifica
+  // cada reel pela relevância ao tema. O ranking abre filtrado no tema.
   const coletar = useMutation({
-    mutationFn: () => callEdgeFunction("vedit-pesquisa", { acao: "coletar" }),
+    mutationFn: async () => {
+      await salvarNichoPendente.current?.();
+      return callEdgeFunction("vedit-pesquisa", { acao: "buscar" });
+    },
     onSuccess: (r: any) => {
       if (r?.error) return toast.error(r.error);
+      setSoTema(true);
       toast.success(
-        `${r.coletados} reels atualizados.${r.erros?.length ? ` ${r.erros.length} erro(s).` : ""}`,
+        `${r.coletados} reels atualizados${r.sugeridos ? `, ${r.sugeridos} perfil(is) novo(s) do tema` : ""}${r.tema ? `, ${r.no_tema ?? 0} no tema` : ""}.${r.erros?.length ? ` ${r.erros.length} erro(s).` : ""}`,
       );
       if (r.erros?.length) r.erros.slice(0, 3).forEach((e: string) => toast.warning(e));
       invalidar();
@@ -176,6 +188,9 @@ function PesquisaPage() {
 
   const lista = useMemo(() => {
     let l = reelsQ.data ?? [];
+    const tema = cfgQ.data?.tema_buscado;
+    if (soTema && tema && l.some((r) => r.relevancia_tema === tema))
+      l = l.filter((r) => r.relevancia_tema === tema && (r.relevancia ?? 0) >= 2);
     if (filtroPerfil !== "todos") l = l.filter((r) => r.username === filtroPerfil);
     const ord = [...l];
     if (ordem === "indice")
@@ -184,7 +199,7 @@ function PesquisaPage() {
     if (ordem === "recentes")
       ord.sort((a, b) => (b.publicado_em ?? "").localeCompare(a.publicado_em ?? ""));
     return ord;
-  }, [reelsQ.data, filtroPerfil, ordem]);
+  }, [reelsQ.data, filtroPerfil, ordem, soTema, cfgQ.data?.tema_buscado]);
   const perfisComReels = useMemo(
     () => [...new Set((reelsQ.data ?? []).map((r) => r.username).filter(Boolean))] as string[],
     [reelsQ.data],
@@ -222,7 +237,12 @@ function PesquisaPage() {
         </Card>
       )}
 
-      <Nicho cfg={cfgQ.data} perfis={perfisQ.data ?? []} onMudou={invalidar} />
+      <Nicho
+        cfg={cfgQ.data}
+        perfis={perfisQ.data ?? []}
+        onMudou={invalidar}
+        registrarSalvar={(f) => (salvarNichoPendente.current = f)}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Flame className="h-4 w-4 text-primary" />
@@ -234,6 +254,12 @@ function PesquisaPage() {
             : ""}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          {cfgQ.data?.tema_buscado && (
+            <label className="flex items-center gap-2 text-xs">
+              <Switch checked={soTema} onCheckedChange={setSoTema} />
+              Só do tema
+            </label>
+          )}
           <Select value={filtroPerfil} onValueChange={setFiltroPerfil}>
             <SelectTrigger className="h-8 w-44">
               <SelectValue />
@@ -333,7 +359,18 @@ function PesquisaPage() {
   );
 }
 
-function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMudou: () => void }) {
+function Nicho({
+  cfg,
+  perfis,
+  onMudou,
+  registrarSalvar,
+}: {
+  cfg?: Config;
+  perfis: Perfil[];
+  onMudou: () => void;
+  registrarSalvar?: (f: (() => Promise<void>) | null) => void;
+}) {
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [nicho, setNicho] = useState<string | null>(null);
   const [publico, setPublico] = useState<string | null>(null);
   const [hashtags, setHashtags] = useState<string | null>(null);
@@ -343,6 +380,12 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
   const vPublico = publico ?? cfg?.publico ?? "";
   const vTags = hashtags ?? (cfg?.hashtags ?? []).join(", ");
   const sujo = nicho !== null || publico !== null || hashtags !== null;
+  // "Buscar agora" (na página) salva o que está digitado antes de buscar.
+  useEffect(() => {
+    registrarSalvar?.(sujo ? () => salvar(true) : null);
+    return () => registrarSalvar?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sujo, vNicho, vPublico, vTags]);
 
   async function salvar(silencioso = false) {
     setOcupado("salvar");
@@ -412,6 +455,26 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
   }
   async function remover(p: Perfil) {
     await db().from("vedit_nicho_perfis").delete().eq("id", p.id);
+    onMudou();
+  }
+  const ids = [...selecionados];
+  const todosSel = perfis.length > 0 && perfis.every((p) => selecionados.has(p.id));
+  async function emLote(acao: "remover" | "ativar" | "desativar") {
+    if (!ids.length) return;
+    if (
+      acao === "remover" &&
+      !confirm(
+        `Remover ${ids.length} perfil(is)? Os reels já coletados deles continuam no ranking.`,
+      )
+    )
+      return;
+    const q = db().from("vedit_nicho_perfis");
+    const { error } =
+      acao === "remover"
+        ? await q.delete().in("id", ids)
+        : await q.update({ ativo: acao === "ativar" }).in("id", ids);
+    if (error) return toast.error(error.message);
+    setSelecionados(new Set());
     onMudou();
   }
 
@@ -534,6 +597,48 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
               )}
             </Button>
           </div>
+          {perfis.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <label className="flex items-center gap-2">
+                <Checkbox
+                  checked={todosSel}
+                  onCheckedChange={(v) =>
+                    setSelecionados(v ? new Set(perfis.map((p) => p.id)) : new Set())
+                  }
+                />
+                Selecionar todos
+              </label>
+              {ids.length > 0 && (
+                <>
+                  <span className="text-muted-foreground">{ids.length} selecionado(s)</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => emLote("ativar")}
+                  >
+                    Ativar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    onClick={() => emLote("desativar")}
+                  >
+                    Desativar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-red-600"
+                    onClick={() => emLote("remover")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Remover
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
           <div className="max-h-56 overflow-y-auto divide-y rounded-md border">
             {perfis.length === 0 && (
               <div className="p-3 text-sm text-muted-foreground">
@@ -548,6 +653,16 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
                   !p.ativo && "opacity-60",
                 )}
               >
+                <Checkbox
+                  checked={selecionados.has(p.id)}
+                  onCheckedChange={(v) =>
+                    setSelecionados((l) => {
+                      const n = new Set(l);
+                      v ? n.add(p.id) : n.delete(p.id);
+                      return n;
+                    })
+                  }
+                />
                 <Switch checked={p.ativo} onCheckedChange={() => alternar(p)} />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium truncate">
@@ -627,6 +742,11 @@ function CartaoReel({
               alt=""
               className="w-full h-full object-cover"
               loading="lazy"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                // Link do CDN do Instagram expirou: esconde e deixa o fundo.
+                (e.currentTarget as HTMLImageElement).style.display = "none";
+              }}
             />
           ) : r.media_url ? (
             <video
@@ -668,6 +788,25 @@ function CartaoReel({
           </div>
           <p className="text-xs line-clamp-3">{r.caption || "(sem legenda)"}</p>
           <div className="flex gap-1.5 flex-wrap">
+            {r.relevancia != null && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px]",
+                  r.relevancia >= 3
+                    ? "border-emerald-500 text-emerald-600"
+                    : r.relevancia === 2
+                      ? "border-amber-500 text-amber-600"
+                      : "text-muted-foreground",
+                )}
+              >
+                {r.relevancia >= 3
+                  ? "no tema"
+                  : r.relevancia === 2
+                    ? "perto do tema"
+                    : "fora do tema"}
+              </Badge>
+            )}
             {r.analise && <Badge variant="outline">analisado</Badge>}
             {r.roteiro && <Badge variant="outline">roteiro pronto</Badge>}
             {r.content_item_id && <Badge variant="outline">no Marketing</Badge>}
@@ -767,6 +906,8 @@ function DetalheReel({
                   src={r.thumbnail_url}
                   alt=""
                   className="w-28 h-48 object-cover rounded-lg border"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
                 />
               )}
               <p className="text-xs whitespace-pre-wrap text-muted-foreground flex-1 max-h-48 overflow-y-auto">
