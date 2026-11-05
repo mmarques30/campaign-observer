@@ -21,7 +21,7 @@ export type Modelo = {
     legenda: Pick<
       Timeline["legenda"],
       "ativa" | "estilo" | "posicao" | "palavrasPorBloco" | "caixaAlta" | "altura" | "tamanho"
-    >;
+    > & { espacamento?: number };
     visual: Partial<Timeline["visual"]>;
     zoom: Pick<Timeline["zoom"], "alternar">;
     musica: Partial<Timeline["musica"]>;
@@ -71,7 +71,8 @@ export const MODELOS_BASE: Modelo[] = [
       "B-ROLL: quando falar de rotina/bastidor/variações, /tripla com 3 mídias (ou trechos do próprio vídeo) por 2–3s. Para mostrar exemplos/resultados, /carrossel com 3–5 telas no fundo da cor de destaque, piscar true.",
       "TRANSIÇÃO: no máx. 2 /cartela (0,5s) nas viradas de bloco, sempre antes do CTA final.",
       "CORTES: jump cut seco a cada 1,5–2,5s, zoom alternando 1.0/1.08 e um soco de zoom (1.08, 0,2s) nas palavras de ênfase. Sem transição entre falas.",
-      "SOM: impacto na entrada de cada /cartaz, whoosh na /tripla, swipe no /carrossel, glitch na /cartela; música baixa ou nenhuma.",
+      "SOM: impacto na entrada de cada /cartaz, whoosh na /tripla, swipe no /carrossel, glitch na /cartela; música baixa ou nenhuma. (Atalho: botão 'Colocar sons automaticamente'.)",
+      "FONTES: sempre pareie a condensada com uma linha a pincel (~) ou caligráfica (^). Texto atrás da cabeça só existe com a pessoa recortada (botão Recortar pessoa); sem recorte, o título fica acima da cabeça.",
       "RITMO: um grafismo a cada ~4,5s, com respiro (você falando sem nada) entre eles.",
     ].join(" "),
   },
@@ -124,6 +125,7 @@ export const MODELOS_BASE: Modelo[] = [
         caixaAlta: false,
         altura: 0.56,
         tamanho: 1,
+        espacamento: -1.5,
       },
       visual: { look: "natural", vinheta: 0.15, grao: 0, transicao: "nenhuma" },
       zoom: { alternar: true },
@@ -171,7 +173,7 @@ export const MODELOS_BASE: Modelo[] = [
       "CAPÍTULOS: cada item da lista falada abre com /capitulo (numero + 1 palavra, ex.: 1 COR, 2 FONTE, 3 ANIMAÇÃO), 2s no topo.",
       "EXEMPLOS: logo depois do capítulo, mostre o exemplo: /colagem (2–4 imagens tipo adesivo) ou /icones (apps/ferramentas citados), 2–3s, sempre fora do rosto.",
       "CORTES: jump cut a cada frase e soco de zoom 1.08–1.2 nas palavras de ênfase; pode repetir um trecho curto (0,3s) para efeito cômico.",
-      "SOM: pop na entrada de cada capítulo e de cada card/imagem, click em UI, digitando em texto sendo escrito; nunca o mesmo som duas vezes seguidas; sem música ou bem baixa.",
+      "SOM: pop na entrada de cada capítulo e de cada card/imagem, brilho no resultado/destaque, click em UI e nos cortes rápidos, digitando em texto sendo escrito; nunca o mesmo som duas vezes seguidas; sem música ou bem baixa.",
       "FINAL: últimos 3s em plano aberto só com legenda, depois /cta-final.",
     ].join(" "),
   },
@@ -238,6 +240,7 @@ export function extrairModelo(
         caixaAlta: tl.legenda.caixaAlta,
         altura: tl.legenda.altura,
         tamanho: tl.legenda.tamanho,
+        espacamento: tl.legenda.espacamento,
       },
       visual: opts.luz ? tl.visual : visual,
       zoom: { alternar: tl.zoom.alternar },

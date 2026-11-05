@@ -8,6 +8,7 @@ import { Loader2, RotateCcw, Sun, Trash2, Volume2, Wand2 } from "lucide-react";
 import type { Timeline } from "@/video/schema";
 import { paraSaida, type Trecho } from "@/video/tempo";
 import { fmtTempo } from "@/lib/vedit";
+import { sonsAutomaticos } from "@/video/sonsAuto";
 
 type Visual = Timeline["visual"];
 const NEUTRO: Pick<
@@ -255,6 +256,26 @@ export function SonsAplicados({
           </Button>
         )}
       </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full h-8 text-xs"
+        onClick={() => {
+          const novos = sonsAutomaticos(tl, trechos);
+          setTl(
+            { ...tl, sfx: novos },
+            `Sons automáticos: ${novos.length} sons nas entradas dos grafismos e nos cortes`,
+          );
+          toast.success(
+            `${novos.length} sons colocados: whoosh no movimento, pop no que aparece, clique nos cortes, digitando no texto. Ajuste o volume de cada um abaixo.`,
+          );
+        }}
+      >
+        <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+        {sons.length
+          ? "Refazer sons automaticamente (substitui os atuais)"
+          : "Colocar sons automaticamente"}
+      </Button>
       {sons.length === 0 && (
         <div className="text-xs text-muted-foreground">Nenhum efeito sonoro.</div>
       )}

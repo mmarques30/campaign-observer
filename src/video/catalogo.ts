@@ -86,7 +86,7 @@ export const EFEITOS: EfeitoDef[] = [
     quandoUsar:
       "Gancho dos 3 primeiros segundos e cada tópico/número de lista ('NÚMERO 1', 'SPLIT FRAME'). 2 a 4 palavras, nunca frase longa. No máx. 1 a cada 5s.",
     params:
-      "linhas: string[] (1–4; prefixe com ~ a linha a pincel, ex.: ['ESSAS SÃO', 'MINHAS 3', '~favoritas']), cores?: [cor1, cor2] (padrão destaque e texto da marca), altura?: 0–0.4 (topo, padrão 0.05), piscar?: bool (flicker de entrada), atras?: bool (por trás da cabeça; precisa da pessoa recortada), corPincel?",
+      "linhas: string[] (1–4; prefixe com ~ a linha a pincel e com ^ a linha caligráfica, ex.: ['ESSAS SÃO', 'MINHAS 3', '~favoritas'] ou ['ROTINA', '^de verdade']; pareie sempre a condensada com uma das duas), cores?: [cor1, cor2] (padrão destaque e texto da marca), altura?: 0–0.4 (topo, padrão 0.05), piscar?: bool (flicker de entrada), atras?: bool (por trás da cabeça; só funciona com a pessoa recortada; sem recorte o título encolhe para caber acima da cabeça), corPincel?",
     duracaoPadrao: 2.4,
     somPadrao: "impacto",
     disponivel: true,

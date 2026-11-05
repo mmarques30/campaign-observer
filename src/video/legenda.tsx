@@ -87,6 +87,7 @@ export function Legenda({
     config: { damping: 16, stiffness: 340, mass: 0.4 },
   });
   const u = (width / 1080) * (tl.legenda.tamanho ?? 1); // escala p/ formatos e tamanho escolhido
+  const esp = (tl.legenda.espacamento ?? 0) * u; // "esmagar" a fonte (tracking)
 
   const base: React.CSSProperties = {
     position: "absolute",
@@ -101,6 +102,7 @@ export function Legenda({
     alignItems: "baseline",
     textAlign: "center",
     gap: `${10 * u}px ${16 * u}px`,
+    letterSpacing: esp,
   };
 
   const ativa = (w: Bloco["palavras"][number]) => frame >= w.ini && frame < w.fim;
@@ -317,7 +319,7 @@ export function Legenda({
                 fontWeight: 600,
                 fontSize: 40 * u,
                 lineHeight: 1.2,
-                letterSpacing: -0.4 * u,
+                letterSpacing: -0.4 * u + esp,
                 color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
                 textShadow: sombraSuave,
               }}
@@ -342,7 +344,7 @@ export function Legenda({
               fontWeight: 800,
               fontSize: 60 * u,
               lineHeight: 1,
-              letterSpacing: -1.8 * u,
+              letterSpacing: -1.8 * u + esp,
               color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
               textShadow: sombraSuave,
             }}

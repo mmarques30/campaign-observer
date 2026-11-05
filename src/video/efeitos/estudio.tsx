@@ -10,6 +10,13 @@ import { Marcado } from "../marcacao";
 import { lista, Midia, ruido, u, useEntradaSaida, type EfeitoProps } from "./base";
 import { Pessoa } from "./recorte";
 
+/** Altura (0–1) do rosto no quadro, para recortes do próprio vídeo não cortarem a cabeça. */
+function focoRosto(ctx: EfeitoProps["ctx"]) {
+  const r = ctx.tl.rosto;
+  // objectPosition y: 0% = topo do vídeo visível. O rosto um pouco acima do centro da faixa.
+  return r ? Math.max(0, Math.min(1, (r.y + r.h * 0.4 - 0.18) / 0.76)) : 0.25;
+}
+
 /** Pisca nos primeiros quadros (flicker de cartaz): alterna visível/invisível de forma determinística. */
 function piscar(frame: number, ligado: boolean, semente = 1) {
   if (!ligado || frame > 9) return 1;
@@ -27,10 +34,22 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
   const linhas = lista(p.linhas ?? p.texto, ["SEU", "TÍTULO"]).slice(0, 4);
   const cores = lista(p.cores, [m.destaque, m.texto]);
   const topo = Number(p.altura ?? 0.05);
-  const fortes = linhas.filter((l) => !l.startsWith("~"));
+  const fortes = linhas.filter((l) => !l.startsWith("~") && !l.startsWith("^"));
   const maior = Math.max(1, ...fortes.map((l) => l.length));
   // Anton tem ~0,46 em de largura por caractere: a linha mais longa ocupa ~88% da largura.
-  const tam = Math.min(230 * k, (width * 0.88) / (maior * 0.46));
+  const tam0 = Math.min(230 * k, (width * 0.88) / (maior * 0.46));
+  // Sem a pessoa recortada não há como passar por trás da cabeça: o título encolhe para caber
+  // acima do rosto (nunca por cima dele). Com recorte + atras, fica grande e a cabeça cobre.
+  const atrasDeVerdade = !!p.atras && !!ctx.recorteUrl;
+  const rosto = ctx.tl.rosto ?? null;
+  const nPincel = linhas.length - fortes.length;
+  const alturaEst = (k0: number) => fortes.length * k0 * 0.92 + nPincel * k0 * 0.5;
+  let escala = 1;
+  if (!atrasDeVerdade && rosto) {
+    const livre = (rosto.y - 0.015 - topo) * height;
+    if (livre > 0 && alturaEst(tam0) > livre) escala = Math.max(0.5, livre / alturaEst(tam0));
+  }
+  const tam = tam0 * escala;
   let iForte = 0;
   const conteudo = (
     <div
@@ -45,7 +64,8 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
       }}
     >
       {linhas.map((l, i) => {
-        const pincel = l.startsWith("~");
+        const pincel = l.startsWith("~") || l.startsWith("^");
+        const caligrafia = l.startsWith("^");
         const atraso = Math.round(i * fps * 0.1);
         const s = spring({
           frame: frame - atraso,
@@ -58,7 +78,9 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
             <div
               key={i}
               style={{
-                fontFamily: f("Permanent Marker", "cursive"),
+                fontFamily: caligrafia
+                  ? f("Great Vibes", "cursive")
+                  : f("Permanent Marker", "cursive"),
                 fontSize: Math.min(tam * 0.95, (width * 0.8) / Math.max(4, l.length * 0.62)),
                 lineHeight: 0.9,
                 margin: `${-tam * 0.42}px 0 ${-tam * 0.12}px`,
@@ -100,7 +122,7 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
   return (
     <AbsoluteFill style={{ opacity: saida }}>
       {conteudo}
-      {p.atras && ctx.recorteUrl ? <Pessoa ctx={ctx} dur={dur} /> : null}
+      {atrasDeVerdade ? <Pessoa ctx={ctx} dur={dur} /> : null}
     </AbsoluteFill>
   );
 }
@@ -146,7 +168,12 @@ export function TelaTripla({ p, ctx, dur }: EfeitoProps) {
               ctx={ctx}
               midia={fx.midia}
               tempo={fx.tempo}
-              style={{ transform: "scale(1.15)", filter: p.pb ? "grayscale(1) contrast(1.1)" : "" }}
+              style={{
+                transform: "scale(1.05)",
+                transformOrigin: `50% ${focoRosto(ctx) * 100}%`,
+                objectPosition: fx.midia ? undefined : `50% ${focoRosto(ctx) * 100}%`,
+                filter: p.pb ? "grayscale(1) contrast(1.1)" : "",
+              }}
             />
           </div>
         );
@@ -196,7 +223,12 @@ export function Carrossel({ p, ctx, dur }: EfeitoProps) {
                 transform: `scale(${interpolate(dist, [0, 0.6], [1, 0.9], { extrapolateRight: "clamp" })})`,
               }}
             >
-              <Midia ctx={ctx} midia={midias[i]} tempo={tempos[i] ?? ctx.deFonte + i * 1.2} />
+              <Midia
+                ctx={ctx}
+                midia={midias[i]}
+                tempo={tempos[i] ?? ctx.deFonte + i * 1.2}
+                style={midias[i] ? undefined : { objectPosition: `50% ${focoRosto(ctx) * 100}%` }}
+              />
             </div>
           );
         })}

@@ -44,6 +44,8 @@ const ARQUIVOS: [familia: string, estilo: "normal" | "italic", peso: string, arq
   ["Archivo", "normal", "900", "Archivo-normal-900"],
   // Pincel (Apache 2.0): sobreposição manuscrita dos títulos de cartaz.
   ["Permanent Marker", "normal", "400", "PermanentMarker-normal-400"],
+  // Caligráfica (OFL), par da condensada nos títulos de cartaz (no lugar da Snell Roundhand).
+  ["Great Vibes", "normal", "400", "GreatVibes-normal-400"],
 ];
 
 export const FONTES = [...new Set(ARQUIVOS.map((a) => a[0]))];

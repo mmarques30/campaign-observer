@@ -15,6 +15,7 @@ export const SONS = {
   digitar: { nome: "Digitando", uso: "texto sendo escrito, prompt, letreiro" },
   glitch: { nome: "Glitch", uso: "transição digital, erro, quebra" },
   papel: { nome: "Papel", uso: "post-it, recorte, colagem" },
+  brilho: { nome: "Brilho", uso: "destacar algo na tela, revelação de resultado" },
 } as const;
 export type SomId = keyof typeof SONS;
 

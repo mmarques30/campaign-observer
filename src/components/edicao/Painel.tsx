@@ -422,6 +422,21 @@ export function Painel({
             />
           </div>
           <div className="space-y-1">
+            <Label className="text-xs">
+              Espaçamento das letras: {tl.legenda.espacamento ?? 0}
+              {(tl.legenda.espacamento ?? 0) < 0 ? " (esmagada)" : ""}
+            </Label>
+            <Slider
+              min={-8}
+              max={6}
+              step={0.5}
+              value={[tl.legenda.espacamento ?? 0]}
+              onValueChange={([v]) =>
+                set("legenda", { espacamento: v }, "Espaçamento das letras da legenda")
+              }
+            />
+          </div>
+          <div className="space-y-1">
             <Label className="text-xs flex justify-between">
               <span>Altura da legenda</span>
               {tl.legenda.altura != null && (

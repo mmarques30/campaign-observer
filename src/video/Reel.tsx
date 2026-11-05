@@ -406,6 +406,16 @@ export function Reel(bruto: ReelProps) {
           height: lerp(H, ch),
           escala: lerp(1, esc),
           raio: lerp(0, card.raio * kc),
+          // Card mais largo que alto mostra só uma faixa do quadro: em vez do meio, a faixa
+          // onde está o rosto (a cabeça não pode ser cortada). Sem rosto detectado, o terço de cima.
+          dy: (() => {
+            const chAt = lerp(H, ch),
+              s = lerp(1, esc);
+            const rc = tl.rosto ? tl.rosto.y + tl.rosto.h * 0.45 : 0.36;
+            const alvo = chAt * 0.46 - chAt / 2 - (rc - 0.5) * H * s;
+            const lim = Math.max(0, (H * s - chAt) / 2);
+            return Math.max(-lim, Math.min(lim, alvo)) * card.p;
+          })(),
         };
       })()
     : null;
@@ -453,7 +463,7 @@ export function Reel(bruto: ReelProps) {
                   height: H,
                   left: (caixaBase.width - W) / 2,
                   top: (caixaBase.height - H) / 2,
-                  transform: `scale(${caixaBase.escala})`,
+                  transform: `translateY(${caixaBase.dy}px) scale(${caixaBase.escala})`,
                 }
               : { position: "absolute", inset: 0 }
           }
