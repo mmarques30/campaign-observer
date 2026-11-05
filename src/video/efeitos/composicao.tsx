@@ -94,6 +94,7 @@ type Elemento = {
   desfoque?: number; // px num quadro de 1080: imagem ofuscada atrás (ex.: 8)
   encaixe?: "cobre" | "contem"; // mídia: "contem" mostra a imagem inteira (logos)
   margem?: number; // respiro interno da mídia em px (logos dentro do selo)
+  monocromo?: "branco" | "preto"; // mídia: pinta a imagem numa cor só (logo flutuante sem fundo legível em vídeo escuro)
 };
 
 function animacao(el: Elemento, frame: number, fps: number, k: number) {
@@ -249,11 +250,14 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
                 ctx={ctx}
                 midia={el.midia}
                 style={
-                  el.encaixe === "contem"
+                  el.encaixe === "contem" || el.monocromo
                     ? {
-                        objectFit: "contain",
-                        padding: (el.margem ?? 14) * k,
+                        objectFit: el.encaixe === "cobre" ? "cover" : "contain",
+                        padding: (el.margem ?? (el.monocromo ? 0 : 14)) * k,
                         boxSizing: "border-box",
+                        filter: el.monocromo
+                          ? `brightness(0)${el.monocromo === "branco" ? " invert(1)" : ""} drop-shadow(0 ${4 * k}px ${14 * k}px rgba(0,0,0,.45))`
+                          : undefined,
                       }
                     : undefined
                 }
