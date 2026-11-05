@@ -364,9 +364,12 @@ export function Reel(bruto: ReelProps) {
   // sempre em sincronia com os cortes) e a cor de fundo da composição fica atrás.
   const card = (() => {
     for (const e of efeitos) {
-      if (e.tipo !== "composicao") continue;
+      // Efeito com layout próprio de card (ex.: painel) ou composição com elemento "pessoa".
+      const def = EFEITO_POR_TIPO[e.tipo];
+      const proprio = def?.cardPessoa?.(e.props ?? {}) ?? null;
+      if (e.tipo !== "composicao" && !proprio) continue;
       const els = Array.isArray(e.props?.elementos) ? (e.props.elementos as any[]) : [];
-      const el = els.find((x) => x?.tipo === "pessoa");
+      const el = proprio ?? els.find((x) => x?.tipo === "pessoa");
       if (!el) continue;
       const [ini, dur] = janelaFrames(trechos, e.de, e.ate > e.de ? e.ate : e.de + 3, fps);
       if (frame < ini || frame >= ini + dur) continue;
@@ -376,7 +379,7 @@ export function Reel(bruto: ReelProps) {
         extrapolateLeft: "clamp",
         extrapolateRight: "clamp",
       });
-      const fundo = String(e.props?.fundo ?? "");
+      const fundo = String(proprio?.fundo ?? e.props?.fundo ?? "");
       return {
         p: Math.min(entra, sai),
         x: Number(el.x ?? 0.04),

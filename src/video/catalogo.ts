@@ -34,6 +34,15 @@ import { ListaApontada, NotaDeVoz } from "./efeitos/falados";
 import { ICONES_PH } from "./efeitos/icones-ph";
 import { Cards } from "./efeitos/cards";
 import { Fluxo } from "./efeitos/fluxo";
+import {
+  CARD_PAINEL,
+  CapituloColorido,
+  Carrossel,
+  Cartela,
+  Painel,
+  TelaTripla,
+  TituloCartaz,
+} from "./efeitos/estudio";
 
 export type Categoria = "texto" | "dados" | "interface" | "midia" | "transicao" | "cta";
 
@@ -51,11 +60,130 @@ export type EfeitoDef = {
   escondeLegenda?: boolean; // painel no meio da tela: a legenda sai enquanto ele está visível
   disponivel: boolean;
   precisaRecorte?: boolean; // depende de recorte da pessoa (fase 2)
+  // Layout com "você num card": o Reel encolhe o vídeo base para esta caixa (fração do quadro).
+  cardPessoa?: (p: Record<string, any>) => {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    raio: number;
+    fundo: string;
+  } | null;
   inspiracao?: string;
+  exemplo?: Record<string, any>; // props de demonstração na biblioteca de efeitos
   componente?: ComponentType<EfeitoProps>;
 };
 
 export const EFEITOS: EfeitoDef[] = [
+  // ── Kit das referências (nov/2026): 12 Reels de referência, reengenharia quadro a quadro ──
+  {
+    tipo: "titulo-cartaz",
+    comando: "/cartaz",
+    nome: "Título de cartaz",
+    categoria: "texto",
+    descricao:
+      "Título empilhado em fonte condensada pesada (Anton), linhas alternando duas cores, com uma linha opcional a pincel por cima. Entra em soco, pode piscar e pode passar por trás da cabeça.",
+    quandoUsar:
+      "Gancho dos 3 primeiros segundos e cada tópico/número de lista ('NÚMERO 1', 'SPLIT FRAME'). 2 a 4 palavras, nunca frase longa. No máx. 1 a cada 5s.",
+    params:
+      "linhas: string[] (1–4; prefixe com ~ a linha a pincel, ex.: ['ESSAS SÃO', 'MINHAS 3', '~favoritas']), cores?: [cor1, cor2] (padrão destaque e texto da marca), altura?: 0–0.4 (topo, padrão 0.05), piscar?: bool (flicker de entrada), atras?: bool (por trás da cabeça; precisa da pessoa recortada), corPincel?",
+    duracaoPadrao: 2.4,
+    somPadrao: "impacto",
+    disponivel: true,
+    inspiracao: "kalylsfilms ('THESE ARE MY 3', 'SPLIT FRAME', 'TEXT GOES HERE' atrás da cabeça)",
+    exemplo: { linhas: ["ESSAS SÃO", "MINHAS 3", "~favoritas"], piscar: true },
+    componente: TituloCartaz,
+  },
+  {
+    tipo: "tela-tripla",
+    comando: "/tripla",
+    nome: "Tela tripla (split frame)",
+    categoria: "midia",
+    descricao: "Três faixas horizontais de b-roll empilhadas, entrando de lados alternados.",
+    quandoUsar: "Mostrar bastidor/rotina/variações em 2–4s enquanto a fala continua.",
+    params:
+      "midias?: string[] (até 3 ids de vídeo/imagem), tempos?: number[] (trechos do próprio vídeo, em s do original, quando não houver mídia), pb?: bool (preto e branco)",
+    duracaoPadrao: 3,
+    somPadrao: "whoosh",
+    telaCheia: true,
+    disponivel: true,
+    inspiracao: "kalylsfilms split frame",
+    componente: TelaTripla,
+  },
+  {
+    tipo: "carrossel",
+    comando: "/carrossel",
+    nome: "Carrossel de telas",
+    categoria: "midia",
+    descricao:
+      "Fundo de cor cheia com telas verticais (9:16, cantos arredondados) deslizando; pode piscar a cor entre as trocas.",
+    quandoUsar: "Mostrar exemplos/portfólio/resultados em sequência (3–5 telas).",
+    params:
+      "midias?: string[] (até 6), tempos?: number[] (trechos do próprio vídeo), fundo?: cor (padrão destaque da marca), piscar?: bool",
+    duracaoPadrao: 3.5,
+    somPadrao: "swipe",
+    telaCheia: true,
+    disponivel: true,
+    inspiracao: "kalylsfilms (fundo vermelho com telas)",
+    componente: Carrossel,
+  },
+  {
+    tipo: "capitulo",
+    comando: "/capitulo",
+    nome: "Capítulo colorido",
+    categoria: "texto",
+    descricao:
+      "'1. COR': número na cor de destaque e cada letra da palavra numa cor da paleta, entrando letra a letra.",
+    quandoUsar: "Abrir cada item de uma lista falada ('primeiro', 'segundo'…).",
+    params: "numero?, texto, paleta?: string[], altura?: 0–0.4 (padrão 0.1)",
+    duracaoPadrao: 2.2,
+    somPadrao: "pop",
+    disponivel: true,
+    inspiracao: "gen.figgy ('1. COLOR', '2. FONT', '3. ANIMATION')",
+    exemplo: { numero: 1, texto: "Processo" },
+    componente: CapituloColorido,
+  },
+  {
+    tipo: "painel",
+    comando: "/painel",
+    nome: "Painel escuro (você no card)",
+    categoria: "interface",
+    descricao:
+      "Layout dashboard: fundo escuro, título em sans pesada com *trecho* em serifada itálica, um grafismo no meio (lista de cards, linha do tempo com nós, mapa de tópicos ou documento sendo digitado) e você num card no rodapé.",
+    quandoUsar:
+      "Explicar framework, etapas, comparação ou evolução no tempo. Alternar com você em tela cheia nas frases de conexão (a cada 4–8s).",
+    params:
+      "titulo (use *x* para o trecho em itálico serifado), modo: 'lista'|'linha-do-tempo'|'mapa'|'documento', itens: string[] (até 5; na linha do tempo são os marcos, ex.: ['2024','2025','2026']; no documento é o texto), centro?: string (rótulo do círculo no modo mapa), cor?: acento (padrão destaque da marca), fundo?: cor (padrão #0B0B0D)",
+    duracaoPadrao: 5,
+    somPadrao: "whoosh",
+    escondeLegenda: false,
+    disponivel: true,
+    inspiracao: "kallawaymarketing ('Ultimate Storytelling Framework', linha do tempo 2024–2026)",
+    exemplo: {
+      titulo: "O *framework* de 3 etapas",
+      modo: "lista",
+      itens: ["Diagnóstico", "Desenho do processo", "Automação"],
+    },
+    componente: Painel,
+    cardPessoa: (p) => ({ ...CARD_PAINEL, fundo: String(p.fundo ?? "#0B0B0D") }),
+  },
+  {
+    tipo: "cartela",
+    comando: "/cartela",
+    nome: "Cartela de cor (transição)",
+    categoria: "transicao",
+    descricao:
+      "Flash de tela cheia numa cor sólida com grão e clarão no topo, opcionalmente com uma palavra.",
+    quandoUsar: "Virada de bloco ou antes do CTA. 0,4–1s. No máx. 2 por vídeo.",
+    params: "cor? (padrão destaque da marca), texto?",
+    duracaoPadrao: 0.6,
+    somPadrao: "glitch",
+    telaCheia: true,
+    disponivel: true,
+    inspiracao: "kalylsfilms (cartela roxa granulada)",
+    exemplo: { texto: "AGORA" },
+    componente: Cartela,
+  },
   {
     tipo: "nota-de-voz",
     comando: "/audio",

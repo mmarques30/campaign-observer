@@ -9,7 +9,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,6 +48,7 @@ export function ModeloEdicao({
   const [padrao, setPadrao] = useState(true);
   const [luz, setLuz] = useState(false);
   const [notas, setNotas] = useState("");
+  const [coresRef, setCoresRef] = useState(false);
 
   const atual = tl.modelo?.id;
   const sel = escolhido || atual || "";
@@ -84,10 +87,17 @@ export function ModeloEdicao({
     }
   }
 
+  const selModelo = modelos.find((x) => x.id === sel);
+  const base = modelos.filter((m) => m.base);
+  const salvos = modelos.filter((m) => !m.base);
+
   function aplicar() {
     const m = modelos.find((x) => x.id === sel);
     if (!m) return;
-    setTl(aplicarModelo(tl, m), `Aplicou o modelo "${m.nome}"`);
+    setTl(
+      aplicarModelo(tl, m, { coresDaReferencia: coresRef }),
+      `Aplicou o modelo "${m.nome}"${coresRef ? " com as cores da referência" : ""}`,
+    );
     toast.success(
       `Modelo "${m.nome}" aplicado. Peça /editar para o editor colocar os efeitos no mesmo padrão.`,
     );
@@ -112,18 +122,33 @@ export function ModeloEdicao({
               <SelectValue placeholder="Escolher modelo salvo" />
             </SelectTrigger>
             <SelectContent>
-              {modelos.map((m) => (
-                <SelectItem key={m.id} value={m.id} className="text-xs">
-                  {m.padrao ? "★ " : ""}
-                  {m.nome}
-                </SelectItem>
-              ))}
+              {base.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[10px]">Kit das referências</SelectLabel>
+                  {base.map((m) => (
+                    <SelectItem key={m.id} value={m.id} className="text-xs">
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
+              {salvos.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="text-[10px]">Salvos</SelectLabel>
+                  {salvos.map((m) => (
+                    <SelectItem key={m.id} value={m.id} className="text-xs">
+                      {m.padrao ? "★ " : ""}
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
             </SelectContent>
           </Select>
           <Button size="sm" className="h-8 text-xs" disabled={!sel} onClick={aplicar}>
             Aplicar
           </Button>
-          {sel && (
+          {sel && !selModelo?.base && (
             <>
               <Button
                 size="icon"
@@ -168,6 +193,34 @@ export function ModeloEdicao({
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </>
+          )}
+        </div>
+      )}
+
+      {selModelo?.base && (
+        <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
+          <p className="text-[11px] text-muted-foreground">
+            Feito a partir de: {selModelo.referencias?.join(", ")}. Aplica legenda, look, transição
+            e zoom; depois peça <b>/editar</b> para o editor colocar os grafismos, sons e cortes no
+            padrão do estilo.
+          </p>
+          {selModelo.paleta && (
+            <label className="flex items-center gap-2 text-[11px]">
+              <Switch checked={coresRef} onCheckedChange={setCoresRef} />
+              Usar as cores da referência
+              <span className="flex gap-0.5">
+                {Object.values(selModelo.paleta)
+                  .filter((c) => typeof c === "string" && c.startsWith("#"))
+                  .map((c) => (
+                    <span
+                      key={c as string}
+                      className="h-3 w-3 rounded-sm border"
+                      style={{ background: c as string }}
+                    />
+                  ))}
+              </span>
+              <span className="text-muted-foreground">(desligado = cores da marca)</span>
+            </label>
           )}
         </div>
       )}
