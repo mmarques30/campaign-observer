@@ -556,6 +556,152 @@ const FERRAMENTA_SUGESTAO = {
 };
 
 /** Roteiros planejados, padrão de nome dos anúncios e o que está performando. */
+// ---------- Guarda ao seguir referência ----------
+// O modelo às vezes copia as cores/fontes dos layouts da referência (ex.: dourado de outra marca)
+// e frases de efeito dela que a pessoa não disse. Aqui: cores da referência viram cores da marca,
+// fontes viram as da marca, e texto que repete a referência sem estar na nossa fala sai.
+const normTxt = (t: string) =>
+  t
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\*/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+const trigramas = (ws: string[]) => {
+  const s = new Set<string>();
+  for (let i = 0; i + 2 < ws.length; i++) s.add(ws.slice(i, i + 3).join(" "));
+  return s;
+};
+const luma = (hex: string) => {
+  const h = hex.replace("#", "");
+  const f =
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h.slice(0, 6);
+  const n = parseInt(f, 16);
+  if (Number.isNaN(n)) return 0.5;
+  return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+};
+async function limparReferencia(sb: any, tl: any, refId: string, marca: any, proj: any) {
+  const { data: ref } = await sb
+    .from("vedit_referencias")
+    .select("analise, transcricao_texto")
+    .eq("id", refId)
+    .maybeSingle();
+  const a = ref?.analise;
+  if (!a) return;
+  // Cores da referência: paleta + todo hex que aparece nos layouts e no preset.
+  const hexes = new Set<string>();
+  const coletar = (o: unknown) =>
+    JSON.stringify(o ?? null).replace(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, (h) => {
+      hexes.add(h.toLowerCase());
+      return h;
+    });
+  coletar(a.estilo?.paleta);
+  coletar(a.layouts);
+  coletar(a.preset_estilo);
+  const daMarca = new Set(
+    [marca.primaria, marca.destaque, marca.texto, marca.fundo]
+      .filter(Boolean)
+      .map((c: string) => c.toLowerCase()),
+  );
+  for (const h of daMarca) hexes.delete(h);
+  ["#ffffff", "#fff", "#000000", "#000"].forEach((h) => hexes.delete(h));
+  const trocaCor = (c: string) => {
+    const l = luma(c);
+    // Cor de destaque da referência (dourado, rosa…) vira o destaque da marca; cinzas vão por luz.
+    const h = c.replace("#", "");
+    const f =
+      h.length === 3
+        ? h
+            .split("")
+            .map((x) => x + x)
+            .join("")
+        : h.slice(0, 6);
+    const n = parseInt(f, 16);
+    const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    if ((Math.max(r, g, b) - Math.min(r, g, b)) / 255 > 0.18) return marca.destaque ?? "#a3cb20";
+    if (l > 0.82) return marca.texto ?? "#FFFFFF";
+    if (l < 0.18) return marca.fundo ?? "#0B0B0F";
+    if (l > 0.55) return "rgba(255,255,255,0.72)"; // cinzas claros da referência → branco suave
+    return marca.destaque ?? "#a3cb20";
+  };
+  const fontesRef = new Set(
+    [a.preset_estilo?.fonte_titulo, a.preset_estilo?.fonte_texto]
+      .concat(
+        JSON.stringify(a.layouts ?? [])
+          .match(/"fonte":"([^"]+)"/g)
+          ?.map((m: string) => m.slice(9, -1)) ?? [],
+      )
+      .filter((f: unknown) => typeof f === "string" && f),
+  );
+  const fontesMarca = new Set(
+    [marca.fonteTitulo, marca.fonteLegenda, marca.fonteSerif].filter(Boolean),
+  );
+  // Textos da referência que não estão na nossa fala.
+  const nossa = trigramas(normTxt(((proj.palavras ?? []) as any[]).map((w) => w.p).join(" ")));
+  const daRef = trigramas(
+    normTxt(
+      [a.gancho?.texto, a.cta?.texto, ref?.transcricao_texto, a.prompt_para_editor]
+        .filter(Boolean)
+        .join(" "),
+    ),
+  );
+  const copiado = (t: string) => {
+    const tri = trigramas(normTxt(t));
+    for (const x of tri) if (daRef.has(x) && !nossa.has(x)) return true;
+    return false;
+  };
+  let cores = 0,
+    fontes = 0,
+    textos = 0;
+  const limparCor = (v: unknown) =>
+    typeof v === "string"
+      ? v.replace(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, (h) => {
+          if (!hexes.has(h.toLowerCase())) return h;
+          cores++;
+          return trocaCor(h);
+        })
+      : v;
+  const andar = (o: any) => {
+    if (!o || typeof o !== "object") return;
+    for (const k of Object.keys(o)) {
+      const v = o[k];
+      if (typeof v === "string") {
+        if (k === "fonte" && fontesRef.has(v) && !fontesMarca.has(v)) {
+          o[k] = marca.fonteTitulo ?? "Inter";
+          fontes++;
+        } else o[k] = limparCor(v);
+      } else andar(v);
+    }
+  };
+  for (const e of tl.efeitos ?? []) {
+    andar(e.props);
+    const els = e?.props?.elementos;
+    if (Array.isArray(els)) {
+      const antes = els.length;
+      e.props.elementos = els.filter(
+        (el: any) => !(el?.tipo === "texto" && typeof el.texto === "string" && copiado(el.texto)),
+      );
+      textos += antes - e.props.elementos.length;
+    }
+  }
+  // Composição que ficou só com enfeite (linha/brilho) depois de perder o texto copiado sai.
+  tl.efeitos = (tl.efeitos ?? []).filter(
+    (e: any) =>
+      e?.tipo !== "composicao" ||
+      !Array.isArray(e.props?.elementos) ||
+      e.props.elementos.some((el: any) => !["linha", "brilho"].includes(el?.tipo)),
+  );
+  if (cores || fontes || textos)
+    console.log(`[vedit] referência limpa: ${cores} cores, ${fontes} fontes, ${textos} textos`);
+}
+
 async function contextoMarketing(sb: any, contentItemId: string | null) {
   const [{ data: roteiros }, { data: ads }, { data: top }] = await Promise.all([
     sb
@@ -910,6 +1056,15 @@ Deno.serve(async (req) => {
         }
         return ok(pr.midia) || typeof pr.tempo === "number";
       });
+    // Seguindo referência: a identidade visual e os textos dela não podem vazar para o nosso vídeo.
+    if (typeof tl.modelo?.id === "string" && tl.modelo.id.startsWith("ref-"))
+      await limparReferencia(
+        sb,
+        tl,
+        tl.modelo.id.slice(4),
+        marcaRow?.marca ?? tl.marca ?? {},
+        proj,
+      );
     versao += 1;
     upd.timeline = tl;
     upd.versao = versao;
