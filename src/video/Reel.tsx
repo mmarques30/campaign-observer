@@ -23,6 +23,8 @@ import { duracaoTrecho, janelaFrames, paraSaida, trechosMantidos, type Trecho } 
 
 const FILTRO_LOOK: Record<string, string> = {
   natural: "none",
+  // Suave: contraste e cor contidos; o brilho difuso (pro-mist) vem da camada BrilhoSuave.
+  suave: "contrast(.95) saturate(.94) brightness(1.03)",
   quente: "sepia(.14) saturate(1.12) hue-rotate(-6deg) contrast(1.04)",
   frio: "saturate(.92) hue-rotate(8deg) brightness(1.03) contrast(1.03)",
   cinema: "contrast(1.12) saturate(.82) brightness(.97)",
@@ -563,6 +565,29 @@ export function Reel(bruto: ReelProps) {
                       objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
                     }}
                   />
+                  {tl.visual.look === "suave" && (
+                    <AbsoluteFill
+                      style={{
+                        mixBlendMode: "screen",
+                        opacity: 0.32,
+                        filter: "blur(22px) brightness(.85) contrast(1.2)",
+                      }}
+                    >
+                      <OffthreadVideo
+                        src={props.fonteUrl}
+                        trimBefore={Math.round(t.de * fps)}
+                        playbackRate={t.vel}
+                        muted
+                        pauseWhenBuffering
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+                        }}
+                      />
+                    </AbsoluteFill>
+                  )}
                   {vozDoTrecho(t) && (
                     <Audio
                       key={vozDoTrecho(t)}
