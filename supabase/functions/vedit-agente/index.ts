@@ -710,6 +710,14 @@ Deno.serve(async (req) => {
     .insert({ projeto_id, papel: "usuario", conteudo: mensagem, comando });
 
   const palavras = (proj.palavras ?? []) as { p: string; i: number; f: number }[];
+  // Editar sem transcrição faz o Claude inventar o conteúdo dos grafismos (nomes, números,
+  // "Cliente 1"). Com a fala ainda não transcrita, pede para esperar em vez de montar no escuro.
+  if (!palavras.length && (comando === "/editar" || /seguindo a refer/i.test(mensagem ?? ""))) {
+    const aviso =
+      "A transcrição deste vídeo ainda não terminou, então não dá para montar a edição a partir da fala. Espere a transcrição aparecer (aba Áudio/transcrição) e aplique de novo.";
+    await sb.from("vedit_mensagens").insert({ projeto_id, papel: "claude", conteudo: aviso });
+    return json({ ok: true, aviso });
+  }
   const transcricao = palavras
     .map((w, i) => `[${i}] ${w.i.toFixed(2)}-${w.f.toFixed(2)} ${w.p}`)
     .join("\n");
