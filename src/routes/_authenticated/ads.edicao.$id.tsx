@@ -254,12 +254,24 @@ function Editor() {
     staleTime: 5 * 3600 * 1000,
     queryFn: async () => {
       // Preview usa a versão leve quando existe; o render usa sempre o arquivo enviado.
-      const fonte = await assinar(proj!.fonte_proxy_path ?? proj!.fonte_path!);
-      const audio = proj!.audio_path ? await assinar(proj!.audio_path) : undefined;
+      // Um arquivo que não existe mais (apagado, upload que falhou) não pode travar o preview:
+      // cada assinatura opcional falha sozinha e o editor abre com o resto.
+      const talvez = (c?: string | null) =>
+        c
+          ? assinar(c).catch((e) => {
+              console.warn("[vedit] arquivo indisponível:", c, (e as Error).message);
+              return undefined;
+            })
+          : Promise.resolve(undefined);
+      const fonte =
+        (proj!.fonte_proxy_path ? await talvez(proj!.fonte_proxy_path) : undefined) ??
+        (await assinar(proj!.fonte_path!));
+      const audio = await talvez(proj!.audio_path);
       const midias: Record<string, string> = {};
       let recorte: string | undefined;
       for (const m of midiasQ.data ?? []) {
-        const u = await assinar(m.path);
+        const u = await talvez(m.path);
+        if (!u) continue;
         if (m.nome === NOME_RECORTE) recorte = u;
         else midias[m.id] = u;
       }
@@ -274,14 +286,15 @@ function Editor() {
       let voz: Partial<Record<(typeof NIVEIS_VOZ)[number] | "audio", string>> | undefined;
       if (vozQ.data?.status === "pronto") {
         voz = {};
-        for (const [n, c] of Object.entries(caminhosVoz(id)))
-          voz[n as (typeof NIVEIS_VOZ)[number]] = await assinar(c);
-        // Timbre de áudio de celular (nota de voz). Projetos antigos não têm: segue sem.
-        try {
-          voz.audio = await assinar(caminhoVozAudio(id));
-        } catch {
-          /* sem a versão "áudio" */
+        for (const [n, c] of Object.entries(caminhosVoz(id))) {
+          const u = await talvez(c);
+          if (u) voz[n as (typeof NIVEIS_VOZ)[number]] = u;
         }
+        // Timbre de áudio de celular (nota de voz). Projetos antigos não têm: segue sem.
+        const audioCel = await talvez(caminhoVozAudio(id));
+        if (audioCel) voz.audio = audioCel;
+        // Sem nenhuma versão da voz, o preview usa o som do próprio vídeo.
+        if (!Object.keys(voz).length) voz = undefined;
       }
       return { fonte, audio, midias, recorte, voz };
     },
