@@ -78,6 +78,7 @@ import {
   excluirTrecho,
   pausasLongas,
   velocidadeTrecho,
+  velocidadeTodos,
 } from "@/video/cortes";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/$id")({
@@ -1227,6 +1228,20 @@ function Editor() {
                           {String(v).replace(".", ",")}x
                         </Button>
                       ))}
+                      <VelocidadeLivre
+                        valor={t.vel}
+                        onAplicar={(v, todos) => {
+                          const cortes = todos
+                            ? velocidadeTodos(trechos, v, duracaoFonte)
+                            : velocidadeTrecho(trechos, trechoSel, v, duracaoFonte);
+                          setTl(
+                            { ...tl, cortes },
+                            todos
+                              ? `Vídeo inteiro em ${String(v).replace(".", ",")}x`
+                              : `Trecho ${trechoSel + 1} em ${String(v).replace(".", ",")}x`,
+                          );
+                        }}
+                      />
                       <span className="ml-2 text-muted-foreground">Início</span>
                       <Button
                         size="sm"
@@ -1364,5 +1379,55 @@ function Editor() {
         onConfirmar={confirmarExclusao}
       />
     </TooltipProvider>
+  );
+}
+
+/** Velocidade digitada (0,5x a 4x), para o trecho selecionado ou para o vídeo inteiro. */
+function VelocidadeLivre({
+  valor,
+  onAplicar,
+}: {
+  valor: number;
+  onAplicar: (v: number, todos: boolean) => void;
+}) {
+  const [txt, setTxt] = useState(String(valor).replace(".", ","));
+  useEffect(() => setTxt(String(valor).replace(".", ",")), [valor]);
+  const ler = () => {
+    const v = Number(txt.replace(",", ".").replace(/x$/i, ""));
+    if (!Number.isFinite(v)) return null;
+    return Math.round(Math.min(4, Math.max(0.5, v)) * 100) / 100;
+  };
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input
+        value={txt}
+        onChange={(e) => setTxt(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            const v = ler();
+            if (v) onAplicar(v, false);
+          }
+        }}
+        onBlur={() => {
+          const v = ler();
+          if (v && Math.abs(v - valor) > 0.001) onAplicar(v, false);
+        }}
+        inputMode="decimal"
+        title="Digite a velocidade (de 0,5 a 4) e aperte Enter"
+        className="h-7 w-14 rounded-md border bg-background px-1.5 text-center text-xs tabular-nums"
+      />
+      <span className="text-muted-foreground">x</span>
+      <button
+        type="button"
+        className="h-7 rounded-md border px-2 text-xs hover:bg-accent"
+        title="Aplicar esta velocidade em todos os trechos"
+        onClick={() => {
+          const v = ler();
+          if (v) onAplicar(v, true);
+        }}
+      >
+        em todos
+      </button>
+    </span>
   );
 }
