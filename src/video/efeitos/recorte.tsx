@@ -59,10 +59,9 @@ export function VideoNosCortes({
                 transparent
                 trimBefore={Math.round(t.de * fps)}
                 playbackRate={t.vel}
-                // No preview, dois <video> (base + recorte) escorregam um do outro e a mão aparece
-                // em dobro: ressincroniza cedo e espera o recorte carregar em vez de seguir sem ele.
-                acceptableTimeShiftInSeconds={0.12}
-                pauseWhenBuffering
+                // Sem ressincronia agressiva no preview: o WebM com transparência é pesado e cada
+                // re-seek fazia o player engasgar e repetir trechos. A máscara ("ate") já evita a mão
+                // em dobro.
                 style={s}
                 onError={aoErrar()}
               />
