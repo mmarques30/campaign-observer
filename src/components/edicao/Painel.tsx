@@ -69,6 +69,7 @@ export function Painel({
   voz,
   previa = null,
   setPrevia = () => {},
+  onRevisarRepeticoes,
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -92,6 +93,7 @@ export function Painel({
   voz: VozProps;
   previa?: Efeito | null;
   setPrevia?: (e: Efeito | null) => void;
+  onRevisarRepeticoes?: () => Promise<{ trocas?: number }>;
 }) {
   const [subindo, setSubindo] = useState(false);
   const [editandoTexto, setEditandoTexto] = useState<string | null>(null);
@@ -507,6 +509,7 @@ export function Painel({
       </TabsContent>
 
       <TabsContent value="roteiro" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+        {onRevisarRepeticoes && <RevisarRepeticoes onRevisar={onRevisarRepeticoes} />}
         <Roteiro
           palavras={palavras}
           tl={tl}
@@ -621,5 +624,46 @@ export function Painel({
         ))}
       </TabsContent>
     </Tabs>
+  );
+}
+
+/** Confere pelo áudio as retomadas que a transcrição escondeu (frase repetida escrita uma vez só). */
+function RevisarRepeticoes({ onRevisar }: { onRevisar: () => Promise<{ trocas?: number }> }) {
+  const [rodando, setRodando] = useState(false);
+  return (
+    <div className="mb-3 rounded-lg border p-2.5 space-y-1.5">
+      <div className="text-xs text-muted-foreground">
+        A transcrição às vezes escreve uma vez só a frase que você repetiu. Isto ouve de novo os
+        pontos suspeitos e mostra as repetições no aviso amarelo, para remover.
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        disabled={rodando}
+        onClick={async () => {
+          setRodando(true);
+          try {
+            const r = await onRevisar();
+            toast.success(
+              r?.trocas
+                ? `${r.trocas} ponto(s) com fala repetida encontrado(s). Veja o aviso amarelo no chat e clique em Remover.`
+                : "Nenhuma repetição escondida encontrada.",
+            );
+          } catch (e) {
+            toast.error((e as Error).message);
+          } finally {
+            setRodando(false);
+          }
+        }}
+      >
+        {rodando ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Scissors className="h-4 w-4 mr-2" />
+        )}
+        Procurar repetições pelo áudio
+      </Button>
+    </div>
   );
 }

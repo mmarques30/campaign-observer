@@ -947,6 +947,21 @@ function Editor() {
               duracaoFonte={duracaoFonte}
               previa={previa}
               setPrevia={setPrevia}
+              onRevisarRepeticoes={async () => {
+                if (salvando.current) {
+                  clearTimeout(salvando.current);
+                  salvando.current = null;
+                }
+                await gravarPendente();
+                const r = await callEdgeFunction<{ trocas?: number; error?: string }>(
+                  "vedit-transcrever",
+                  { projeto_id: proj.id, revisar: true },
+                );
+                if (r?.error) throw new Error(r.error);
+                versaoCarregada.current = -1;
+                await projQ.refetch();
+                return r;
+              }}
               voz={{
                 job: vozQ.data ?? null,
                 urls: urlsQ.data?.voz,
