@@ -176,7 +176,9 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           w: el.w ?? 0.84,
           h: el.h ?? (tipo === "texto" ? ((el.tamanho ?? 64) * 1.3 * k) / height : 0.12),
         };
-        if (el.livreDoRosto !== false && tipo !== "brilho" && tipo !== "pessoa")
+        // Imagem de fundo numa composição "atrás" fica atrás da cabeça de propósito: não desvia do rosto.
+        const fundoAtras = p.atras && tipo === "midia" && caixa.w >= 0.9;
+        if (el.livreDoRosto !== false && !fundoAtras && tipo !== "brilho" && tipo !== "pessoa")
           caixa = desviarDoRosto(caixa, rostoAtivo);
         const a = animacao(el, frame, fps, k);
         const flutua = el.flutuar ? Math.sin((frame + i * 13) / (fps * 0.9)) * 9 * k : 0;
@@ -200,7 +202,8 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
             : undefined,
           boxShadow:
             [
-              el.sombra ? `0 ${30 * k}px ${90 * k}px rgba(0,0,0,.5)` : "",
+              // Em texto a sombra é só no traço (textShadow); boxShadow desenharia um retângulo escuro.
+              el.sombra && (tipo !== "texto" || el.fundo) ? `0 ${30 * k}px ${90 * k}px rgba(0,0,0,.5)` : "",
               el.brilho ? `0 0 ${70 * k}px ${el.brilho}` : "",
             ]
               .filter(Boolean)
