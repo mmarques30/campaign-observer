@@ -756,7 +756,13 @@ export const fmtTempo = (s: number) => {
 };
 
 // Apaga o projeto e tudo que ele tem no armazenamento (vídeo, proxy, áudio, mídias, renders).
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function excluirProjeto(projetoId: string) {
+  // Sem um id válido, listar(projetoId) cairia na raiz do bucket e apagaria os arquivos de TODOS
+  // os projetos, referências e criativos. Nunca listar/apagar fora da pasta do próprio projeto.
+  if (typeof projetoId !== "string" || !UUID.test(projetoId))
+    throw new Error("excluirProjeto: id de projeto inválido");
   const st = supabase.storage.from(BUCKET);
   const listar = async (pasta: string): Promise<string[]> => {
     const { data } = await st.list(pasta, { limit: 1000 });
@@ -769,7 +775,7 @@ export async function excluirProjeto(projetoId: string) {
     }
     return out;
   };
-  const arquivos = await listar(projetoId);
+  const arquivos = (await listar(projetoId)).filter((c) => c.startsWith(`${projetoId}/`));
   if (arquivos.length) {
     for (let i = 0; i < arquivos.length; i += 100) {
       const { error } = await st.remove(arquivos.slice(i, i + 100));
