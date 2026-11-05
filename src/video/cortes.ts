@@ -52,6 +52,14 @@ export function velocidadeTrecho(
   );
 }
 
+/** Mesma velocidade em todos os trechos (1 = normal). */
+export function velocidadeTodos(trechos: Trecho[], velocidade: number, duracao: number): Corte[] {
+  return limparCortes(
+    trechos.map((t) => ({ de: t.de, ate: t.ate, ...velDe({ velocidade }) })),
+    duracao,
+  );
+}
+
 const base = (cortes: Corte[], duracao: number) =>
   cortes.length ? cortes : [{ de: 0, ate: duracao }];
 
