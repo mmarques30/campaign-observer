@@ -293,6 +293,8 @@ export async function reanalisar(id: string) {
 }
 
 export async function excluirReferencia(id: string) {
+  if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id))
+    throw new Error("excluirReferencia: id inválido");
   const st = supabase.storage.from(BUCKET);
   const { data } = await st.list(`referencias/${id}`, { limit: 200 });
   const arquivos = (data ?? []).map((f) => `referencias/${id}/${f.name}`);
