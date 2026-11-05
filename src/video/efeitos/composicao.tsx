@@ -204,7 +204,9 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           boxShadow:
             [
               // Em texto a sombra é só no traço (textShadow); boxShadow desenharia um retângulo escuro.
-              el.sombra && (tipo !== "texto" || el.fundo) ? `0 ${30 * k}px ${90 * k}px rgba(0,0,0,.5)` : "",
+              el.sombra && (tipo !== "texto" || el.fundo)
+                ? `0 ${30 * k}px ${90 * k}px rgba(0,0,0,.5)`
+                : "",
               el.brilho ? `0 0 ${70 * k}px ${el.brilho}` : "",
             ]
               .filter(Boolean)
@@ -344,10 +346,20 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
     </AbsoluteFill>
   );
 
+  // A pessoa por cima só precisa cobrir até onde vão os elementos que passam atrás dela.
+  const fundoDosElementos = Math.max(
+    0,
+    ...els.map(
+      (el) =>
+        (el.y ?? 0.1) +
+        (el.h ??
+          (((el.tamanho ?? 64) * 1.3 * k) / height) * ((el.texto ?? "").length > 24 ? 2 : 1)),
+    ),
+  );
   return p.atras && ctx.recorteUrl ? (
     <AbsoluteFill>
       {camada}
-      <Pessoa ctx={ctx} dur={dur} />
+      <Pessoa ctx={ctx} dur={dur} ate={fundoDosElementos + 0.06} />
     </AbsoluteFill>
   ) : (
     camada

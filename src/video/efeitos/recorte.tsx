@@ -59,6 +59,10 @@ export function VideoNosCortes({
                 transparent
                 trimBefore={Math.round(t.de * fps)}
                 playbackRate={t.vel}
+                // No preview, dois <video> (base + recorte) escorregam um do outro e a mão aparece
+                // em dobro: ressincroniza cedo e espera o recorte carregar em vez de seguir sem ele.
+                acceptableTimeShiftInSeconds={0.12}
+                pauseWhenBuffering
                 style={s}
                 onError={aoErrar()}
               />
@@ -108,11 +112,13 @@ export function Pessoa({
   dur,
   extra,
   filtro,
+  ate,
 }: {
   ctx: EfeitoCtx;
   dur: number;
   extra?: string; // transform adicional (ex.: scale da moldura)
   filtro?: string;
+  ate?: number; // só desenha a pessoa até esta altura (0–1): mãos e corpo abaixo não duplicam
 }) {
   if (!ctx.recorteUrl) return <AvisoRecorte />;
   const b = ctx.estiloBase;
@@ -122,6 +128,12 @@ export function Pessoa({
         transform: `${extra ?? ""} ${b?.transform ?? ""}`.trim(),
         transformOrigin: b?.transformOrigin,
         filter: [b?.filter, filtro].filter(Boolean).join(" ") || undefined,
+        ...(ate != null && ate < 0.9
+          ? {
+              maskImage: `linear-gradient(to bottom, #000 ${(ate - 0.04) * 100}%, transparent ${(ate + 0.04) * 100}%)`,
+              WebkitMaskImage: `linear-gradient(to bottom, #000 ${(ate - 0.04) * 100}%, transparent ${(ate + 0.04) * 100}%)`,
+            }
+          : {}),
       }}
     >
       <VideoNosCortes
