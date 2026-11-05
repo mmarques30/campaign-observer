@@ -165,18 +165,81 @@ export async function revisarRepeticoes(
       trocas++;
     }
   }
-  return { palavras: atual, janelas: usar.length, trocas };
+  // Segunda passada, só no ponto esticado: um clipe de 1–2 s quase sempre sai literal
+  // ("e eu vou te explicar o que é um skill") mesmo quando a janela com contexto não saiu.
+  const restantes = suspeitos(atual, v).slice(0, maxJanelas);
+  for (let k = 0; k < restantes.length; k += 4) {
+    const lote = restantes.slice(k, k + 4);
+    const res = await Promise.all(
+      lote.map(async ([a0, b0]) => {
+        const a = Math.max(0, a0 - 0.1),
+          b = Math.min(dur, b0 + 0.1);
+        const clip = pcm.subarray(Math.floor(a * sr), Math.ceil(b * sr));
+        try {
+          const ws = await transcrever(wav(clip, sr));
+          return {
+            a0,
+            b0,
+            ws: ws.map((w) => ({ p: w.p, i: +(w.i + a).toFixed(2), f: +(w.f + a).toFixed(2) })),
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    for (const r of res) {
+      if (!r || r.ws.length < 2) continue;
+      const meio = (w: Palavra) => (w.i + w.f) / 2;
+      const dentro = (w: Palavra) => meio(w) >= r.a0 && meio(w) <= r.b0;
+      const antes = atual.filter(dentro);
+      const fora = atual.filter((w) => !dentro(w));
+      // A palavra do clipe que coincide com uma vizinha que fica (ex.: "skill" logo depois) sai.
+      const novas = r.ws
+        .filter(dentro)
+        .filter(
+          (n) =>
+            !fora.some(
+              (o) => Math.min(n.f, o.f) - Math.max(n.i, o.i) > 0.5 * Math.max(0.01, n.f - n.i),
+            ),
+        );
+      if (novas.length <= antes.length) continue;
+      atual = [
+        ...atual.filter((w) => meio(w) < r.a0),
+        ...novas,
+        ...atual.filter((w) => meio(w) > r.b0),
+      ];
+      trocas++;
+    }
+  }
+  return { palavras: atual, janelas: usar.length + restantes.length, trocas };
 }
 
-/** Índices antigos → novos, pelo tempo da palavra (correções e destaques da legenda). */
+const normal = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+/**
+ * Índices antigos → novos (correções e destaques da legenda), pela palavra mais próxima no tempo,
+ * preferindo a de mesmo texto. As listas são pequenas (centenas): busca direta.
+ */
 export function remapearIndices(antigas: Palavra[], novas: Palavra[]) {
   const mapa = new Map<number, number>();
-  let j = 0;
   antigas.forEach((w, k) => {
-    while (j < novas.length - 1 && novas[j + 1].i <= w.i + 0.06) j++;
-    const cand = [j - 1, j, j + 1].filter((x) => x >= 0 && x < novas.length);
-    const melhor = cand.sort((x, y) => Math.abs(novas[x].i - w.i) - Math.abs(novas[y].i - w.i))[0];
-    if (melhor != null && Math.abs(novas[melhor].i - w.i) < 0.15) mapa.set(k, melhor);
+    let melhor = -1,
+      custo = Infinity;
+    novas.forEach((n, j) => {
+      const dt = Math.abs(n.i - w.i);
+      if (dt > 0.2) return;
+      const c = dt + (normal(n.p) === normal(w.p) ? 0 : 0.5);
+      if (c < custo) {
+        custo = c;
+        melhor = j;
+      }
+    });
+    if (melhor >= 0 && custo < 0.5) mapa.set(k, melhor);
   });
   return mapa;
 }
