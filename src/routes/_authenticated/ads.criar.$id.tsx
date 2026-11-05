@@ -40,8 +40,12 @@ import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
 import { BotaoCopiar } from "@/components/BotaoCopiar";
 import {
+  abrirDestino,
   baixarPacote,
   baixarPngs,
+  nomeArquivoPacote,
+  nomeArquivoPngs,
+  type Destino,
   carregarFontes,
   chamarAgente,
   desfazerDesign,
@@ -226,6 +230,13 @@ function EditorCriativo() {
 
   async function exportarTodos() {
     if (!design || !p) return;
+    // Pede o destino ainda dentro do clique (o navegador bloqueia download sem clique).
+    let destino: Destino = null;
+    try {
+      destino = await abrirDestino(nomeArquivoPacote(p.nome));
+    } catch {
+      return;
+    }
     nosPorFormato.current = {};
     setExportandoTodos(true);
     try {
@@ -243,7 +254,7 @@ function EditorCriativo() {
           (nosPorFormato.current[f] ?? []).slice(0, slides.length).filter(Boolean) as HTMLElement[],
           f,
         );
-      await baixarPacote(porFormato, p.nome);
+      await baixarPacote(porFormato, p.nome, destino);
     } catch (e) {
       toast.error(`Exportar: ${(e as Error).message}`);
     } finally {
@@ -253,6 +264,12 @@ function EditorCriativo() {
 
   async function exportar() {
     if (!design || !p) return;
+    let destino: Destino = null;
+    try {
+      destino = await abrirDestino(nomeArquivoPngs(p.nome, slides.length));
+    } catch {
+      return;
+    }
     nos.current = [];
     setExportando(true);
     try {
@@ -261,7 +278,7 @@ function EditorCriativo() {
         nos.current.slice(0, slides.length).filter(Boolean) as HTMLElement[],
         p.formato,
       );
-      await baixarPngs(pngs, p.nome);
+      await baixarPngs(pngs, p.nome, destino);
     } catch (e) {
       toast.error(`Exportar: ${(e as Error).message}`);
     } finally {
