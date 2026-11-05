@@ -31,13 +31,23 @@ export function desviarDoRosto(c: Caixa, rosto?: Caixa | null): Caixa {
     c.y < rosto.y + rosto.h &&
     c.y + c.h > rosto.y;
   if (!cruza) return c;
-  // Menor deslocamento que tira a caixa do rosto, sem sair do quadro (se não couber, encosta na borda).
+  // Menor deslocamento que tira a caixa do rosto, sem sair do quadro.
   const cima = Math.max(0, rosto.y - c.h - 0.01);
   const baixo = Math.min(1 - c.h, rosto.y + rosto.h + 0.01);
   const sobra = (y: number) =>
     Math.max(0, Math.min(y + c.h, rosto.y + rosto.h) - Math.max(y, rosto.y));
   const custo = (y: number) => sobra(y) * 3 + Math.abs(y - c.y);
-  return { ...c, y: custo(cima) <= custo(baixo) ? cima : baixo };
+  const paraCima = custo(cima) <= custo(baixo);
+  const y = paraCima ? cima : baixo;
+  if (sobra(y) <= 0.005) return { ...c, y };
+  // Não coube inteira no lado escolhido: encolhe (mantendo a proporção e o centro horizontal)
+  // até caber no espaço livre, em vez de ficar em cima da testa ou do queixo.
+  const livre = Math.max(0.1, paraCima ? rosto.y - 0.02 : 1 - (rosto.y + rosto.h) - 0.02);
+  const k = Math.min(1, livre / c.h);
+  const w = c.w * k,
+    h = c.h * k;
+  const x = Math.min(1 - w, Math.max(0, c.x + (c.w - w) / 2));
+  return { x, y: paraCima ? Math.max(0, rosto.y - h - 0.01) : rosto.y + rosto.h + 0.01, w, h };
 }
 
 type Elemento = {

@@ -10,7 +10,10 @@ import { paraSaida, type Trecho } from "@/video/tempo";
 import { fmtTempo } from "@/lib/vedit";
 
 type Visual = Timeline["visual"];
-const NEUTRO: Pick<Visual, "brilho" | "contraste" | "saturacao" | "temperatura" | "sombras" | "nitidez"> = {
+const NEUTRO: Pick<
+  Visual,
+  "brilho" | "contraste" | "saturacao" | "temperatura" | "sombras" | "nitidez"
+> = {
   brilho: 1,
   contraste: 1,
   saturacao: 1,
@@ -101,13 +104,63 @@ export function CorrecaoImagem({
   const v = tl.visual;
   const set = (patch: Partial<Visual>, resumo: string) =>
     setTl({ ...tl, visual: { ...v, ...patch } }, resumo);
-  const linhas: { k: keyof typeof NEUTRO; nome: string; min: number; max: number; step: number; fmt: (x: number) => string }[] = [
-    { k: "brilho", nome: "Brilho", min: 0.6, max: 1.5, step: 0.01, fmt: (x) => `${Math.round((x - 1) * 100)}` },
-    { k: "contraste", nome: "Contraste", min: 0.6, max: 1.5, step: 0.01, fmt: (x) => `${Math.round((x - 1) * 100)}` },
-    { k: "saturacao", nome: "Saturação", min: 0, max: 2, step: 0.01, fmt: (x) => `${Math.round((x - 1) * 100)}` },
-    { k: "temperatura", nome: "Temperatura", min: -1, max: 1, step: 0.01, fmt: (x) => (x > 0 ? `+${Math.round(x * 100)} quente` : x < 0 ? `${Math.round(x * 100)} frio` : "0") },
-    { k: "sombras", nome: "Sombras (clarear rosto)", min: 0, max: 1, step: 0.01, fmt: (x) => `${Math.round(x * 100)}` },
-    { k: "nitidez", nome: "Nitidez", min: 0, max: 1, step: 0.01, fmt: (x) => `${Math.round(x * 100)}` },
+  const linhas: {
+    k: keyof typeof NEUTRO;
+    nome: string;
+    min: number;
+    max: number;
+    step: number;
+    fmt: (x: number) => string;
+  }[] = [
+    {
+      k: "brilho",
+      nome: "Brilho",
+      min: 0.6,
+      max: 1.5,
+      step: 0.01,
+      fmt: (x) => `${Math.round((x - 1) * 100)}`,
+    },
+    {
+      k: "contraste",
+      nome: "Contraste",
+      min: 0.6,
+      max: 1.5,
+      step: 0.01,
+      fmt: (x) => `${Math.round((x - 1) * 100)}`,
+    },
+    {
+      k: "saturacao",
+      nome: "Saturação",
+      min: 0,
+      max: 2,
+      step: 0.01,
+      fmt: (x) => `${Math.round((x - 1) * 100)}`,
+    },
+    {
+      k: "temperatura",
+      nome: "Temperatura",
+      min: -1,
+      max: 1,
+      step: 0.01,
+      fmt: (x) =>
+        x > 0 ? `+${Math.round(x * 100)} quente` : x < 0 ? `${Math.round(x * 100)} frio` : "0",
+    },
+    {
+      k: "sombras",
+      nome: "Sombras (clarear rosto)",
+      min: 0,
+      max: 1,
+      step: 0.01,
+      fmt: (x) => `${Math.round(x * 100)}`,
+    },
+    {
+      k: "nitidez",
+      nome: "Nitidez",
+      min: 0,
+      max: 1,
+      step: 0.01,
+      fmt: (x) => `${Math.round(x * 100)}`,
+    },
   ];
   async function automatico() {
     if (!amostra?.url) return toast.error("O vídeo ainda não carregou.");
@@ -126,7 +179,9 @@ export function CorrecaoImagem({
     <section className="space-y-3">
       <div className="flex items-center gap-2">
         <Sun className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Imagem e luz</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Imagem e luz
+        </span>
         <Button
           variant="ghost"
           size="sm"
@@ -137,8 +192,18 @@ export function CorrecaoImagem({
           <RotateCcw className="h-3.5 w-3.5" />
         </Button>
       </div>
-      <Button variant="outline" size="sm" className="w-full" onClick={automatico} disabled={medindo}>
-        {medindo ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full"
+        onClick={automatico}
+        disabled={medindo}
+      >
+        {medindo ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <Wand2 className="h-4 w-4 mr-2" />
+        )}
         Corrigir luz e cor automaticamente
       </Button>
       {linhas.map((l) => (
@@ -190,10 +255,15 @@ export function SonsAplicados({
           </Button>
         )}
       </div>
-      {sons.length === 0 && <div className="text-xs text-muted-foreground">Nenhum efeito sonoro.</div>}
+      {sons.length === 0 && (
+        <div className="text-xs text-muted-foreground">Nenhum efeito sonoro.</div>
+      )}
       {sons.map((s) => (
         <div key={s.i} className="flex items-center gap-2 rounded-md border px-2 py-1.5">
-          <button className="text-xs font-mono text-muted-foreground hover:text-foreground" onClick={() => onIr(s.em)}>
+          <button
+            className="text-xs font-mono text-muted-foreground hover:text-foreground"
+            onClick={() => onIr(s.em)}
+          >
             {fmtTempo(paraSaida(trechos, s.em))}
           </button>
           <span className="text-sm flex-1 truncate">{s.som}</span>
@@ -204,13 +274,18 @@ export function SonsAplicados({
             step={0.05}
             value={[s.volume]}
             onValueChange={([x]) =>
-              setTl({ ...tl, sfx: tl.sfx.map((y, j) => (j === s.i ? { ...y, volume: x } : y)) }, `Volume do som ${s.som}`)
+              setTl(
+                { ...tl, sfx: tl.sfx.map((y, j) => (j === s.i ? { ...y, volume: x } : y)) },
+                `Volume do som ${s.som}`,
+              )
             }
           />
           <button
             className="h-7 w-7 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex items-center justify-center"
             title="Remover som"
-            onClick={() => setTl({ ...tl, sfx: tl.sfx.filter((_, j) => j !== s.i) }, `Removeu o som ${s.som}`)}
+            onClick={() =>
+              setTl({ ...tl, sfx: tl.sfx.filter((_, j) => j !== s.i) }, `Removeu o som ${s.som}`)
+            }
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>

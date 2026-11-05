@@ -8,7 +8,7 @@ import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, Loader2, Search } from "lucide-react";
+import { BookOpen, FileText, Loader2, Play, Search } from "lucide-react";
 import { db } from "@/lib/vedit";
 import {
   IDIOMAS_ROTEIRO,
@@ -106,11 +106,26 @@ function RoteirosPage() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {refs.data.map((r) => (
-                <Button key={r.id} size="sm" variant="outline" onClick={() => setNova(r)}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  {r.autor ? `@${r.autor}` : (r.titulo ?? "Referência")}
-                  {r.metricas?.indice ? ` · ${Number(r.metricas.indice).toFixed(1)}×` : ""}
-                </Button>
+                <div key={r.id} className="inline-flex items-center rounded-md border">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-r-none"
+                    onClick={() => setNova(r)}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    {r.autor ? `@${r.autor}` : (r.titulo ?? "Referência")}
+                    {r.metricas?.indice ? ` · ${Number(r.metricas.indice).toFixed(1)}×` : ""}
+                  </Button>
+                  <Link
+                    to="/ads/edicao/referencias"
+                    search={{ id: r.id }}
+                    title="Ver o vídeo e a análise"
+                    className="px-2 h-8 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
+                  >
+                    <Play className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
               ))}
             </div>
           )}
