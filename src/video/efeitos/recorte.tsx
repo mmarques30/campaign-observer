@@ -1,5 +1,6 @@
 // Fase 2: efeitos que usam a pessoa recortada (WebM com fundo transparente gerado no navegador).
 // O recorte segue os mesmos cortes e o mesmo zoom do vídeo base, então encaixa por cima dele.
+import { useEffect, useRef } from "react";
 import {
   AbsoluteFill,
   getRemotionEnvironment,
@@ -31,11 +32,13 @@ export function VideoNosCortes({
   src,
   dur,
   style,
+  className,
 }: {
   ctx: EfeitoCtx;
   src: string;
   dur: number;
   style?: React.CSSProperties;
+  className?: string;
 }) {
   const { fps } = useVideoConfig();
   const inicio = paraSaida(ctx.trechos, ctx.deFonte);
@@ -59,6 +62,7 @@ export function VideoNosCortes({
                 transparent
                 trimBefore={Math.round(t.de * fps)}
                 playbackRate={t.vel}
+                className={className}
                 // Sem ressincronia agressiva no preview: o WebM com transparência é pesado e cada
                 // re-seek fazia o player engasgar e repetir trechos. A máscara ("ate") já evita a mão
                 // em dobro.
@@ -135,11 +139,90 @@ export function Pessoa({
           : {}),
       }}
     >
-      <VideoNosCortes
-        ctx={ctx}
-        src={ctx.recorteUrl}
-        dur={dur}
-        style={{ objectPosition: b?.objectPosition }}
+      {getRemotionEnvironment().isRendering ? (
+        <VideoNosCortes
+          ctx={ctx}
+          src={ctx.recorteUrl}
+          dur={dur}
+          style={{ objectPosition: b?.objectPosition }}
+        />
+      ) : (
+        <PessoaAoVivo ctx={ctx} dur={dur} objectPosition={b?.objectPosition} />
+      )}
+    </AbsoluteFill>
+  );
+}
+
+/**
+ * Preview: os pixels da pessoa vêm do PRÓPRIO vídeo base (sempre no quadro certo) e o recorte só
+ * fornece a máscara. Antes o recorte inteiro era desenhado por cima e, como o WebM com
+ * transparência atrasa no navegador, aparecia uma segunda "você" em câmera lenta atrás.
+ * No render isso não acontece (cada quadro é extraído exato), então lá o recorte vai direto.
+ */
+function PessoaAoVivo({
+  ctx,
+  dur,
+  objectPosition,
+}: {
+  ctx: EfeitoCtx;
+  dur: number;
+  objectPosition?: string;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const caixa = useRef<HTMLDivElement>(null);
+  const base = (ctx.fonteUrl ?? "").split(/[?#]/)[0];
+  useEffect(() => {
+    let raf = 0;
+    const desenha = () => {
+      raf = requestAnimationFrame(desenha);
+      const c = canvas.current;
+      const g = c?.getContext("2d");
+      if (!c || !g || !caixa.current) return;
+      const recs = [
+        ...caixa.current.querySelectorAll<HTMLVideoElement>("video.vedit-recorte"),
+      ].filter((v) => v.readyState >= 2);
+      const rec = recs[0];
+      if (!rec || !base) return;
+      // O vídeo base visível: mesmo arquivo, fora deste efeito, no tempo mais próximo do recorte.
+      const bases = [...document.querySelectorAll<HTMLVideoElement>("video")].filter(
+        (v) =>
+          !v.classList.contains("vedit-recorte") &&
+          v.readyState >= 2 &&
+          (v.currentSrc || v.src).split(/[?#]/)[0] === base,
+      );
+      if (!bases.length) return;
+      const vid = bases.reduce((a, b) =>
+        Math.abs(b.currentTime - rec.currentTime) < Math.abs(a.currentTime - rec.currentTime)
+          ? b
+          : a,
+      );
+      const w = rec.videoWidth || 720,
+        h = rec.videoHeight || 1280;
+      if (c.width !== w) c.width = w;
+      if (c.height !== h) c.height = h;
+      g.globalCompositeOperation = "copy";
+      g.drawImage(rec, 0, 0, w, h);
+      g.globalCompositeOperation = "source-in";
+      g.drawImage(vid, 0, 0, w, h);
+      g.globalCompositeOperation = "source-over";
+    };
+    raf = requestAnimationFrame(desenha);
+    return () => cancelAnimationFrame(raf);
+  }, [base]);
+  return (
+    <AbsoluteFill>
+      <div ref={caixa} style={{ position: "absolute", inset: 0, opacity: 0 }}>
+        <VideoNosCortes
+          ctx={ctx}
+          src={ctx.recorteUrl!}
+          dur={dur}
+          className="vedit-recorte"
+          style={{ objectPosition }}
+        />
+      </div>
+      <canvas
+        ref={canvas}
+        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
       />
     </AbsoluteFill>
   );
