@@ -146,6 +146,8 @@ function Editor() {
     setPlayerPronto(!!p);
   };
   const [frame, setFrame] = useState(0);
+  // Prévia de efeito escolhida no seletor visual: entra só no player (não é salva) e roda em loop.
+  const [previa, setPrevia] = useState<Timeline["efeitos"][number] | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [rascunho, setRascunho] = useState("");
   const [zonas, setZonas] = useState(false);
@@ -592,7 +594,11 @@ function Editor() {
     () =>
       tl && urlsQ.data
         ? {
-            timeline: { ...tl, rosto: rostoProj },
+            timeline: {
+              ...tl,
+              rosto: rostoProj,
+              efeitos: previa ? [...tl.efeitos, previa] : tl.efeitos,
+            },
             palavras,
             fonteUrl: local(urlsQ.data.fonte)!,
             audioUrl: local(urlsQ.data.audio),
@@ -607,8 +613,24 @@ function Editor() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj, locaisAplicados],
+    [tl, palavras, urlsQ.data, duracaoFonte, rostoProj, locaisAplicados, previa],
   );
+
+  // Prévia: vai para o trecho do efeito, toca e repete enquanto ela estiver aberta.
+  useEffect(() => {
+    const p = player.current;
+    if (!p || !previa) return;
+    const ini = Math.max(0, Math.round(paraSaida(trechos, previa.de) * 30) - 6);
+    const fim = Math.round(paraSaida(trechos, previa.ate) * 30) + 10;
+    p.seekTo(ini);
+    p.play();
+    const h = (e: { detail: { frame: number } }) => {
+      if (e.detail.frame >= fim) p.seekTo(ini);
+    };
+    p.addEventListener("frameupdate", h as any);
+    return () => p.removeEventListener("frameupdate", h as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previa?.id, previa?.de, previa?.ate]);
 
   async function mandar(texto: string) {
     if (!proj) return;
@@ -922,6 +944,8 @@ function Editor() {
               agora={paraFonte(trechos, frame / 30)}
               palavras={palavras}
               duracaoFonte={duracaoFonte}
+              previa={previa}
+              setPrevia={setPrevia}
               voz={{
                 job: vozQ.data ?? null,
                 urls: urlsQ.data?.voz,

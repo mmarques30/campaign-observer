@@ -46,6 +46,7 @@ import { Roteiro } from "./Roteiro";
 import { ModeloEdicao } from "./ModeloEdicao";
 import { TextoEfeito, temTexto } from "./TextoEfeito";
 import { VozLimpa, type VozProps } from "./VozLimpa";
+import { EfeitosVisuais, type Efeito } from "./EfeitosVisuais";
 
 export function Painel({
   projeto,
@@ -66,6 +67,8 @@ export function Painel({
   palavras,
   duracaoFonte,
   voz,
+  previa = null,
+  setPrevia = () => {},
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -87,6 +90,8 @@ export function Painel({
   palavras: Palavra[];
   duracaoFonte: number;
   voz: VozProps;
+  previa?: Efeito | null;
+  setPrevia?: (e: Efeito | null) => void;
 }) {
   const [subindo, setSubindo] = useState(false);
   const [editandoTexto, setEditandoTexto] = useState<string | null>(null);
@@ -513,29 +518,18 @@ export function Painel({
         />
       </TabsContent>
 
-      <TabsContent value="biblioteca" className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 mt-0">
-        <p className="text-xs text-muted-foreground">
-          Clique para mandar o comando ao chat. Complete com o que quer (ex.: "/vidro com os números
-          que eu falei").
-        </p>
-        {EFEITOS.map((e) => (
-          <button
-            key={e.tipo}
-            disabled={!e.disponivel}
-            onClick={() => onComando(`${e.comando} `)}
-            className={cn(
-              "w-full text-left rounded-lg border p-2.5 hover:bg-accent disabled:opacity-50 disabled:hover:bg-transparent",
-            )}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-medium">{e.nome}</span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {e.disponivel ? e.comando : "fase 2"}
-              </span>
-            </div>
-            <div className="text-xs text-muted-foreground line-clamp-2">{e.descricao}</div>
-          </button>
-        ))}
+      <TabsContent value="biblioteca" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+        <EfeitosVisuais
+          tl={tl}
+          setTl={setTl}
+          palavras={palavras}
+          trechos={trechos}
+          agora={agora}
+          onIr={onIr}
+          previa={previa}
+          setPrevia={setPrevia}
+          onComando={onComando}
+        />
       </TabsContent>
 
       <TabsContent value="midias" className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 mt-0">
