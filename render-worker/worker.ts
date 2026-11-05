@@ -1041,9 +1041,21 @@ async function loop(serveUrl: string) {
     let cancelado = false;
     try {
       const p = job.props as PropsFila;
+      // Só assina as mídias que a edição usa, e uma mídia sem arquivo (busca que falhou no upload,
+      // arquivo apagado) não derruba o render inteiro: o elemento dela é pulado na composição.
+      const usadas = JSON.stringify(p.timeline ?? {});
       const midias: Record<string, string> = {};
-      for (const [id, caminho] of Object.entries(p.midiasPaths ?? {}))
-        midias[id] = await assinar(caminho);
+      for (const [id, caminho] of Object.entries(p.midiasPaths ?? {})) {
+        if (!usadas.includes(id)) continue;
+        try {
+          midias[id] = await assinar(caminho);
+        } catch (e) {
+          console.warn(
+            `[render] ${job.id} mídia ${id} sem arquivo, seguindo sem ela:`,
+            (e as Error).message,
+          );
+        }
+      }
       const inputProps = {
         timeline: p.timeline,
         palavras: p.palavras,
