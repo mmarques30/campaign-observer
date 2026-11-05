@@ -15,7 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Link2, Loader2, Wand2 } from "lucide-react";
+import { Check, Link2, Loader2, Play, Wand2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { db } from "@/lib/vedit";
 import {
   aguardarReferencia,
@@ -172,28 +173,38 @@ export function ReferenciaRapida({
               ) : (
                 <div className="max-h-80 overflow-y-auto overflow-x-hidden divide-y rounded-md border min-w-0">
                   {salvas.data.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      className="w-full min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
-                      onClick={() =>
-                        aplicar(r).catch((e) => {
-                          toast.error((e as Error).message);
-                          setPasso(null);
-                        })
-                      }
-                    >
-                      <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate">
-                          {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
+                    <div key={r.id} className="flex items-stretch min-w-0">
+                      <button
+                        type="button"
+                        className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
+                        onClick={() =>
+                          aplicar(r).catch((e) => {
+                            toast.error((e as Error).message);
+                            setPasso(null);
+                          })
+                        }
+                      >
+                        <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate">
+                            {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
+                          </div>
+                          <div className="text-xs text-muted-foreground line-clamp-2 break-words">
+                            {r.autor ? `@${r.autor} · ` : ""}
+                            {analiseOk(r.analise)?.resumo}
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground line-clamp-2 break-words">
-                          {r.autor ? `@${r.autor} · ` : ""}
-                          {analiseOk(r.analise)?.resumo}
-                        </div>
-                      </div>
-                    </button>
+                      </button>
+                      <Link
+                        to="/ads/edicao/referencias"
+                        search={{ id: r.id }}
+                        target="_blank"
+                        title="Ver o vídeo da referência"
+                        className="px-3 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
+                      >
+                        <Play className="h-4 w-4" />
+                      </Link>
+                    </div>
                   ))}
                 </div>
               )}

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/sheet";
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import { UsarReferencia } from "@/components/edicao/UsarReferencia";
+import { VideoReferencia } from "@/components/edicao/VideoReferencia";
 import {
   BookOpen,
   Copy,
@@ -64,6 +65,8 @@ import { callEdgeFunction } from "@/lib/ads-mutations";
 
 export const Route = createFileRoute("/_authenticated/ads/edicao/referencias")({
   component: ReferenciasPage,
+  validateSearch: (s: Record<string, unknown>): { id?: string } =>
+    typeof s.id === "string" ? { id: s.id } : {},
 });
 
 const COR_STATUS: Record<Tecnica["status"], string> = {
@@ -105,6 +108,15 @@ function ReferenciasPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+  // ?id=… (vindo de Roteiros / do editor) abre a referência direto.
+  const { id: idBusca } = Route.useSearch();
+  useEffect(() => {
+    if (idBusca && !sel) {
+      const r = refs.data?.find((x) => x.id === idBusca);
+      if (r) setSel(r);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idBusca, refs.data]);
   // Mantém o painel aberto sincronizado com a lista (status muda em segundo plano).
   useEffect(() => {
     if (sel) {
@@ -502,6 +514,10 @@ function Detalhe({
             </SheetHeader>
 
             {r.status === "erro" && <div className="mt-3 text-sm text-red-600">{r.erro}</div>}
+
+            <div className="mt-4">
+              <VideoReferencia path={r.video_path} />
+            </div>
 
             {a ? (
               <div className="mt-4 space-y-4">

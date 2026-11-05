@@ -92,8 +92,8 @@ export function Repeticoes({
                   onClick={() => onIr(r.mantida.de)}
                   title="Ir para a tomada que fica"
                 >
-                  <span className="text-emerald-600 font-medium">fica</span> {r.mantida.de.toFixed(1)}s
-                  · {r.mantida.texto}
+                  <span className="text-emerald-600 font-medium">fica</span>{" "}
+                  {r.mantida.de.toFixed(1)}s · {r.mantida.texto}
                 </button>
               </li>
             );

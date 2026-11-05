@@ -31,6 +31,7 @@ import { db } from "@/lib/vedit";
 import { analiseOk, criarReferenciaPorLink, STATUS_REF, type Referencia } from "@/lib/referencias";
 import { cn } from "@/lib/utils";
 import { NovoRoteiro } from "@/components/edicao/RoteiroReferencia";
+import { VideoReferencia } from "@/components/edicao/VideoReferencia";
 
 const fmtN = (n?: number | null) =>
   n == null ? "" : n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);
@@ -340,8 +341,11 @@ export function DetalheReferencia({
                 {r.duracao ? ` · ${Number(r.duracao).toFixed(0)}s` : ""}
               </SheetDescription>
             </SheetHeader>
-            <div className="mt-4 flex gap-3">
-              {m.imagem && (
+            <div className="mt-4">
+              <VideoReferencia path={r.video_path} poster={m.imagem ?? null} />
+            </div>
+            <div className="mt-3 flex gap-3">
+              {!r.video_path && m.imagem && (
                 <img
                   src={m.imagem}
                   alt=""
