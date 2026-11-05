@@ -20,6 +20,11 @@ export const ESTILOS_LEGENDA = [
   "neon",
   "maquina",
   "impacto",
+  // Kit das referências (nov/2026)
+  "serifa", // serifada branca pequena, 2–3 palavras (cinema)
+  "minimal", // sans pequena e limpa, palavra-chave na cor de destaque
+  "palavra", // uma palavra por vez, bold, centro (painel escuro)
+  "manuscrita", // pincel/manuscrita com brilho, 2 palavras (tutorial)
 ] as const;
 // Transições nos cortes. "suave" = dissolve curto; "escurecer" = passa rapidinho pelo preto;
 // "desfoque" = desfoca e volta; "zoom-suave" = aproximação leve com easing.

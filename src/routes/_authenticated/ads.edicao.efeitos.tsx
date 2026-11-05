@@ -40,7 +40,7 @@ function Galeria() {
         legenda: {
           estilo: legenda,
           destaques: [1, 4],
-          palavrasPorBloco: legenda === "impacto" ? 1 : 3,
+          palavrasPorBloco: legenda === "impacto" || legenda === "palavra" ? 1 : 3,
         },
       });
       return {
@@ -55,7 +55,7 @@ function Galeria() {
     const dur = def.duracaoPadrao;
     const tl = timelineSchema.parse({
       legenda: { ativa: false },
-      efeitos: [{ id: "g", tipo: def.tipo, de: 0.2, ate: 0.2 + dur, props: {} }],
+      efeitos: [{ id: "g", tipo: def.tipo, de: 0.2, ate: 0.2 + dur, props: def.exemplo ?? {} }],
       sfx: def.somPadrao ? [{ em: 0.2, som: def.somPadrao, volume: 0.5 }] : [],
     });
     return {

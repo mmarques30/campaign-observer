@@ -18,7 +18,7 @@ export function montarBlocos(
   fps: number,
 ): Bloco[] {
   const leg = tl.legenda;
-  const porBloco = leg.estilo === "impacto" ? 1 : leg.palavrasPorBloco;
+  const porBloco = leg.estilo === "impacto" || leg.estilo === "palavra" ? 1 : leg.palavrasPorBloco;
   const visiveis = palavras
     .map((p, idx) => ({ p, idx }))
     // palavra inteira dentro de um corte some da legenda
@@ -252,6 +252,130 @@ export function Legenda({
               </span>
             );
           })}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  // ── Kit das referências ──
+  // Todas entram com um fade curto (sem pulo): o grafismo é que dá o ritmo, a legenda só acompanha.
+  const surgir = interpolate(frame - bloco.ini, [0, 3], [0, 1], { extrapolateRight: "clamp" });
+  const sombraSuave = `0 ${2 * u}px ${10 * u}px rgba(0,0,0,.6), 0 0 ${2 * u}px rgba(0,0,0,.35)`;
+
+  if (estilo === "serifa") {
+    // Cinema (kalylsfilms): serifada branca pequena, 2–3 palavras, logo abaixo do queixo.
+    return (
+      <AbsoluteFill>
+        <div
+          style={{
+            ...base,
+            transform: "translateY(-50%)",
+            opacity: surgir,
+            gap: `${2 * u}px ${12 * u}px`,
+          }}
+        >
+          {bloco.palavras.map((w) => (
+            <span
+              key={w.idx}
+              style={{
+                fontFamily: f("Instrument Serif", "serif"),
+                fontStyle: destaques.has(w.idx) ? "italic" : "normal",
+                fontSize: 62 * u,
+                lineHeight: 1.12,
+                color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
+                textShadow: sombraSuave,
+              }}
+            >
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
+            </span>
+          ))}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (estilo === "minimal") {
+    // Minimal (laraacostar, gen.figgy): sans pequena, sem contorno nem pílula; a palavra-chave
+    // (destaques) ganha a cor de destaque. Fica no peito, nunca no rosto.
+    return (
+      <AbsoluteFill>
+        <div
+          style={{
+            ...base,
+            left: "10%",
+            right: "10%",
+            transform: "translateY(-50%)",
+            opacity: surgir,
+            gap: `${2 * u}px ${10 * u}px`,
+          }}
+        >
+          {bloco.palavras.map((w) => (
+            <span
+              key={w.idx}
+              style={{
+                fontFamily: f("Inter"),
+                fontWeight: 600,
+                fontSize: 40 * u,
+                lineHeight: 1.2,
+                letterSpacing: -0.4 * u,
+                color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
+                textShadow: sombraSuave,
+              }}
+            >
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
+            </span>
+          ))}
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (estilo === "palavra") {
+    // Painel escuro (kallawaymarketing): uma palavra por vez, bold, tracking fechado.
+    const w = bloco.palavras[0];
+    return (
+      <AbsoluteFill>
+        <div style={{ ...base, transform: "translateY(-50%)", opacity: surgir }}>
+          <span
+            style={{
+              fontFamily: f("Inter"),
+              fontWeight: 800,
+              fontSize: 60 * u,
+              lineHeight: 1,
+              letterSpacing: -1.8 * u,
+              color: destaques.has(w.idx) ? m.destaque : "#FFFFFF",
+              textShadow: sombraSuave,
+            }}
+          >
+            <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
+          </span>
+        </div>
+      </AbsoluteFill>
+    );
+  }
+
+  if (estilo === "manuscrita") {
+    // Tutorial caseiro (ignaciovasconez): manuscrita branca com brilho leve, 2 palavras.
+    return (
+      <AbsoluteFill>
+        <div style={{ ...base, opacity: surgir, gap: `0 ${14 * u}px` }}>
+          {bloco.palavras.map((w) => (
+            <span
+              key={w.idx}
+              style={{
+                fontFamily: f("Caveat", "cursive"),
+                fontWeight: 700,
+                fontSize: 78 * u,
+                lineHeight: 1,
+                color: ativa(w) || destaques.has(w.idx) ? m.destaque : "#FFFFFF",
+                WebkitTextStroke: `${2 * u}px rgba(0,0,0,.55)`,
+                paintOrder: "stroke fill",
+                textShadow: `0 0 ${16 * u}px rgba(255,255,255,.35), ${sombraSuave}`,
+              }}
+            >
+              <Marcado texto={w.texto} destaque={{ color: m.destaque }} escala={u} />
+            </span>
+          ))}
         </div>
       </AbsoluteFill>
     );

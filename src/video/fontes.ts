@@ -42,6 +42,8 @@ const ARQUIVOS: [familia: string, estilo: "normal" | "italic", peso: string, arq
   ["DM Serif Display", "normal", "400", "DMSerifDisplay-normal-400"],
   ["Archivo", "normal", "500", "Archivo-normal-500"],
   ["Archivo", "normal", "900", "Archivo-normal-900"],
+  // Pincel (Apache 2.0): sobreposição manuscrita dos títulos de cartaz.
+  ["Permanent Marker", "normal", "400", "PermanentMarker-normal-400"],
 ];
 
 export const FONTES = [...new Set(ARQUIVOS.map((a) => a[0]))];
