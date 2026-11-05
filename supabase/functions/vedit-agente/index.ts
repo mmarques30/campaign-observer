@@ -698,8 +698,67 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
       !Array.isArray(e.props?.elementos) ||
       e.props.elementos.some((el: any) => !["linha", "brilho"].includes(el?.tipo)),
   );
-  if (cores || fontes || textos)
-    console.log(`[vedit] referência limpa: ${cores} cores, ${fontes} fontes, ${textos} textos`);
+  // Trocar as cores da referência pelas da marca pode deixar texto da mesma cor do fundo/caixa
+  // atrás dele (ex.: palavra verde-limão sobre tela verde-limão) ou contorno igual ao preenchimento.
+  // Aqui o texto ganha a cor da marca que contrasta com o que está atrás.
+  const lumaCor = (c: unknown): number | null => {
+    if (typeof c !== "string") return null;
+    const rgb = c.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+    if (rgb) return (0.2126 * +rgb[1] + 0.7152 * +rgb[2] + 0.0722 * +rgb[3]) / 255;
+    const h = c.match(/#[0-9a-fA-F]{3,6}\b/);
+    return h ? luma(h[0]) : null;
+  };
+  const claro = marca.texto ?? "#FFFFFF",
+    escuro = marca.fundo ?? "#0B0B0F";
+  let contraste = 0;
+  for (const e of tl.efeitos ?? []) {
+    const els = e?.props?.elementos;
+    if (!Array.isArray(els)) continue;
+    const caixas = els.filter(
+      (el: any) => (el?.tipo === "caixa" || el?.tipo === "midia") && typeof el.fundo === "string",
+    );
+    for (const el of els) {
+      if (el?.tipo !== "texto") continue;
+      const x = el.x ?? 0.1,
+        y = el.y ?? 0.1;
+      const atras = [...caixas]
+        .reverse()
+        .find(
+          (c: any) =>
+            x >= (c.x ?? 0) - 0.02 &&
+            x <= (c.x ?? 0) + (c.w ?? 1) &&
+            y >= (c.y ?? 0) - 0.02 &&
+            y <= (c.y ?? 0) + (c.h ?? 1),
+        );
+      const lf = lumaCor(atras?.fundo ?? (e.props.fundo !== "nenhum" ? e.props.fundo : null));
+      const lt = lumaCor(el.cor);
+      if (lf != null && lt != null && Math.abs(lf - lt) < 0.3) {
+        el.cor = lf > 0.5 ? escuro : claro;
+        contraste++;
+      }
+      // Contorno igual ao preenchimento some: contorno passa a ser o oposto da letra.
+      const lb = lumaCor(el.contorno ?? el.borda);
+      const lc = lumaCor(el.cor);
+      if (!el.fundo && lb != null && lc != null && Math.abs(lb - lc) < 0.3) {
+        const novo = lc > 0.5 ? (marca.primaria ?? escuro) : claro;
+        const px = String(el.contorno ?? el.borda).match(/\d+(?:\.\d+)?px/)?.[0] ?? "6px";
+        el.contorno = `${px} ${novo}`;
+        delete el.borda;
+        contraste++;
+      }
+    }
+  }
+  // Palavra do CTA vem da fala deste vídeo ("comenta X"), nunca da referência.
+  const falada = String((proj.palavras ?? []).map((w: any) => w.p).join(" ")).match(
+    /coment[ae]\s+(?:a\s+palavra\s+)?["“]?([\p{L}\d]+)/iu,
+  )?.[1];
+  for (const e of tl.efeitos ?? [])
+    if (e?.tipo === "cta-final" && falada)
+      e.props = { ...(e.props ?? {}), palavra: falada.toUpperCase() };
+  if (cores || fontes || textos || contraste)
+    console.log(
+      `[vedit] referência limpa: ${cores} cores, ${fontes} fontes, ${textos} textos, ${contraste} contrastes`,
+    );
 }
 
 async function contextoMarketing(sb: any, contentItemId: string | null) {
