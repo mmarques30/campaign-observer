@@ -51,7 +51,7 @@ export const NOME_TRANSICAO: Record<(typeof TRANSICOES)[number], string> = {
   zoom: "Zoom de soco",
 };
 export const POSICOES_LEGENDA = ["inferior", "centro", "superior"] as const;
-export const LOOKS = ["natural", "quente", "frio", "cinema", "pb", "vivo"] as const;
+export const LOOKS = ["natural", "suave", "quente", "frio", "cinema", "pb", "vivo"] as const;
 
 const intervalo = z.object({ de: z.number().min(0), ate: z.number().min(0) });
 
