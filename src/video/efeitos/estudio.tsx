@@ -52,20 +52,46 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
     if (livre > 0 && alturaEst(tam0) > livre) escala = Math.max(0.5, livre / alturaEst(tam0));
   }
   const tam = tam0 * escala;
-  let iForte = 0;
-  const conteudo = (
+  // Atrás da cabeça: a cabeça cobre só a última linha forte (como na referência); as de cima ficam
+  // livres para ler. Sem rosto detectado, usa a altura pedida.
+  const topoPx =
+    p.atras && rosto && p.altura == null
+      ? Math.max(0.02 * height, (rosto.y + rosto.h * 0.12) * height - alturaEst(tam) + tam * 0.6)
+      : topo * height;
+  // Cor de cada linha forte (alternando), calculada uma vez: o título é desenhado em duas camadas.
+  const corLinha: string[] = [];
+  {
+    let n = 0;
+    linhas.forEach((l, i) => {
+      corLinha[i] = l.startsWith("~") || l.startsWith("^") ? "" : cores[n++ % cores.length];
+    });
+  }
+  // Ordem de desenho: com atras, as linhas a pincel/caligráficas vão para o topo (nunca na testa).
+  const ordem = linhas.map((_, i) => i);
+  if (p.atras) {
+    // Atrás da cabeça: 1ª linha forte, depois a(s) linha(s) a pincel, depois as outras fortes
+    // (a última é a que a cabeça cobre em parte). Assim a pincel fica acima do rosto e não tapa
+    // a leitura da 1ª linha.
+    const idxPincel = ordem.filter((i) => /^[~^]/.test(linhas[i]));
+    const idxFortes = ordem.filter((i) => !/^[~^]/.test(linhas[i]));
+    ordem.splice(0, ordem.length, ...idxFortes.slice(0, 1), ...idxPincel, ...idxFortes.slice(1));
+  }
+  // camada: "tudo" | "fortes" (atrás da pessoa) | "pincel" (na frente). O layout é o mesmo nas
+  // duas camadas; só a visibilidade de cada linha muda, para elas se encaixarem certinho.
+  const conteudo = (camada: "tudo" | "fortes" | "pincel") => (
     <div
       style={{
         position: "absolute",
         left: 0,
         right: 0,
-        top: topo * height,
+        top: topoPx,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
       }}
     >
-      {linhas.map((l, i) => {
+      {ordem.map((i) => {
+        const l = linhas[i];
         const pincel = l.startsWith("~") || l.startsWith("^");
         const caligrafia = l.startsWith("^");
         const atraso = Math.round(i * fps * 0.1);
@@ -83,12 +109,19 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
                 fontFamily: caligrafia
                   ? f("Great Vibes", "cursive")
                   : f("Permanent Marker", "cursive"),
-                fontSize: Math.min(tam * 0.95, (width * 0.8) / Math.max(4, l.length * 0.62)),
+                fontSize: Math.min(
+                  tam * (p.atras ? 0.7 : 0.95),
+                  (width * 0.8) / Math.max(4, l.length * 0.62),
+                ),
                 lineHeight: 0.9,
-                margin: `${-tam * 0.42}px 0 ${-tam * 0.12}px`,
+                // Atrás da cabeça, a linha a pincel sobe para o topo (por cima da 1ª linha), longe
+                // do rosto; no modo normal, fica na junção das linhas fortes.
+                margin: p.atras
+                  ? `${-tam * 0.3}px 0 ${-tam * 0.22}px`
+                  : `${-tam * 0.42}px 0 ${-tam * 0.12}px`,
                 color: p.corPincel ?? "#FFFFFF",
                 transform: `rotate(-6deg) scale(${interpolate(s, [0, 1], [1.4, 1])})`,
-                opacity: Math.min(1, s * 1.3) * vis,
+                opacity: Math.min(1, s * 1.3) * vis * (camada === "fortes" ? 0 : 1),
                 textShadow: `0 ${6 * k}px ${22 * k}px rgba(0,0,0,.55)`,
                 zIndex: 2,
                 whiteSpace: "nowrap",
@@ -97,7 +130,7 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
               {l.slice(1).trim()}
             </div>
           );
-        const cor = cores[iForte++ % cores.length];
+        const cor = corLinha[i];
         return (
           <div
             key={i}
@@ -109,7 +142,7 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
               textTransform: "uppercase",
               color: cor,
               transform: `scale(${interpolate(s, [0, 1], [1.35, 1])})`,
-              opacity: Math.min(1, s * 1.4) * vis,
+              opacity: Math.min(1, s * 1.4) * vis * (camada === "pincel" ? 0 : 1),
               textShadow: `0 ${8 * k}px ${30 * k}px rgba(0,0,0,.35)`,
               whiteSpace: "nowrap",
             }}
@@ -123,8 +156,16 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
   // "atras": o título passa por trás da cabeça (precisa da pessoa recortada).
   return (
     <AbsoluteFill style={{ opacity: saida }}>
-      {conteudo}
-      {atrasDeVerdade ? <Pessoa ctx={ctx} dur={dur} /> : null}
+      {atrasDeVerdade ? (
+        <>
+          {conteudo("fortes")}
+          <Pessoa ctx={ctx} dur={dur} />
+          {/* a linha a pincel/caligráfica fica na frente da pessoa, como na referência */}
+          <AbsoluteFill>{conteudo("pincel")}</AbsoluteFill>
+        </>
+      ) : (
+        conteudo("tudo")
+      )}
     </AbsoluteFill>
   );
 }
