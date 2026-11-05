@@ -45,7 +45,9 @@ export function TituloCartaz({ p, ctx, dur }: EfeitoProps) {
   const nPincel = linhas.length - fortes.length;
   const alturaEst = (k0: number) => fortes.length * k0 * 0.92 + nPincel * k0 * 0.5;
   let escala = 1;
-  if (!atrasDeVerdade && rosto) {
+  // atras pedido: tamanho cheio, como na referência (o editor gera o recorte sozinho; o render
+  // não sai sem ele). Sem atras: encolhe para caber acima da cabeça.
+  if (!p.atras && rosto) {
     const livre = (rosto.y - 0.015 - topo) * height;
     if (livre > 0 && alturaEst(tam0) > livre) escala = Math.max(0.5, livre / alturaEst(tam0));
   }

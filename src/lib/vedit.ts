@@ -694,6 +694,15 @@ export async function pedirVozLimpa(projetoId: string) {
 
 export async function pedirRender(p: Projeto, midias: Midia[]) {
   if (!p.fonte_path || !p.timeline) throw new Error("Projeto sem vídeo ou sem edição.");
+  // Sem o recorte, o texto "atrás da cabeça" sairia na frente dela no MP4.
+  const { precisaDeRecorte } = await import("@/video/catalogo");
+  if (
+    precisaDeRecorte(((p.timeline as any)?.efeitos ?? []) as any[]) &&
+    !midias.some((m) => m.nome === "recorte-pessoa.webm")
+  )
+    throw new Error(
+      "Esta edição tem texto atrás da cabeça e o recorte da pessoa ainda não ficou pronto. Espere o recorte terminar (ou clique em Recortar pessoa) e renderize de novo.",
+    );
   const props = {
     // O rosto fica numa coluna própria (o Claude reescreve a timeline e não o perderia).
     timeline: { ...(p.timeline as object), rosto: (p as any).rosto ?? null },

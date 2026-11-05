@@ -206,8 +206,9 @@ export function ModeloEdicao({
           </p>
           {selModelo.efeitos.includes("texto-atras") && (
             <p className="text-[11px] text-amber-700">
-              Para o título passar por trás da sua cabeça, gere antes o recorte (botão{" "}
-              <b>Recortar pessoa</b> no topo do editor). Sem ele, o título fica acima da cabeça.
+              O título grande passa por trás da sua cabeça: quando a edição pedir, o editor gera
+              sozinho o recorte da pessoa (alguns minutos, com a aba aberta). O MP4 só sai depois
+              que o recorte estiver pronto.
             </p>
           )}
           {selModelo.paleta && (

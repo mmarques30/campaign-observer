@@ -33,6 +33,7 @@ import { SugestaoCard } from "@/components/edicao/SugestaoCard";
 import { Trilhas } from "@/components/edicao/Trilhas";
 import { BarraFormato } from "@/components/edicao/BarraFormato";
 import { detectarRosto } from "@/lib/rosto";
+import { precisaDeRecorte } from "@/video/catalogo";
 import { medirLuz } from "@/lib/luz";
 import { ReferenciaRapida } from "@/components/edicao/ReferenciaRapida";
 import { Painel } from "@/components/edicao/Painel";
@@ -477,6 +478,22 @@ function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proj?.id, urlsQ.data?.fonte]);
   const rostoProj = (proj as any)?.rosto ?? null;
+
+  // Texto atrás da cabeça (e os outros efeitos de recorte) precisam da pessoa recortada: quando a
+  // edição pede e ainda não existe, o editor gera sozinho (uma vez por sessão), sem esperar clique.
+  const recorteAutoTentado = useRef(false);
+  useEffect(() => {
+    if (!tl || !urlsQ.data || urlsQ.data.recorte || recortando || recorteAutoTentado.current)
+      return;
+    if (!precisaDeRecorte(tl.efeitos)) return;
+    if (!suportaRecorte()) return;
+    recorteAutoTentado.current = true;
+    toast.info(
+      "Gerando o recorte da pessoa para o título passar por trás da cabeça. Leva alguns minutos: deixe esta aba aberta.",
+    );
+    void recortarPessoa();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tl?.efeitos, urlsQ.data?.recorte, !!urlsQ.data]);
 
   // Música de fundo para a linha do tempo: nome da trilha e duração do arquivo.
   const chaveMusica = tl?.musica.midia ?? null;
