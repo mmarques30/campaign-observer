@@ -86,7 +86,7 @@ export const EFEITOS: EfeitoDef[] = [
     quandoUsar:
       "Gancho dos 3 primeiros segundos e cada tópico/número de lista ('NÚMERO 1', 'SPLIT FRAME'). 2 a 4 palavras, nunca frase longa. No máx. 1 a cada 5s.",
     params:
-      "linhas: string[] (1–4; prefixe com ~ a linha a pincel e com ^ a linha caligráfica, ex.: ['ESSAS SÃO', 'MINHAS 3', '~favoritas'] ou ['ROTINA', '^de verdade']; pareie sempre a condensada com uma das duas), cores?: [cor1, cor2] (padrão destaque e texto da marca), altura?: 0–0.4 (topo, padrão 0.05), piscar?: bool (flicker de entrada), atras?: bool (por trás da cabeça; só funciona com a pessoa recortada; sem recorte o título encolhe para caber acima da cabeça), corPincel?",
+      "linhas: string[] (1–4; prefixe com ~ a linha a pincel e com ^ a linha caligráfica, ex.: ['ESSAS SÃO', 'MINHAS 3', '~favoritas'] ou ['ROTINA', '^de verdade']; pareie sempre a condensada com uma das duas), cores?: [cor1, cor2] (padrão destaque e texto da marca), altura?: 0–0.4 (topo, padrão 0.05), piscar?: bool (flicker de entrada), atras?: bool (título grande passando por trás da cabeça, como na referência; o editor gera o recorte da pessoa sozinho; sem atras, o título encolhe para caber acima da cabeça), corPincel?",
     duracaoPadrao: 2.4,
     somPadrao: "impacto",
     disponivel: true,
@@ -831,6 +831,13 @@ export const EFEITOS: EfeitoDef[] = [
     inspiracao: "mr.pynk (Buzzy/Higgsfield)",
   },
 ];
+
+/** A edição usa algum efeito que precisa da pessoa recortada (texto atrás da cabeça etc.)? */
+export function precisaDeRecorte(efeitos: { tipo: string; props?: Record<string, any> }[]) {
+  return efeitos.some(
+    (e) => EFEITO_POR_TIPO[e.tipo]?.precisaRecorte || (e.props as any)?.atras === true,
+  );
+}
 
 export const EFEITO_POR_TIPO: Record<string, EfeitoDef> = Object.fromEntries(
   EFEITOS.map((e) => [e.tipo, e]),
