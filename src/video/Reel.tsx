@@ -49,6 +49,10 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
   return partes.join(" ");
 }
 
+const ALTERNA_ESCALA = 1.08;
+// Duração da fusão entre trechos na transição "suave" (~0,33 s a 30 fps).
+const DISSOLVE_QUADROS = 10;
+
 /** Escala de zoom num frame de saída: alternância por trecho + eventos de ênfase. */
 function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trecho[]) {
   const tl = props.timeline;
@@ -60,7 +64,18 @@ function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trec
       const fim = (trechos[i + 1]?.saidaDe ?? Infinity) * fps;
       return frame >= t.saidaDe * fps && frame < fim;
     });
-    if (idx % 2 === 1) escala = 1.12;
+    // Alternância discreta (1.08): o corte de "câmera" fica intencional sem cortar demais a cabeça.
+    const alvo = (i: number) => (i % 2 === 1 ? ALTERNA_ESCALA : 1);
+    escala = alvo(idx);
+    // Com dissolve, a escala desliza do trecho anterior para o novo durante a fusão (sem salto).
+    if (tl.visual.transicao === "suave" && idx > 0) {
+      const desde = frame - Math.round(trechos[idx].saidaDe * fps);
+      if (desde < DISSOLVE_QUADROS)
+        escala = interpolate(desde, [0, DISSOLVE_QUADROS], [alvo(idx - 1), alvo(idx)], {
+          easing: Easing.inOut(Easing.cubic),
+          extrapolateRight: "clamp",
+        });
+    }
   }
   for (const ev of tl.zoom.eventos) {
     const [ini, dur] = janelaFrames(trechos, ev.de, ev.ate, fps);
@@ -71,7 +86,10 @@ function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trec
         : interpolate(frame - ini, [0, Math.min(dur, fps * 0.8)], [0, 1], {
             extrapolateRight: "clamp",
           });
-    const sai = interpolate(frame, [ini + dur - 4, ini + dur], [1, 0], {
+    // Sai tão suave quanto entra: o zoom de ênfase nunca "despenca" no meio da fala.
+    const saida = Math.min(Math.round(fps * 0.6), Math.max(4, Math.floor(dur / 3)));
+    const sai = interpolate(frame, [ini + dur - saida, ini + dur], [1, 0], {
+      easing: Easing.inOut(Easing.quad),
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     });
@@ -272,7 +290,7 @@ export function Reel(bruto: ReelProps) {
   // a rampa é maior (o corte de voz fica imperceptível, como o dissolve na imagem).
   const volumeNoCorte = (t: Trecho) => {
     const total = Math.max(1, Math.round(duracaoTrecho(t) * fps));
-    const r = tl.visual.transicao === "suave" ? 4 : 2;
+    const r = tl.visual.transicao === "suave" ? 6 : 3;
     return (q: number) => volumeVoz * Math.max(0, Math.min(1, (q + 1) / r, (total - q) / r));
   };
 
@@ -563,7 +581,7 @@ export function Reel(bruto: ReelProps) {
               props.fonteUrl &&
               trechos.slice(1).map((t, k) => {
                 const ant = trechos[k];
-                const d = Math.min(8, Math.round(duracaoTrecho(t) * fps) - 1);
+                const d = Math.min(DISSOLVE_QUADROS, Math.round(duracaoTrecho(t) * fps) - 1);
                 if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
                   return null;
                 return (
