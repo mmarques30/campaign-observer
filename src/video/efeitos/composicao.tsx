@@ -212,6 +212,13 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           backdropFilter: el.vidro ? "blur(22px) saturate(140%)" : undefined,
           WebkitBackdropFilter: el.vidro ? "blur(22px) saturate(140%)" : undefined,
           overflow: tipo === "midia" ? "hidden" : undefined,
+          // Imagem ofuscada de fundo some num degradê embaixo: sem borda dura cortando o quadro.
+          ...(tipo === "midia" && el.desfoque
+            ? {
+                maskImage: "linear-gradient(to bottom, #000 45%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to bottom, #000 45%, transparent 100%)",
+              }
+            : {}),
         };
 
         if (tipo === "brilho")
