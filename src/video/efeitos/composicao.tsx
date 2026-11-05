@@ -66,7 +66,8 @@ type Elemento = {
   espacamento?: number; // letter-spacing em px
   alinhar?: "esquerda" | "centro" | "direita";
   fundo?: string; // cor/gradiente CSS
-  borda?: string; // cor da borda
+  borda?: string; // cor da borda (em texto sem fundo vira contorno das letras)
+  contorno?: string; // texto: contorno das letras, ex. "8px #E8458A" (título com stroke)
   raio?: number;
   sombra?: boolean;
   vidro?: boolean; // desfoque do que está atrás
@@ -135,6 +136,20 @@ function animacao(el: Elemento, frame: number, fps: number, k: number) {
   return { s, transform, filter, opacidade, atraso };
 }
 
+/** Contorno das letras: `contorno`, ou `borda` num texto sem fundo (é assim que as referências descrevem stroke). */
+function contornoTexto(el: Elemento, k: number): React.CSSProperties | null {
+  const v = el.contorno ?? ((el.tipo ?? "texto") === "texto" && !el.fundo ? el.borda : undefined);
+  if (!v) return null;
+  const m = v.match(/(\d+(?:\.\d+)?)px\s+(.+)/);
+  const px = m ? Number(m[1]) : 6;
+  const cor = (m ? m[2] : v).replace(/\b(solid|dashed|dotted)\b/g, "").trim();
+  return {
+    WebkitTextStroke: `${px * 2 * k}px ${cor}`,
+    paintOrder: "stroke fill",
+    textShadow: undefined,
+  } as React.CSSProperties;
+}
+
 export function Composicao({ p, ctx, dur }: EfeitoProps) {
   const { width, height } = useVideoConfig();
   const k = u(width);
@@ -196,11 +211,12 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
             undefined,
           borderRadius: (el.raio ?? (tipo === "texto" ? 0 : 24)) * k,
           background: el.fundo,
-          border: el.borda
-            ? /\b(solid|dashed|dotted)\b/.test(el.borda)
-              ? el.borda
-              : `${Math.max(1, 2 * k)}px solid ${el.borda}`
-            : undefined,
+          border:
+            el.borda && !(tipo === "texto" && !el.fundo)
+              ? /\b(solid|dashed|dotted)\b/.test(el.borda)
+                ? el.borda
+                : `${Math.max(1, 2 * k)}px solid ${el.borda}`
+              : undefined,
           boxShadow:
             [
               // Em texto a sombra é só no traço (textShadow); boxShadow desenharia um retângulo escuro.
@@ -330,6 +346,7 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
                       : "center",
                 textTransform: el.maiusculas ? "uppercase" : undefined,
                 textShadow: el.fundo ? undefined : "0 4px 24px rgba(0,0,0,.45)",
+                ...(contornoTexto(el, k) ?? {}),
                 width: "100%",
                 whiteSpace: "pre-line",
               }}
