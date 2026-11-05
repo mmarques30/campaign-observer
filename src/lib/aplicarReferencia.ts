@@ -3,6 +3,7 @@ import { db, enviarAoClaude, salvarManual, type Projeto } from "@/lib/vedit";
 import { EFEITO_POR_TIPO } from "@/video/catalogo";
 import { ESTILOS_LEGENDA, LOOKS, TRANSICOES, normalizarTimeline } from "@/video/schema";
 import type { Analise, Referencia } from "@/lib/referencias";
+import { dosagemLuz, lookCompativel, type Luz } from "@/lib/luz";
 
 // Ao seguir referência, todo o visual sai da composição livre (cards, telas, ícones e imagens
 // viram elementos dela): os modelos prontos (cards-flutuantes, mockup, broll…) destoavam.
@@ -26,12 +27,15 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
     throw new Error(
       "A transcrição deste vídeo ainda não terminou. Espere ela aparecer e aplique a referência de novo.",
     );
+  const luz = (proj as { luz?: Luz | null }).luz ?? null;
+  const dose = dosagemLuz(luz);
   const tl = normalizarTimeline(p.timeline ?? {}).timeline;
   const pr = a.preset_estilo ?? {};
   // Paleta fechada ao seguir referência: o visual vem da composição livre, não dos modelos prontos.
   const efeitos = PALETA_REFERENCIA.filter((t) => EFEITO_POR_TIPO[t]?.disponivel);
   const estiloLeg = valido(ESTILOS_LEGENDA, pr.legenda ?? a.ritmo?.legenda_estilo);
-  const look = valido(LOOKS, pr.look);
+  // O look da referência só entra se não brigar com a luz do nosso vídeo (medida no editor).
+  const look = valido(LOOKS, lookCompativel(pr.look, luz));
   const transicao = valido(TRANSICOES, pr.transicao);
   const novo = {
     ...tl,
@@ -45,7 +49,18 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
         ? { palavrasPorBloco: Math.min(8, Math.max(1, a.ritmo.legenda_palavras_por_bloco)) }
         : {}),
     },
-    visual: { ...tl.visual, ...(look ? { look } : {}), ...(transicao ? { transicao } : {}) },
+    // Correção de cor dosada pela medição do NOSSO vídeo (pele, exposição), não pela luz da referência.
+    visual: {
+      ...tl.visual,
+      brilho: 1,
+      contraste: 1,
+      saturacao: 1,
+      temperatura: 0,
+      sombras: 0,
+      ...dose.visual,
+      ...(look ? { look } : {}),
+      ...(transicao ? { transicao } : {}),
+    },
     // Tipografia e cores continuam as da marca: da referência vem a forma (layout, ritmo,
     // legenda, look), não a identidade visual de outra empresa.
     marca: { ...tl.marca },
@@ -95,7 +110,8 @@ REGRAS AO SEGUIR A REFERÊNCIA:
    Use só ids de MÍDIAS ENVIADAS ou devolvidos por buscar_midia (id inventado é descartado). Nada de molduras vazias. Na resposta, diga em uma frase quais imagens você colocou e em que momento.
 6. Ritmo: no máximo um grafismo a cada 5–8 segundos, cada um com 2–4 s, e o vídeo respirando entre eles (você falando sem nada por cima).
 7. Nada em cima do rosto. O rosto está em ${rosto ? `x ${rosto.x.toFixed(2)}, y ${rosto.y.toFixed(2)}, w ${rosto.w.toFixed(2)}, h ${rosto.h.toFixed(2)}` : "no centro do quadro"} (frações do quadro): imagens e cards ficam ACIMA (y + h < ${rosto ? (rosto.y - 0.02).toFixed(2) : "0.30"}) ou ABAIXO (y > ${rosto ? (rosto.y + rosto.h + 0.02).toFixed(2) : "0.66"}) dele, e cabem nesse espaço (uma imagem acima da cabeça tem no máximo essa altura). Nada de imagem grande no meio do quadro.
-8. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
+8. LUZ E COR: a cor da referência NÃO se copia (foi gravada com outra luz). A correção de imagem (visual.brilho/contraste/saturacao/temperatura/sombras) já foi dosada pela medição deste vídeo — ${dose.resumo} — e você NÃO mexe nela nem no look. Lembre que a compressão da Meta puxa vermelho e satura: nada de look quente, saturação acima de 1 ou grafismo laranja/vermelho grande perto do rosto. Cores dos grafismos: as da marca, escolhendo fundo escuro ou claro pelo que contrasta com o quadro (quadro ${luz ? (luz.lumaMedia < 0.3 ? "escuro → grafismos claros/vidro" : luz.lumaMedia > 0.65 ? "claro → grafismos escuros" : "médio") : "não medido"}).
+9. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
   );
   return { nome: novo.modelo.nome, pedido };
 }
