@@ -118,6 +118,8 @@ export const timelineSchema = z.object({
       altura: z.number().min(0.1).max(0.9).nullable().default(null),
       // Tamanho da letra (1 = padrão do estilo).
       tamanho: z.number().min(0.5).max(1.8).default(1),
+      // Espaçamento entre letras em px num quadro de 1080 (negativo = "esmagado", hack de legenda).
+      espacamento: z.number().min(-8).max(6).default(0),
     })
     .default({}),
   efeitos: z.array(efeitoSchema).default([]),

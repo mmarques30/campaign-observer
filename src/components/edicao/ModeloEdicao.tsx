@@ -204,6 +204,12 @@ export function ModeloEdicao({
             e zoom; depois peça <b>/editar</b> para o editor colocar os grafismos, sons e cortes no
             padrão do estilo.
           </p>
+          {selModelo.efeitos.includes("texto-atras") && (
+            <p className="text-[11px] text-amber-700">
+              Para o título passar por trás da sua cabeça, gere antes o recorte (botão{" "}
+              <b>Recortar pessoa</b> no topo do editor). Sem ele, o título fica acima da cabeça.
+            </p>
+          )}
           {selModelo.paleta && (
             <label className="flex items-center gap-2 text-[11px]">
               <Switch checked={coresRef} onCheckedChange={setCoresRef} />
