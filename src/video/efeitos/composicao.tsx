@@ -91,6 +91,9 @@ type Elemento = {
   atraso?: number; // segundos depois do início do efeito
   flutuar?: boolean;
   livreDoRosto?: boolean; // false = pode ficar sobre o rosto (raro)
+  desfoque?: number; // px num quadro de 1080: imagem ofuscada atrás (ex.: 8)
+  encaixe?: "cobre" | "contem"; // mídia: "contem" mostra a imagem inteira (logos)
+  margem?: number; // respiro interno da mídia em px (logos dentro do selo)
 };
 
 function animacao(el: Elemento, frame: number, fps: number, k: number) {
@@ -185,7 +188,9 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
           height: tipo === "texto" ? undefined : caixa.h * height,
           opacity: a.opacidade * (el.opacidade ?? 1),
           transform: `${a.transform} translateY(${flutua}px) rotate(${el.giro ?? 0}deg) rotateY(${el.giroY ?? 0}deg) rotateX(${el.giroX ?? 0}deg)`,
-          filter: a.filter || undefined,
+          filter:
+            [a.filter, el.desfoque ? `blur(${el.desfoque * k}px)` : ""].filter(Boolean).join(" ") ||
+            undefined,
           borderRadius: (el.raio ?? (tipo === "texto" ? 0 : 24)) * k,
           background: el.fundo,
           border: el.borda
@@ -237,7 +242,19 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
         if (tipo === "midia")
           return (
             <div key={i} style={base}>
-              <Midia ctx={ctx} midia={el.midia} />
+              <Midia
+                ctx={ctx}
+                midia={el.midia}
+                style={
+                  el.encaixe === "contem"
+                    ? {
+                        objectFit: "contain",
+                        padding: (el.margem ?? 14) * k,
+                        boxSizing: "border-box",
+                      }
+                    : undefined
+                }
+              />
             </div>
           );
         if (tipo === "icone") {
