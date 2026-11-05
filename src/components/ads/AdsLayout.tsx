@@ -841,7 +841,10 @@ export function AdsLayout() {
           </header>
 
           <div className="flex-1 overflow-auto bg-aurora">
-            <div className="relative z-[1] p-4 sm:p-6 lg:p-8 w-full max-w-[1680px] mx-auto">
+            {/* Página de sistema ocupa toda a largura disponível (sem max-w + mx-auto):
+                cards, gráficos e tabelas se adaptam à tela em vez de ficarem numa
+                coluna centralizada com margens vazias. */}
+            <div className="relative z-[1] p-4 sm:p-6 lg:p-8 w-full min-w-0">
               {semAcesso ? (
                 <div className="min-h-[50vh] flex items-center justify-center animate-fade-up">
                   <div className="text-center max-w-sm">
