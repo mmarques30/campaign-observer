@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 // Edição de criativos: fotos, projetos, chamadas ao agente e exportação em PNG.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -242,11 +243,76 @@ const nomeBase = (nome: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase() || "criativo";
-const baixar = (href: string, arq: string) => {
-  const a = document.createElement("a");
-  a.href = href;
-  a.download = arq;
-  a.click();
+/**
+ * Entrega do arquivo. O PNG/zip fica pronto segundos depois do clique, e o navegador bloqueia
+ * download automático sem clique (principalmente a partir do segundo). Por isso:
+ * 1) no Chrome, pedimos o local de salvar NO CLIQUE (abrirDestino) e escrevemos nele depois;
+ * 2) sem isso, tentamos o link e mostramos uma notificação com botão "Salvar", que baixa
+ *    dentro de um clique de verdade.
+ */
+export type Destino = { escrever: (blob: Blob) => Promise<void> } | null;
+export async function abrirDestino(arq: string): Promise<Destino> {
+  const w = window as unknown as {
+    showSaveFilePicker?: (o: unknown) => Promise<{
+      createWritable: () => Promise<{
+        write: (b: Blob) => Promise<void>;
+        close: () => Promise<void>;
+      }>;
+    }>;
+  };
+  if (!w.showSaveFilePicker || window.self !== window.top) return null;
+  try {
+    const ext = arq.split(".").pop() ?? "png";
+    const handle = await w.showSaveFilePicker({
+      suggestedName: arq,
+      types: [
+        ext === "zip"
+          ? { description: "Pacote de imagens", accept: { "application/zip": [".zip"] } }
+          : { description: "Imagem PNG", accept: { "image/png": [".png"] } },
+      ],
+    });
+    return {
+      escrever: async (blob: Blob) => {
+        const ws = await handle.createWritable();
+        await ws.write(blob);
+        await ws.close();
+      },
+    };
+  } catch (e) {
+    // Cancelou o diálogo: não baixa nada.
+    if ((e as Error).name === "AbortError") throw new Error("download cancelado");
+    return null;
+  }
+}
+async function entregar(blob: Blob, arq: string, destino: Destino) {
+  if (destino) {
+    await destino.escrever(blob);
+    toast.success(`Salvo: ${arq}`);
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const clicar = () => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = arq;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+  clicar();
+  toast("Se o download não apareceu, clique em Salvar.", {
+    description: arq,
+    duration: 20_000,
+    action: { label: "Salvar", onClick: clicar },
+  });
+  setTimeout(() => URL.revokeObjectURL(url), 120_000);
+}
+const b64ParaBlob = (dataUrl: string, tipo: string) => {
+  const b = atob(dataUrl.split(",")[1]);
+  const u = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  return new Blob([u], { type: tipo });
 };
 /** Nome da pasta/sufixo de cada formato no zip. */
 export const PASTA_FORMATO: Record<Formato, string> = {
@@ -256,7 +322,15 @@ export const PASTA_FORMATO: Record<Formato, string> = {
 };
 
 /** Zip com uma pasta por formato e arquivos numerados na ordem dos cards. */
-export async function baixarPacote(porFormato: Partial<Record<Formato, string[]>>, nome: string) {
+export const nomeArquivoPacote = (nome: string) => `${nomeBase(nome)}-todos-os-formatos.zip`;
+export const nomeArquivoPngs = (nome: string, n: number) =>
+  n === 1 ? `${nomeBase(nome)}.png` : `${nomeBase(nome)}.zip`;
+
+export async function baixarPacote(
+  porFormato: Partial<Record<Formato, string[]>>,
+  nome: string,
+  destino: Destino = null,
+) {
   const base = nomeBase(nome);
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
@@ -270,20 +344,16 @@ export async function baixarPacote(porFormato: Partial<Record<Formato, string[]>
       ),
     );
   }
-  const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
-  baixar(url, `${base}-todos-os-formatos.zip`);
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  await entregar(await zip.generateAsync({ type: "blob" }), nomeArquivoPacote(nome), destino);
 }
 
-export async function baixarPngs(pngs: string[], nome: string) {
+export async function baixarPngs(pngs: string[], nome: string, destino: Destino = null) {
   const base = nomeBase(nome);
-  if (pngs.length === 1) return baixar(pngs[0], `${base}.png`);
+  if (pngs.length === 1) return entregar(b64ParaBlob(pngs[0], "image/png"), `${base}.png`, destino);
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   pngs.forEach((p, i) =>
     zip.file(`${base}-${String(i + 1).padStart(2, "0")}.png`, p.split(",")[1], { base64: true }),
   );
-  const url = URL.createObjectURL(await zip.generateAsync({ type: "blob" }));
-  baixar(url, `${base}.zip`);
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  await entregar(await zip.generateAsync({ type: "blob" }), `${base}.zip`, destino);
 }
