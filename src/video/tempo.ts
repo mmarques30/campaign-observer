@@ -120,3 +120,38 @@ export function janelaFrames(
   const ini = Math.round(a * fps);
   return [ini, Math.max(1, Math.round(b * fps) - ini)];
 }
+
+/** Quadros do dissolve normal entre cortes e na emenda de dois vídeos juntados. */
+export const DISSOLVE_QUADROS = 10;
+export const DISSOLVE_EMENDA = 15;
+
+/** Transição na entrada do trecho i: a da emenda (vídeo juntado) ou a dos cortes comuns. */
+export function transicaoDoTrecho(tl: Timeline, trechos: Trecho[], i: number) {
+  if (i <= 0 || !trechos[i]) return "nenhuma";
+  return emendaAntes(tl, trechos[i - 1], trechos[i])?.transicao ?? tl.visual.transicao;
+}
+
+/**
+ * Duração (quadros) do dissolve na entrada do trecho i, 0 se não tem. Uma regra só para o vídeo
+ * base e para a pessoa recortada: se as duas camadas dissolvessem em tempos diferentes, a pessoa
+ * aparecia em dobro no corte.
+ */
+export function quadrosDissolve(
+  tl: Timeline,
+  trechos: Trecho[],
+  i: number,
+  duracaoFonte: number,
+  fps: number,
+) {
+  if (transicaoDoTrecho(tl, trechos, i) !== "suave") return 0;
+  const t = trechos[i],
+    ant = trechos[i - 1];
+  const emenda = emendaAntes(tl, ant, t);
+  const limite = emenda ? emenda.em : duracaoFonte || Infinity;
+  const d = Math.min(
+    emenda ? DISSOLVE_EMENDA : DISSOLVE_QUADROS,
+    Math.round(duracaoTrecho(t) * fps) - 1,
+    Math.floor((limite - ant.ate) * fps),
+  );
+  return d >= 3 ? d : 0;
+}

@@ -21,8 +21,11 @@ import { urlTrilhaBase } from "./trilhas";
 import { normalizarTimeline, type ReelProps } from "./schema";
 import {
   duracaoTrecho,
+  DISSOLVE_QUADROS,
   emendaAntes,
   janelaFrames,
+  quadrosDissolve,
+  transicaoDoTrecho,
   paraSaida,
   trechosMantidos,
   type Trecho,
@@ -60,15 +63,6 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
 
 const ALTERNA_ESCALA = 1.08;
 // Duração da fusão entre trechos na transição "suave" (~0,33 s a 30 fps).
-const DISSOLVE_QUADROS = 10;
-// Na emenda entre dois vídeos o dissolve é mais longo: é a passagem de uma gravação para outra.
-const DISSOLVE_EMENDA = 15;
-
-/** Transição na entrada do trecho i: a da emenda (vídeo juntado) ou a dos cortes comuns. */
-function transicaoDoTrecho(tl: ReelProps["timeline"], trechos: Trecho[], i: number) {
-  if (i <= 0 || !trechos[i]) return "nenhuma";
-  return emendaAntes(tl, trechos[i - 1], trechos[i])?.transicao ?? tl.visual.transicao;
-}
 
 /** Escala de zoom num frame de saída: alternância por trecho + eventos de ênfase. */
 function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trecho[]) {
@@ -631,18 +625,11 @@ export function Reel(bruto: ReelProps) {
             {!props.modoGaleria &&
               props.fonteUrl &&
               trechos.slice(1).map((t, k) => {
-                if (transicaoDoTrecho(tl, trechos, k + 1) !== "suave") return null;
                 const ant = trechos[k];
-                // Na emenda, a sobra do vídeo anterior vai só até onde ele acaba (o arquivo
-                // continua com o vídeo seguinte).
-                const emenda = emendaAntes(tl, ant, t);
-                const limite = emenda ? emenda.em : props.duracaoFonte || Infinity;
-                const d = Math.min(
-                  emenda ? DISSOLVE_EMENDA : DISSOLVE_QUADROS,
-                  Math.round(duracaoTrecho(t) * fps) - 1,
-                  Math.floor((limite - ant.ate) * fps),
-                );
-                if (d < 3) return null;
+                // Na emenda, a sobra do vídeo anterior vai só até onde ele acaba (regra em tempo.ts,
+                // a mesma da pessoa recortada).
+                const d = quadrosDissolve(tl, trechos, k + 1, props.duracaoFonte, fps);
+                if (!d) return null;
                 return (
                   <Sequence
                     key={`d${k}`}
