@@ -13,8 +13,21 @@ export async function prepararRecorte(
   projetoId: string,
   file: File,
   onProgresso?: (p: number, etapa: string) => void,
+  fonteEsperada?: string | null,
 ) {
   const r = await gerarRecorte(file, { onProgresso });
+  // O vídeo do projeto pode ter mudado enquanto o recorte era gerado (juntar vídeos, gravar os
+  // cortes): um recorte do vídeo antigo fica fora de sincronia e aparece como uma "sombra"
+  // duplicada da pessoa. Nesse caso descarta.
+  if (fonteEsperada) {
+    const { data } = await db()
+      .from("vedit_projetos")
+      .select("fonte_path")
+      .eq("id", projetoId)
+      .single();
+    if (data?.fonte_path && data.fonte_path !== fonteEsperada)
+      throw new Error("o vídeo do projeto mudou durante o recorte; gere de novo");
+  }
   const path = `${projetoId}/${NOME_RECORTE}`;
   const up = await supabase.storage.from(BUCKET).upload(path, r.blob, { contentType: "video/webm", upsert: true });
   if (up.error) throw new Error(up.error.message);
