@@ -4,12 +4,41 @@ import type { Timeline } from "./schema";
 
 export type Trecho = { de: number; ate: number; saidaDe: number; vel: number };
 
+/** Sobra do vídeo anterior numa emenda com dissolve (segundos). */
+export const FOLGA_EMENDA = 0.5;
+
+/** Emenda que fica entre o trecho anterior e este (o vídeo juntado começa aqui), se houver. */
+export function emendaAntes(
+  tl: Timeline,
+  ant: Pick<Trecho, "ate"> | undefined,
+  t: Pick<Trecho, "de">,
+) {
+  if (!ant) return undefined;
+  return (tl.emendas ?? []).find((e) => e.em >= ant.ate - 0.05 && e.em <= t.de + 0.05);
+}
+
 /** Duração do trecho no vídeo final (acelerado fica mais curto). */
 export const duracaoTrecho = (t: Pick<Trecho, "de" | "ate" | "vel">) =>
   (t.ate - t.de) / (t.vel || 1);
 
 export function trechosMantidos(tl: Timeline, duracaoFonte: number): Trecho[] {
-  const brutos = tl.cortes.length ? tl.cortes : [{ de: 0, ate: duracaoFonte }];
+  let brutos: { de: number; ate: number; velocidade?: number }[] = tl.cortes.length
+    ? tl.cortes
+    : [{ de: 0, ate: duracaoFonte }];
+  // Emenda (dois vídeos juntados): o trecho que a atravessa é dividido nela, para a transição da
+  // emenda acontecer ali. O lado de antes termina um pouco antes: essa sobra do vídeo anterior
+  // é o que aparece se dissolvendo por cima do próximo (e permite trocar a transição depois).
+  for (const e of tl.emendas ?? []) {
+    const folga = FOLGA_EMENDA;
+    brutos = brutos.flatMap((c) =>
+      c.de < e.em - 0.05 && c.ate > e.em + 0.05
+        ? [
+            { ...c, ate: Math.max(c.de + 0.05, e.em - folga) },
+            { ...c, de: e.em },
+          ]
+        : [c],
+    );
+  }
   const limpos = brutos
     .map((c) => ({
       de: Math.max(0, c.de),

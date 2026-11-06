@@ -19,7 +19,14 @@ import { EFEITO_POR_TIPO } from "./catalogo";
 import { urlSom } from "./sons";
 import { urlTrilhaBase } from "./trilhas";
 import { normalizarTimeline, type ReelProps } from "./schema";
-import { duracaoTrecho, janelaFrames, paraSaida, trechosMantidos, type Trecho } from "./tempo";
+import {
+  duracaoTrecho,
+  emendaAntes,
+  janelaFrames,
+  paraSaida,
+  trechosMantidos,
+  type Trecho,
+} from "./tempo";
 
 const FILTRO_LOOK: Record<string, string> = {
   natural: "none",
@@ -54,6 +61,14 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
 const ALTERNA_ESCALA = 1.08;
 // Duração da fusão entre trechos na transição "suave" (~0,33 s a 30 fps).
 const DISSOLVE_QUADROS = 10;
+// Na emenda entre dois vídeos o dissolve é mais longo: é a passagem de uma gravação para outra.
+const DISSOLVE_EMENDA = 15;
+
+/** Transição na entrada do trecho i: a da emenda (vídeo juntado) ou a dos cortes comuns. */
+function transicaoDoTrecho(tl: ReelProps["timeline"], trechos: Trecho[], i: number) {
+  if (i <= 0 || !trechos[i]) return "nenhuma";
+  return emendaAntes(tl, trechos[i - 1], trechos[i])?.transicao ?? tl.visual.transicao;
+}
 
 /** Escala de zoom num frame de saída: alternância por trecho + eventos de ênfase. */
 function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trecho[]) {
@@ -70,7 +85,7 @@ function zoomNoFrame(frame: number, fps: number, props: ReelProps, trechos: Trec
     const alvo = (i: number) => (i % 2 === 1 ? ALTERNA_ESCALA : 1);
     escala = alvo(idx);
     // Com dissolve, a escala desliza do trecho anterior para o novo durante a fusão (sem salto).
-    if (tl.visual.transicao === "suave" && idx > 0) {
+    if (idx > 0 && transicaoDoTrecho(tl, trechos, idx) === "suave") {
       const desde = frame - Math.round(trechos[idx].saidaDe * fps);
       if (desde < DISSOLVE_QUADROS)
         escala = interpolate(desde, [0, DISSOLVE_QUADROS], [alvo(idx - 1), alvo(idx)], {
@@ -292,8 +307,15 @@ export function Reel(bruto: ReelProps) {
   // a rampa é maior (o corte de voz fica imperceptível, como o dissolve na imagem).
   const volumeNoCorte = (t: Trecho) => {
     const total = Math.max(1, Math.round(duracaoTrecho(t) * fps));
-    const r = tl.visual.transicao === "suave" ? 6 : 3;
-    return (q: number) => volumeVoz * Math.max(0, Math.min(1, (q + 1) / r, (total - q) / r));
+    const i = trechos.indexOf(t);
+    const rampa = (k: number) => {
+      if (k <= 0 || k >= trechos.length) return 3;
+      if (emendaAntes(tl, trechos[k - 1], trechos[k])) return 10; // troca de gravação: rampa longa
+      return transicaoDoTrecho(tl, trechos, k) === "suave" ? 6 : 3;
+    };
+    const rIn = rampa(i),
+      rOut = rampa(i + 1);
+    return (q: number) => volumeVoz * Math.max(0, Math.min(1, (q + 1) / rIn, (total - q) / rOut));
   };
 
   // Efeito de transição no início de cada trecho (menos o primeiro).
@@ -304,13 +326,18 @@ export function Reel(bruto: ReelProps) {
     inicioTrechoAtual && inicioTrechoAtual.saidaDe > 0
       ? frame - Math.round(inicioTrechoAtual.saidaDe * fps)
       : 999;
-  const trans = tl.visual.transicao;
-  let extraEscala = 1,
-    extraX = 0,
-    blur = 0;
   // Quadros até o próximo corte (para transições que começam antes dele).
   const proxTrecho = trechos.find((t) => Math.round(t.saidaDe * fps) > frame);
   const ateCorte = proxTrecho ? Math.round(proxTrecho.saidaDe * fps) - frame : 999;
+  // Perto de um corte vale a transição DESSE corte (a emenda de um vídeo juntado tem a sua).
+  const idxAtual = inicioTrechoAtual ? trechos.indexOf(inicioTrechoAtual) : 0;
+  const idxCorte = proxTrecho && ateCorte < desdeCorte ? trechos.indexOf(proxTrecho) : idxAtual;
+  const trans = transicaoDoTrecho(tl, trechos, idxCorte);
+  // Emenda entre dois vídeos: as transições ficam mais longas (troca de gravação, não de frase).
+  const naEmenda = idxCorte > 0 && !!emendaAntes(tl, trechos[idxCorte - 1], trechos[idxCorte]);
+  let extraEscala = 1,
+    extraX = 0,
+    blur = 0;
   // Curva em "pico" no corte: sobe nos últimos quadros do trecho e desce nos primeiros do próximo.
   const picoNoCorte = (antes: number, depois: number) =>
     Math.max(
@@ -324,9 +351,9 @@ export function Reel(bruto: ReelProps) {
   if (trans === "zoom" && desdeCorte < 7) extraEscala = interpolate(desdeCorte, [0, 7], [1.25, 1]);
   if (trans === "zoom-suave" && desdeCorte < 12)
     extraEscala = interpolate(desdeCorte, [0, 12], [1.07, 1], { easing: Easing.out(Easing.cubic) });
-  if (trans === "escurecer") escuro = 0.9 * picoNoCorte(3, 4);
+  if (trans === "escurecer") escuro = naEmenda ? picoNoCorte(9, 12) : 0.9 * picoNoCorte(3, 4);
   if (trans === "desfoque") {
-    const k = picoNoCorte(3, 5);
+    const k = naEmenda ? picoNoCorte(6, 9) : picoNoCorte(3, 5);
     blur = 12 * k;
     brilho = 1 + 0.1 * k;
   }
@@ -601,14 +628,21 @@ export function Reel(bruto: ReelProps) {
               ))
             )}
             {/* Dissolve: a imagem do trecho anterior continua alguns quadros por cima e some aos poucos. */}
-            {trans === "suave" &&
-              !props.modoGaleria &&
+            {!props.modoGaleria &&
               props.fonteUrl &&
               trechos.slice(1).map((t, k) => {
+                if (transicaoDoTrecho(tl, trechos, k + 1) !== "suave") return null;
                 const ant = trechos[k];
-                const d = Math.min(DISSOLVE_QUADROS, Math.round(duracaoTrecho(t) * fps) - 1);
-                if (d < 3 || (props.duracaoFonte && ant.ate + d / fps > props.duracaoFonte))
-                  return null;
+                // Na emenda, a sobra do vídeo anterior vai só até onde ele acaba (o arquivo
+                // continua com o vídeo seguinte).
+                const emenda = emendaAntes(tl, ant, t);
+                const limite = emenda ? emenda.em : props.duracaoFonte || Infinity;
+                const d = Math.min(
+                  emenda ? DISSOLVE_EMENDA : DISSOLVE_QUADROS,
+                  Math.round(duracaoTrecho(t) * fps) - 1,
+                  Math.floor((limite - ant.ate) * fps),
+                );
+                if (d < 3) return null;
                 return (
                   <Sequence
                     key={`d${k}`}
@@ -653,12 +687,15 @@ export function Reel(bruto: ReelProps) {
       }) && <Legenda tl={tl} palavras={props.palavras} trechos={trechos} />}
       {camada(true)}
 
-      {trans !== "nenhuma" &&
-        trechos.slice(1).map((t, i) => (
+      {trechos.slice(1).map((t, i) => {
+        const tipo = transicaoDoTrecho(tl, trechos, i + 1);
+        if (tipo === "nenhuma") return null;
+        return (
           <Sequence key={`tr${i}`} from={Math.round(t.saidaDe * fps)} durationInFrames={8}>
-            <Transicao tipo={trans} />
+            <Transicao tipo={tipo} />
           </Sequence>
-        ))}
+        );
+      })}
 
       {tl.visual.barraProgresso && (
         <div

@@ -78,9 +78,11 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
-  const { projeto_id, revisar } = await req.json().catch(() => ({}));
+  const { projeto_id, revisar, arquivo } = await req.json().catch(() => ({}));
   if (!projeto_id) return json({ error: "projeto_id obrigatório" }, 400);
   if (revisar) return revisarProjeto(sb, projeto_id);
+  // Vídeo juntado: transcreve só o áudio dele e devolve as palavras (quem chama encaixa no projeto).
+  if (arquivo) return transcreverArquivo(sb, projeto_id, String(arquivo));
 
   const { data: proj, error } = await sb
     .from("vedit_projetos")
@@ -190,4 +192,26 @@ async function revisarProjeto(sb: any, projetoId: string) {
       resumo: `Transcrição revisada pelo áudio: ${r.trocas} retomada(s) encontrada(s)`,
     });
   return json({ ok: true, trocas: r.trocas, janelas: r.janelas });
+}
+
+/** Transcreve um WAV avulso do projeto (o vídeo que vai ser juntado), sem gravar nada. */
+async function transcreverArquivo(sb: any, projetoId: string, caminho: string) {
+  if (!caminho.startsWith(`${projetoId}/`)) return json({ error: "arquivo fora do projeto" }, 400);
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
+  const { data: blob, error } = await sb.storage.from("video-edicao").download(caminho);
+  if (error || !blob) return json({ error: `não achei o áudio: ${error?.message}` }, 400);
+  if (blob.size > 25 * 1024 * 1024)
+    return json({ error: "vídeo juntado longo demais (máximo de 12 min)" }, 400);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const t = await whisper(key, bytes, true);
+  let palavras: Palavra[] = t.palavras;
+  try {
+    palavras = (
+      await revisarRepeticoes(palavras, bytes, async (w) => (await whisper(key, w, false)).palavras)
+    ).palavras;
+  } catch (e) {
+    console.warn("[vedit-transcrever] revisão pelo áudio falhou:", (e as Error).message);
+  }
+  return json({ ok: true, palavras, texto: t.texto });
 }

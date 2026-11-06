@@ -687,6 +687,53 @@ export async function jobVoz(projetoId: string): Promise<JobVoz | null> {
   return (data as JobVoz) ?? null;
 }
 
+export type JobJuntar = {
+  id: string;
+  status: "fila" | "rodando" | "pronto" | "erro";
+  erro: string | null;
+  resultado: { etapa?: string; emenda?: number; duracao?: number } | null;
+};
+
+/** Último pedido de juntar vídeo do projeto (para mostrar o andamento). */
+export async function jobJuntar(projetoId: string): Promise<JobJuntar | null> {
+  const { data } = await db()
+    .from("vedit_jobs")
+    .select("id, status, erro, resultado")
+    .eq("projeto_id", projetoId)
+    .eq("tipo", "juntar")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as JobJuntar) ?? null;
+}
+
+/**
+ * Junta outro vídeo ao projeto, antes ou depois do atual. Sobe o arquivo e pede ao servidor, que
+ * emenda os dois num vídeo só, transcreve o novo e encaixa na edição (nada do que já foi feito
+ * se perde). A emenda ganha a transição escolhida.
+ */
+export async function juntarVideo(
+  p: Projeto,
+  arquivo: File,
+  opts: { posicao: "antes" | "depois"; transicao: string },
+  onProgresso: (p: number) => void,
+) {
+  if (!p.fonte_path) throw new Error("O projeto ainda não tem vídeo.");
+  const meta = await metadadosVideo(arquivo);
+  if (meta.duracao > 12 * 60) throw new Error("O vídeo para juntar pode ter no máximo 12 minutos.");
+  const ext = (arquivo.name.split(".").pop() || "mp4").toLowerCase();
+  const caminho = `${p.id}/juntar-${Date.now()}.${ext}`;
+  await uploadGrande(caminho, arquivo, arquivo.type || "video/mp4", onProgresso);
+  const { error } = await db()
+    .from("vedit_jobs")
+    .insert({
+      projeto_id: p.id,
+      tipo: "juntar",
+      params: { anexo_path: caminho, posicao: opts.posicao, transicao: opts.transicao },
+    });
+  if (error) throw new Error(error.message);
+}
+
 export async function pedirVozLimpa(projetoId: string) {
   const { error } = await db().from("vedit_jobs").insert({ projeto_id: projetoId, tipo: "voz" });
   if (error) throw new Error(error.message);

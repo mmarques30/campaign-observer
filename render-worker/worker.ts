@@ -242,6 +242,314 @@ export async function gerarVoz(projetoId: string) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Juntar vídeos: o projeto continua com UM arquivo de vídeo (tudo no editor — cortes, legenda,
+// recorte, voz — trabalha sobre ele). Os dois vídeos são padronizados (tamanho do original,
+// 30 fps, áudio 48 kHz), emendados num arquivo novo, e a transcrição do vídeo novo é encaixada
+// sem perder a edição: no "antes", os tempos e as correções da legenda andam junto.
+// A emenda vira um ponto da timeline com a própria transição (timeline.emendas).
+// ---------------------------------------------------------------------------------------------
+const SYS = () => process.env.FFMPEG_SISTEMA ?? "ffmpeg";
+const PROBE = () => process.env.FFPROBE_SISTEMA ?? "ffprobe";
+
+async function sondar(arq: string) {
+  const { stdout } = await execFileP(
+    PROBE(),
+    [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration:stream=codec_type,duration",
+      "-of",
+      "json",
+      arq,
+    ],
+    { maxBuffer: 1 << 22 },
+  );
+  const j = JSON.parse(stdout);
+  const streams: any[] = j.streams ?? [];
+  const total = Number(j.format?.duration) || 0;
+  const v = streams.find((x) => x.codec_type === "video");
+  return {
+    dur: total,
+    // Duração do vídeo (a imagem manda: o áudio é completado ou aparado até ela).
+    video: Number(v?.duration) || total,
+    audio: streams.some((x) => x.codec_type === "audio"),
+  };
+}
+
+/** Mesmo tamanho (preenchendo o quadro, sem tarja), 30 fps, áudio estéreo 48 kHz do tamanho do vídeo. */
+export async function padronizar(entrada: string, saida: string, W: number, H: number) {
+  const { audio, video } = await sondar(entrada);
+  const dur = video.toFixed(3);
+  const args = ["-y", "-loglevel", "error", "-i", entrada];
+  if (!audio) args.push("-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo");
+  args.push(
+    "-filter_complex",
+    `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=30,format=yuv420p,trim=0:${dur}[v];` +
+      `[${audio ? "0:a:0" : "1:a"}]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=0:${dur}[a]`,
+    "-map",
+    "[v]",
+    "-map",
+    "[a]",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "18",
+    "-g",
+    "30",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "192k",
+    "-movflags",
+    "+faststart",
+    saida,
+  );
+  await execFileP(SYS(), args, { maxBuffer: 1 << 24 });
+  return (await sondar(saida)).video;
+}
+
+async function wav16k(entrada: string, saida: string) {
+  await execFileP(
+    SYS(),
+    [
+      "-y",
+      "-loglevel",
+      "error",
+      "-i",
+      entrada,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      "16000",
+      "-c:a",
+      "pcm_s16le",
+      saida,
+    ],
+    { maxBuffer: 1 << 24 },
+  );
+}
+
+async function subir(destino: string, local: string, tipo: string) {
+  const up = await sbc()
+    .storage.from(BUCKET)
+    .upload(destino, await fs.readFile(local), { contentType: tipo, upsert: true });
+  if (up.error) throw new Error(`upload ${destino}: ${up.error.message}`);
+}
+
+/** Desloca no tempo (segundos do original) tudo da edição que é ancorado no vídeo. */
+function deslocarTimeline(tl: any, d: number, nPalavras: number) {
+  if (!d && !nPalavras) return tl;
+  const s = (x: any) => (typeof x === "number" ? +(x + d).toFixed(3) : x);
+  const out = { ...tl };
+  out.cortes = (tl.cortes ?? []).map((c: any) => ({ ...c, de: s(c.de), ate: s(c.ate) }));
+  out.efeitos = (tl.efeitos ?? []).map((e: any) => ({ ...e, de: s(e.de), ate: s(e.ate) }));
+  out.sfx = (tl.sfx ?? []).map((x: any) => ({ ...x, em: s(x.em) }));
+  out.emendas = (tl.emendas ?? []).map((x: any) => ({ ...x, em: s(x.em) }));
+  if (tl.zoom)
+    out.zoom = {
+      ...tl.zoom,
+      eventos: (tl.zoom.eventos ?? []).map((z: any) => ({ ...z, de: s(z.de), ate: s(z.ate) })),
+    };
+  if (tl.legenda && nPalavras) {
+    const corr: Record<string, string> = {};
+    for (const [k, v] of Object.entries(tl.legenda.correcoes ?? {}))
+      corr[String(Number(k) + nPalavras)] = v as string;
+    out.legenda = {
+      ...tl.legenda,
+      correcoes: corr,
+      destaques: (tl.legenda.destaques ?? []).map((k: number) => k + nPalavras),
+    };
+  }
+  return out;
+}
+
+const FOLGA_DISSOLVE = 0.5; // igual a FOLGA_EMENDA em src/video/tempo.ts
+
+export async function juntarVideos(
+  jobId: string,
+  projetoId: string,
+  params: { anexo_path?: string; posicao?: string; transicao?: string },
+) {
+  const anexoPath = String(params.anexo_path ?? "");
+  if (!anexoPath.startsWith(`${projetoId}/`)) throw new Error("vídeo para juntar inválido");
+  const antes = params.posicao === "antes";
+  const transicao = params.transicao || "suave";
+  const { data: proj0, error } = await sbc()
+    .from("vedit_projetos")
+    .select("id, fonte_path, fonte_largura, fonte_altura")
+    .eq("id", projetoId)
+    .single();
+  if (error || !proj0?.fonte_path) throw new Error("projeto sem vídeo");
+  const pasta = path.join(os.tmpdir(), `juntar-${jobId}`);
+  await fs.mkdir(pasta, { recursive: true });
+  const progresso = (etapa: string) =>
+    sbc().from("vedit_jobs").update({ resultado: { etapa } }).eq("id", jobId);
+  try {
+    await progresso("Baixando os vídeos");
+    const fonte = path.join(pasta, `fonte${path.extname(proj0.fonte_path) || ".mp4"}`);
+    const anexo = path.join(pasta, `anexo${path.extname(anexoPath) || ".mp4"}`);
+    await Promise.all([baixar(proj0.fonte_path, fonte), baixar(anexoPath, anexo)]);
+    const par = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+    const W = par(Number(proj0.fonte_largura) || 1080),
+      H = par(Number(proj0.fonte_altura) || 1920);
+
+    await progresso("Padronizando os vídeos");
+    const pv = path.join(pasta, "velho.mp4"),
+      pn = path.join(pasta, "novo.mp4");
+    const dVelho = await padronizar(fonte, pv, W, H);
+    const dNovo = await padronizar(anexo, pn, W, H);
+    const [primeiro, segundo] = antes ? [pn, pv] : [pv, pn];
+    const emenda = +(antes ? dNovo : dVelho).toFixed(3);
+
+    await progresso("Emendando");
+    const lista = path.join(pasta, "lista.txt");
+    await fs.writeFile(lista, `file '${primeiro}'\nfile '${segundo}'\n`);
+    const junto = path.join(pasta, "junto.mp4");
+    await execFileP(
+      SYS(),
+      [
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        lista,
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        junto,
+      ],
+      { maxBuffer: 1 << 24 },
+    );
+    const total = (await sondar(junto)).video || dVelho + dNovo;
+    const audioTodo = path.join(pasta, "audio.wav"),
+      audioNovo = path.join(pasta, "anexo.wav");
+    await Promise.all([wav16k(junto, audioTodo), wav16k(pn, audioNovo)]);
+
+    await progresso("Subindo o vídeo emendado");
+    const ts = Date.now();
+    const fontePath = `${projetoId}/fonte-junto-${ts}.mp4`;
+    const audioPath = `${projetoId}/audio-${ts}.wav`;
+    const anexoWav = `${projetoId}/anexo-${ts}.wav`;
+    await subir(fontePath, junto, "video/mp4");
+    await subir(audioPath, audioTodo, "audio/wav");
+    await subir(anexoWav, audioNovo, "audio/wav");
+
+    await progresso("Transcrevendo o vídeo novo");
+    const tr = await chamarFuncao("vedit-transcrever", {
+      projeto_id: projetoId,
+      arquivo: anexoWav,
+    });
+    const novas: { p: string; i: number; f: number }[] = tr.palavras ?? [];
+
+    // Lê o projeto de novo AGORA: a pessoa pode ter editado enquanto o servidor trabalhava.
+    // Grava só se a versão não mudou entre a leitura e a escrita (senão lê de novo e refaz).
+    let gravado: { tl: any; versao: number } | null = null;
+    for (let tentativa = 0; tentativa < 4 && !gravado; tentativa++) {
+      const { data: proj } = await sbc()
+        .from("vedit_projetos")
+        .select("id, palavras, timeline, versao, transcricao_texto")
+        .eq("id", projetoId)
+        .single();
+      const velhas: { p: string; i: number; f: number }[] = Array.isArray(proj?.palavras)
+        ? proj!.palavras
+        : [];
+      const mover = (ws: typeof velhas, d: number) =>
+        ws.map((w) => ({ ...w, i: +(w.i + d).toFixed(2), f: +(w.f + d).toFixed(2) }));
+      const palavras = antes
+        ? [...novas, ...mover(velhas, dNovo)]
+        : [...velhas, ...mover(novas, dVelho)];
+
+      let tl: any = proj?.timeline ?? {};
+      if (antes) tl = deslocarTimeline(tl, dNovo, novas.length);
+      // Trechos: o vídeo velho (os cortes que já existem) + o novo inteiro.
+      const cortesVelhos: any[] = (tl.cortes ?? []).length
+        ? tl.cortes
+        : [{ de: antes ? dNovo : 0, ate: antes ? dNovo + dVelho : dVelho }];
+      const trechoNovo = antes ? { de: 0, ate: dNovo } : { de: dVelho, ate: dVelho + dNovo };
+      // O lado de antes da emenda termina um pouco antes do fim do arquivo: essa sobra é a imagem
+      // que se dissolve por cima do vídeo seguinte. Nunca corta fala.
+      const fimFalaAntes = Math.max(
+        0,
+        ...palavras.filter((w) => w.f <= emenda + 0.05).map((w) => w.f),
+      );
+      // (Vale para qualquer transição: assim dá para trocar para o dissolve depois.)
+      const folga = Math.max(0.04, Math.min(FOLGA_DISSOLVE, emenda - fimFalaAntes - 0.08));
+      const ajustar = (c: any) =>
+        c.de < emenda && c.ate > emenda - folga
+          ? { ...c, ate: +Math.max(c.de + 0.05, Math.min(c.ate, emenda - folga)).toFixed(3) }
+          : c;
+      const cortes = antes
+        ? [ajustar(trechoNovo), ...cortesVelhos]
+        : [...cortesVelhos.map(ajustar), trechoNovo];
+      tl = {
+        ...tl,
+        cortes: tl.ordemLivre ? cortes : [...cortes].sort((a, b) => a.de - b.de),
+        emendas: [...(tl.emendas ?? []), { em: emenda, transicao }].sort((a, b) => a.em - b.em),
+      };
+
+      const versao = (proj?.versao ?? 0) + 1;
+      const { data: feito, error: e2 } = await sbc()
+        .from("vedit_projetos")
+        .update({
+          fonte_path: fontePath,
+          fonte_proxy_path: null,
+          fonte_duracao: +total.toFixed(3),
+          audio_path: audioPath,
+          palavras,
+          transcricao_texto: antes
+            ? `${tr.texto ?? ""} ${proj?.transcricao_texto ?? ""}`.trim()
+            : `${proj?.transcricao_texto ?? ""} ${tr.texto ?? ""}`.trim(),
+          timeline: tl,
+          versao,
+        })
+        .eq("id", projetoId)
+        .eq("versao", proj?.versao ?? 0)
+        .select("id");
+      if (e2) throw new Error(e2.message);
+      if (feito?.length) gravado = { tl, versao };
+    }
+    if (!gravado) throw new Error("o projeto foi editado sem parar; tente juntar de novo");
+    const { tl, versao } = gravado;
+    await sbc()
+      .from("vedit_versoes")
+      .insert({
+        projeto_id: projetoId,
+        versao,
+        timeline: tl,
+        origem: "manual",
+        resumo: `Vídeo juntado ${antes ? "antes" : "depois"} do original (emenda em ${emenda.toFixed(1)}s, transição ${transicao})`,
+      });
+    // O recorte da pessoa era do vídeo antigo: sai, e o editor gera de novo quando precisar.
+    await sbc()
+      .from("vedit_midias")
+      .delete()
+      .eq("projeto_id", projetoId)
+      .eq("nome", "recorte-pessoa.webm");
+    // Voz limpa e versão leve do preview são refeitas para o vídeo novo.
+    const tamanho = (await fs.stat(junto)).size;
+    const jobs: any[] = [{ projeto_id: projetoId, tipo: "voz" }];
+    if (Math.min(W, H) > 1080 || tamanho > 40 * 1024 * 1024)
+      jobs.push({ projeto_id: projetoId, tipo: "proxy" });
+    await sbc().from("vedit_jobs").insert(jobs);
+    await sbc()
+      .from("vedit_jobs")
+      .update({ resultado: { etapa: "Pronto", emenda, duracao: total } })
+      .eq("id", jobId);
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+}
+
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
 const EH_AD_LIBRARY = /facebook\.com\/ads\/library/i;
 
@@ -974,6 +1282,7 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
   try {
     if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
     else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
+    else if (job.tipo === "juntar") await juntarVideos(job.id, job.projeto_id, job.params ?? {});
     else if (job.tipo === "referencia")
       await processarReferencia(
         job.id,

@@ -47,6 +47,7 @@ import { ModeloEdicao } from "./ModeloEdicao";
 import { TextoEfeito, temTexto } from "./TextoEfeito";
 import { VozLimpa, type VozProps } from "./VozLimpa";
 import { EfeitosVisuais, type Efeito } from "./EfeitosVisuais";
+import { JuntarVideo } from "./JuntarVideo";
 
 export function Painel({
   projeto,
@@ -70,6 +71,7 @@ export function Painel({
   previa = null,
   setPrevia = () => {},
   onRevisarRepeticoes,
+  onJuntado = () => {},
 }: {
   projeto: Projeto;
   onAtualizar: (
@@ -94,6 +96,7 @@ export function Painel({
   previa?: Efeito | null;
   setPrevia?: (e: Efeito | null) => void;
   onRevisarRepeticoes?: () => Promise<{ trocas?: number }>;
+  onJuntado?: () => void;
 }) {
   const [subindo, setSubindo] = useState(false);
   const [editandoTexto, setEditandoTexto] = useState<string | null>(null);
@@ -509,6 +512,7 @@ export function Painel({
       </TabsContent>
 
       <TabsContent value="roteiro" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+        <JuntarVideo projeto={projeto} tl={tl} setTl={setTl} onIr={onIr} onJuntado={onJuntado} />
         {onRevisarRepeticoes && <RevisarRepeticoes onRevisar={onRevisarRepeticoes} />}
         <Roteiro
           palavras={palavras}

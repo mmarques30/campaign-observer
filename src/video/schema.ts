@@ -75,6 +75,17 @@ export const timelineSchema = z.object({
     .array(intervalo.extend({ velocidade: z.number().min(0.5).max(4).optional() }))
     .default([]),
   ordemLivre: z.boolean().default(false),
+  // Emendas: pontos (segundos do original) onde um vídeo juntado encosta no outro. Cada uma tem a
+  // própria transição, independente da transição dos cortes comuns. Um trecho nunca atravessa
+  // uma emenda: ele é dividido ali (ver tempo.ts).
+  emendas: z
+    .array(
+      z.object({
+        em: z.number().min(0),
+        transicao: z.enum(TRANSICOES).default("suave"),
+      }),
+    )
+    .default([]),
   // Onde está o rosto da pessoa no quadro (0–1), detectado no navegador. Grafismos desviam dele.
   rosto: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).nullish(),
   // Enquadramento do original dentro do quadro (reenquadrar 16:9 → 9:16).
