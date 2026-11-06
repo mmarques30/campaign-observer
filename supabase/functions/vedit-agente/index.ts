@@ -187,6 +187,7 @@ FORMATO DA TIMELINE
   "versao": 1, "formato": "9:16"|"4:5"|"1:1", "fps": 30,
   "cortes": [{"de": s, "ate": s, "velocidade"?: 1.25|1.5|2}],  // trechos que FICAM, em ordem. [] = vídeo inteiro. velocidade acelera o trecho (omitida = normal)
   "ordemLivre"?: true,  // com true os trechos tocam NA ORDEM DA LISTA (dá para puxar o CTA do fim para o segundo 29, por exemplo); sem ele, na ordem do original. Se já estiver true, mantenha e preserve a ordem dos cortes.
+  "emendas"?: [{"em": s, "transicao": "suave"}],  // pontos (segundos do ORIGINAL) onde a pessoa juntou dois vídeos; cada um tem a própria transição. Devolva como está, a não ser que ela peça para trocar a transição da emenda ("transicao" aceita os mesmos valores de visual.transicao). Os cortes podem atravessar a emenda: o sistema divide o trecho ali.
   "enquadramento": {"x":0.5,"y":0.5,"escala":1}, // p/ reenquadrar vídeo deitado em 9:16 (x/y = ponto de foco)
   "zoom": {"alternar": true, "eventos": [{"de","ate","escala":1.1–1.4,"x":0.5,"y":0.4,"tipo":"soco"|"suave"}]},
   "legenda": {"ativa": true, "estilo": "karaoke"|"simples"|"caixa"|"editorial"|"neon"|"maquina"|"impacto"|"serifa"|"minimal"|"palavra"|"manuscrita" ("serifa" = serifada branca pequena de cinema; "minimal" = sans pequena limpa com a palavra-chave em destaque; "palavra" = uma palavra bold por vez; "manuscrita" = manuscrita com brilho), "posicao": "inferior"|"centro"|"superior", "altura": null ou 0.1–0.9 (ajuste fino: 0.72 ≈ inferior, maior = mais baixo; "desce a legenda" → aumente ~0.05), "tamanho": 0.5–1.8 (1 = padrão; "legenda maior/menor" → ±0.15), "palavrasPorBloco": 1–8 ("simples" = legenda comum, frase em letra normal, use 5–7), "destaques": [índices de palavras], "correcoes": {"índice": "grafia certa"}, "caixaAlta": false},
@@ -1057,6 +1058,9 @@ Deno.serve(async (req) => {
     if (tl.audio === undefined && proj.timeline?.audio) tl.audio = proj.timeline.audio;
     // Ordem livre dos trechos (CTA puxado para o meio, por ex.) não se perde se o Claude esquecer.
     if (tl.ordemLivre === undefined && proj.timeline?.ordemLivre) tl.ordemLivre = true;
+    // Emendas de vídeos juntados (com a transição escolhida pela pessoa) nunca se perdem.
+    if (!Array.isArray(tl.emendas) && Array.isArray(proj.timeline?.emendas))
+      tl.emendas = proj.timeline.emendas;
     // Velocidade dos trechos não se perde se o Claude reescrever os cortes sem ela.
     const velAntigos = ((proj.timeline?.cortes ?? []) as any[]).filter(
       (c) => c?.velocidade && c.velocidade !== 1,

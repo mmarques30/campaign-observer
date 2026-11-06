@@ -236,7 +236,7 @@ function Editor() {
         .data ?? []) as Midia[],
   });
   const vozQ = useQuery({
-    queryKey: ["vedit", "voz", id],
+    queryKey: ["vedit", "voz", id, proj?.fonte_path],
     enabled: !!proj?.fonte_path,
     queryFn: () => jobVoz(id),
     refetchInterval: (q) =>
@@ -961,6 +961,14 @@ function Editor() {
                 versaoCarregada.current = -1;
                 await projQ.refetch();
                 return r;
+              }}
+              onJuntado={() => {
+                // Vídeo, transcrição e edição mudaram no servidor: recarrega tudo deste projeto.
+                versaoCarregada.current = -1;
+                void projQ.refetch();
+                void midiasQ.refetch();
+                void vozQ.refetch();
+                void qc.invalidateQueries({ queryKey: ["vedit", "urls", id] });
               }}
               voz={{
                 job: vozQ.data ?? null,
