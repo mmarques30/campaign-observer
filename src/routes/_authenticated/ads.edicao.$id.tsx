@@ -168,7 +168,7 @@ function Editor() {
     setRecortando({ p: 0, etapa: "Baixando o vídeo" });
     try {
       const arq = await baixarFonte(p.fonte_proxy_path ?? p.fonte_path);
-      await prepararRecorte(id, arq, (x, etapa) => setRecortando({ p: x, etapa }));
+      await prepararRecorte(id, arq, (x, etapa) => setRecortando({ p: x, etapa }), p.fonte_path);
       await Promise.all([
         midiasQ.refetch(),
         qc.invalidateQueries({ queryKey: ["vedit", "urls", id] }),
