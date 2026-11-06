@@ -421,11 +421,27 @@ export function Reel(bruto: ReelProps) {
       const [ini, dur] = janelaFrames(trechos, e.de, e.ate > e.de ? e.ate : e.de + 3, fps);
       if (frame < ini || frame >= ini + dur) continue;
       const f = frame - ini;
-      const entra = spring({ frame: f, fps, config: { damping: 18, stiffness: 140, mass: 0.7 } });
-      const sai = interpolate(f, [dur - 8, dur], [1, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      });
+      // Cards da pessoa em sequência (um painel emendado no outro): o vídeo não volta para a tela
+      // cheia entre eles, senão "pulsa" a cada troca de painel.
+      const outroCardEm = (q: number) =>
+        efeitos.some((o) => {
+          if (o === e) return false;
+          const ods = EFEITO_POR_TIPO[o.tipo]?.cardPessoa?.(o.props ?? {}) ?? null;
+          const oels = Array.isArray(o.props?.elementos) ? (o.props.elementos as any[]) : [];
+          if (!ods && !(o.tipo === "composicao" && oels.some((x) => x?.tipo === "pessoa")))
+            return false;
+          const [oi, od] = janelaFrames(trechos, o.de, o.ate > o.de ? o.ate : o.de + 3, fps);
+          return q >= oi && q < oi + od;
+        });
+      const entra = outroCardEm(ini - 1)
+        ? 1
+        : spring({ frame: f, fps, config: { damping: 18, stiffness: 140, mass: 0.7 } });
+      const sai = outroCardEm(ini + dur)
+        ? 1
+        : interpolate(f, [dur - 8, dur], [1, 0], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
       const fundo = String(proprio?.fundo ?? e.props?.fundo ?? "");
       return {
         p: Math.min(entra, sai),
