@@ -550,6 +550,242 @@ export async function juntarVideos(
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Montar: grava a edição de cortes num arquivo novo. Os trechos que ficam, na ordem em que tocam
+// (com ordem livre, a da lista), viram o vídeo do projeto; o que foi cortado deixa de existir.
+// Transcrição, efeitos, sons, zooms e legenda são levados para o tempo do arquivo novo.
+// ---------------------------------------------------------------------------------------------
+export async function montarCortes(jobId: string, projetoId: string) {
+  const { trechosMantidos, paraSaida } = await import("../src/video/tempo");
+  const { normalizarTimeline } = await import("../src/video/schema");
+  const { data: proj0, error } = await sbc()
+    .from("vedit_projetos")
+    .select("id, fonte_path, fonte_largura, fonte_altura, fonte_duracao, timeline")
+    .eq("id", projetoId)
+    .single();
+  if (error || !proj0?.fonte_path) throw new Error("projeto sem vídeo");
+  const pasta = path.join(os.tmpdir(), `montar-${jobId}`);
+  await fs.mkdir(pasta, { recursive: true });
+  const progresso = (etapa: string) =>
+    sbc().from("vedit_jobs").update({ resultado: { etapa } }).eq("id", jobId);
+  try {
+    const tl0 = normalizarTimeline(proj0.timeline).timeline;
+    const trechos = trechosMantidos(tl0, Number(proj0.fonte_duracao) || 0);
+    if (!trechos.length) throw new Error("sem trechos para montar");
+    await progresso("Baixando o vídeo");
+    const fonte = path.join(pasta, `fonte${path.extname(proj0.fonte_path) || ".mp4"}`);
+    await baixar(proj0.fonte_path, fonte);
+    const par = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+    const W = par(Number(proj0.fonte_largura) || 1080),
+      H = par(Number(proj0.fonte_altura) || 1920);
+    const { audio } = await sondar(fonte);
+
+    await progresso("Recortando os trechos");
+    const pedacos: string[] = [];
+    for (const [k, t] of trechos.entries()) {
+      const saida = path.join(pasta, `p${k}.mp4`);
+      const dur = (t.ate - t.de).toFixed(3);
+      const v = t.vel || 1;
+      const tempo = (x: number) => {
+        const f: string[] = [];
+        while (x > 2) (f.push("atempo=2"), (x /= 2));
+        while (x < 0.5) (f.push("atempo=0.5"), (x /= 0.5));
+        f.push(`atempo=${x}`);
+        return f.join(",");
+      };
+      const args = ["-y", "-loglevel", "error", "-ss", t.de.toFixed(3), "-t", dur, "-i", fonte];
+      if (!audio) args.push("-f", "lavfi", "-t", dur, "-i", "anullsrc=r=48000:cl=stereo");
+      const durSaida = ((t.ate - t.de) / v).toFixed(3);
+      args.push(
+        "-filter_complex",
+        `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,setpts=(PTS-STARTPTS)/${v},fps=30,format=yuv420p,trim=0:${durSaida}[v];` +
+          `[${audio ? "0:a:0" : "1:a"}]aresample=48000,aformat=sample_rates=48000:channel_layouts=stereo,${v === 1 ? "" : tempo(v) + ","}apad,atrim=0:${durSaida}[a]`,
+        "-map",
+        "[v]",
+        "-map",
+        "[a]",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "18",
+        "-g",
+        "30",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        saida,
+      );
+      await execFileP(SYS(), args, { maxBuffer: 1 << 24 });
+      pedacos.push(saida);
+    }
+    await progresso("Montando o vídeo");
+    const lista = path.join(pasta, "lista.txt");
+    await fs.writeFile(lista, pedacos.map((p) => `file '${p}'`).join("\n") + "\n");
+    const montado = path.join(pasta, "montado.mp4");
+    await execFileP(
+      SYS(),
+      [
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        lista,
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
+        montado,
+      ],
+      { maxBuffer: 1 << 24 },
+    );
+    const total = (await sondar(montado)).video;
+    const audioWav = path.join(pasta, "audio.wav");
+    await wav16k(montado, audioWav);
+
+    await progresso("Subindo o vídeo montado");
+    const ts = Date.now();
+    const fontePath = `${projetoId}/fonte-montado-${ts}.mp4`;
+    const audioPath = `${projetoId}/audio-${ts}.wav`;
+    await subir(fontePath, montado, "video/mp4");
+    await subir(audioPath, audioWav, "audio/wav");
+
+    let gravado: { tl: any; versao: number } | null = null;
+    for (let tentativa = 0; tentativa < 4 && !gravado; tentativa++) {
+      const { data: proj } = await sbc()
+        .from("vedit_projetos")
+        .select("id, palavras, timeline, versao")
+        .eq("id", projetoId)
+        .single();
+      const tlRaw: any = proj?.timeline ?? {};
+      const dentro = (s: number) => trechos.find((t) => s >= t.de - 0.001 && s <= t.ate + 0.001);
+      const novoT = (s: number) => +paraSaida(trechos, s).toFixed(3);
+      // Palavras: só as que ficam, na ordem em que tocam, no tempo novo.
+      const velhas: { p: string; i: number; f: number }[] = Array.isArray(proj?.palavras)
+        ? proj!.palavras
+        : [];
+      const ficam = velhas
+        .map((w, idx) => ({ w, idx }))
+        .filter(({ w }) => {
+          const t = dentro((w.i + w.f) / 2);
+          return !!t;
+        })
+        .map(({ w, idx }) => {
+          const t = dentro((w.i + w.f) / 2)!;
+          const cl = (x: number) => Math.min(t.ate, Math.max(t.de, x));
+          return {
+            idx,
+            w: {
+              ...w,
+              i: +(t.saidaDe + (cl(w.i) - t.de) / t.vel).toFixed(2),
+              f: +(t.saidaDe + (cl(w.f) - t.de) / t.vel).toFixed(2),
+            },
+          };
+        })
+        .sort((a, b) => a.w.i - b.w.i);
+      const novoIdx = new Map(ficam.map((x, k) => [x.idx, k]));
+      const palavras = ficam.map((x) => x.w);
+      // Efeitos/zooms: ficam os que começam num trecho mantido; o fim encosta no do trecho se
+      // cair fora dele (nada atravessa para outro bloco).
+      const janela = (de: number, ate: number) => {
+        const t = dentro(de);
+        if (!t) return null;
+        const fimFonte = Math.min(ate > de ? ate : de, t.ate);
+        return { de: novoT(de), ate: +(t.saidaDe + (fimFonte - t.de) / t.vel).toFixed(3) };
+      };
+      const efeitos = (tlRaw.efeitos ?? [])
+        .map((e: any) => {
+          const j = janela(Number(e.de), Number(e.ate));
+          return j ? { ...e, ...j } : null;
+        })
+        .filter(Boolean);
+      const sfx = (tlRaw.sfx ?? [])
+        .filter((x: any) => dentro(Number(x.em)))
+        .map((x: any) => ({ ...x, em: novoT(Number(x.em)) }));
+      const eventos = (tlRaw.zoom?.eventos ?? [])
+        .map((z: any) => {
+          const j = janela(Number(z.de), Number(z.ate));
+          return j ? { ...z, ...j } : null;
+        })
+        .filter(Boolean);
+      const legenda = tlRaw.legenda
+        ? {
+            ...tlRaw.legenda,
+            correcoes: Object.fromEntries(
+              Object.entries(tlRaw.legenda.correcoes ?? {})
+                .filter(([k]) => novoIdx.has(Number(k)))
+                .map(([k, v]) => [String(novoIdx.get(Number(k))), v]),
+            ),
+            destaques: (tlRaw.legenda.destaques ?? [])
+              .filter((k: number) => novoIdx.has(k))
+              .map((k: number) => novoIdx.get(k)),
+          }
+        : tlRaw.legenda;
+      const tl = {
+        ...tlRaw,
+        cortes: [],
+        ordemLivre: false,
+        emendas: [],
+        efeitos,
+        sfx,
+        zoom: { ...(tlRaw.zoom ?? {}), eventos },
+        legenda,
+      };
+      const versao = (proj?.versao ?? 0) + 1;
+      const { data: feito, error: e2 } = await sbc()
+        .from("vedit_projetos")
+        .update({
+          fonte_path: fontePath,
+          fonte_proxy_path: null,
+          fonte_duracao: +total.toFixed(3),
+          audio_path: audioPath,
+          palavras,
+          transcricao_texto: palavras.map((w) => w.p).join(" "),
+          timeline: tl,
+          versao,
+          render_path: null,
+        })
+        .eq("id", projetoId)
+        .eq("versao", proj?.versao ?? 0)
+        .select("id");
+      if (e2) throw new Error(e2.message);
+      if (feito?.length) gravado = { tl, versao };
+    }
+    if (!gravado) throw new Error("o projeto foi editado sem parar; tente de novo");
+    await sbc()
+      .from("vedit_versoes")
+      .insert({
+        projeto_id: projetoId,
+        versao: gravado.versao,
+        timeline: gravado.tl,
+        origem: "manual",
+        resumo: `Cortes gravados num vídeo novo (${trechos.length} trechos, ${total.toFixed(1)}s): o que foi cortado saiu do arquivo`,
+      });
+    await sbc()
+      .from("vedit_midias")
+      .delete()
+      .eq("projeto_id", projetoId)
+      .eq("nome", "recorte-pessoa.webm");
+    const tamanho = (await fs.stat(montado)).size;
+    const jobs: any[] = [{ projeto_id: projetoId, tipo: "voz" }];
+    if (Math.min(W, H) > 1080 || tamanho > 40 * 1024 * 1024)
+      jobs.push({ projeto_id: projetoId, tipo: "proxy" });
+    await sbc().from("vedit_jobs").insert(jobs);
+    await sbc()
+      .from("vedit_jobs")
+      .update({ resultado: { etapa: "Pronto", duracao: total } })
+      .eq("id", jobId);
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+}
+
 /** Fila leve (vedit_jobs): proxy e afins. Tem prioridade sobre o render. Devolve true se rodou algo. */
 const EH_AD_LIBRARY = /facebook\.com\/ads\/library/i;
 
@@ -1283,6 +1519,7 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
     if (job.tipo === "proxy") await gerarProxy(job.projeto_id);
     else if (job.tipo === "voz") await gerarVoz(job.projeto_id);
     else if (job.tipo === "juntar") await juntarVideos(job.id, job.projeto_id, job.params ?? {});
+    else if (job.tipo === "montar") await montarCortes(job.id, job.projeto_id);
     else if (job.tipo === "referencia")
       await processarReferencia(
         job.id,
