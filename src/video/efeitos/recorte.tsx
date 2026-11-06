@@ -173,15 +173,48 @@ function PessoaAoVivo({
   const base = (ctx.fonteUrl ?? "").split(/[?#]/)[0];
   useEffect(() => {
     let raf = 0;
+    // O WebM com transparência chega ~3 quadros atrás do vídeo base. Máscara de um quadro com a
+    // imagem de outro deixa "furos" na pessoa (a mídia de trás aparece através dela, como uma
+    // sombra). Por isso os últimos quadros do vídeo base ficam guardados e a máscara de cada
+    // quadro do recorte é aplicada ao quadro do vídeo base DO MESMO instante.
+    type Quadro = { t: number; c: HTMLCanvasElement };
+    const guardados: Quadro[] = [];
+    const livres: HTMLCanvasElement[] = [];
+    let baseAtual: HTMLVideoElement | null = null;
+    let recAtual: HTMLVideoElement | null = null;
+    let tRec = -1;
+    let ultimoDesenhado = -1;
+    const vfc = (v: HTMLVideoElement, f: (t: number) => void) => {
+      const r = (v as any).requestVideoFrameCallback?.bind(v);
+      if (!r) return false;
+      const laco = (_: number, m: { mediaTime: number }) => {
+        if (v !== baseAtual && v !== recAtual) return; // trocou de elemento: para
+        f(m.mediaTime);
+        r(laco);
+      };
+      r(laco);
+      return true;
+    };
+    const guardar = (v: HTMLVideoElement, t: number) => {
+      const w = v.videoWidth,
+        h = v.videoHeight;
+      if (!w || !h) return;
+      const c = livres.pop() ?? document.createElement("canvas");
+      if (c.width !== w) c.width = w;
+      if (c.height !== h) c.height = h;
+      c.getContext("2d")!.drawImage(v, 0, 0, w, h);
+      guardados.push({ t, c });
+      while (guardados.length > 15) livres.push(guardados.shift()!.c);
+    };
+    let semVfc = false;
     const desenha = () => {
       raf = requestAnimationFrame(desenha);
       const c = canvas.current;
       const g = c?.getContext("2d");
       if (!c || !g || !caixa.current) return;
-      const recs = [
-        ...caixa.current.querySelectorAll<HTMLVideoElement>("video.vedit-recorte"),
-      ].filter((v) => v.readyState >= 2);
-      const rec = recs[0];
+      const rec = [...caixa.current.querySelectorAll<HTMLVideoElement>("video.vedit-recorte")].find(
+        (v) => v.readyState >= 2,
+      );
       if (!rec || !base) return;
       // O vídeo base visível: mesmo arquivo, fora deste efeito, no tempo mais próximo do recorte.
       const bases = [...document.querySelectorAll<HTMLVideoElement>("video")].filter(
@@ -196,18 +229,48 @@ function PessoaAoVivo({
           ? b
           : a,
       );
+      if (vid !== baseAtual) {
+        baseAtual = vid;
+        guardados.length = 0;
+        if (!vfc(vid, (t) => guardar(vid, t))) semVfc = true;
+      }
+      if (rec !== recAtual) {
+        recAtual = rec;
+        tRec = -1;
+        if (!vfc(rec, (t) => (tRec = t))) semVfc = true;
+      }
       const w = rec.videoWidth || 720,
         h = rec.videoHeight || 1280;
       if (c.width !== w) c.width = w;
       if (c.height !== h) c.height = h;
+      // Imagem do vídeo base no mesmo instante da máscara.
+      let fonte: CanvasImageSource | null = null;
+      if (semVfc) fonte = vid;
+      else if (tRec >= 0) {
+        let melhor: Quadro | null = null;
+        for (const q of guardados)
+          if (!melhor || Math.abs(q.t - tRec) < Math.abs(melhor.t - tRec)) melhor = q;
+        if (melhor && Math.abs(melhor.t - tRec) < 0.02) fonte = melhor.c;
+        else if (Math.abs(vid.currentTime - tRec) < 0.02) fonte = vid;
+      }
+      // Sem par certo (o recorte ainda está alcançando o vídeo): mantém o último quadro bom.
+      if (!fonte) {
+        if (ultimoDesenhado < 0) g.clearRect(0, 0, w, h);
+        return;
+      }
+      if (!semVfc && tRec === ultimoDesenhado) return;
+      ultimoDesenhado = tRec;
       g.globalCompositeOperation = "copy";
       g.drawImage(rec, 0, 0, w, h);
       g.globalCompositeOperation = "source-in";
-      g.drawImage(vid, 0, 0, w, h);
+      g.drawImage(fonte, 0, 0, w, h);
       g.globalCompositeOperation = "source-over";
     };
     raf = requestAnimationFrame(desenha);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      baseAtual = recAtual = null;
+    };
   }, [base]);
   return (
     <AbsoluteFill>
