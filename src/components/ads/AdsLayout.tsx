@@ -1,5 +1,7 @@
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
+  Network,
+  BrainCircuit,
   LayoutDashboard,
   Megaphone,
   Image,
@@ -121,6 +123,16 @@ const GROUPS: NavGroup[] = [
         icon: Bot,
         keywords: "comentário dm manychat palavra-chave resposta automática",
       },
+    ],
+  },
+  {
+    // Performance Analyst: o cérebro de IA que conecta referência, roteiro, edição,
+    // publicação, anúncio e funil, e estima a chance de cada caminho dar resultado.
+    id: "performance",
+    label: "Performance Analyst",
+    icon: BrainCircuit,
+    items: [
+      { to: "/ads/conexoes", label: "Conexões", icon: Network, keywords: "performance analyst mapa neural correlação referências roteiros vídeos publicados anúncios funil viralizar probabilidade" },
     ],
   },
   {
