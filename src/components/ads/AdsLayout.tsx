@@ -556,7 +556,9 @@ export function AdsLayout() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <div className="min-h-dvh flex bg-background text-foreground bg-grain">
+      <div className="relative isolate min-h-dvh flex bg-background text-foreground bg-grain">
+        {/* Fundo único da aplicação (sidebar e conteúdo sobre a mesma camada). */}
+        <div aria-hidden className="app-bg" />
         {/* Backdrop do drawer mobile */}
         {isMobile && mobileOpen && (
           <div
@@ -815,13 +817,10 @@ export function AdsLayout() {
         </aside>
 
         {/* ── Conteúdo ────────────────────────────────────────────────── */}
-        <main className="flex-1 flex flex-col min-w-0 relative h-dvh overflow-y-auto bg-aurora">
-          {/* Faixa de marca no topo de toda página: luz lime + logo IAplicada ao fundo.
-              Fica atrás da barra superior, que é a única barra do topo. */}
-          <div aria-hidden className="page-banner" />
+        <main className="flex-1 flex flex-col min-w-0 relative z-[1] h-dvh overflow-y-auto">
           {/* Barra superior enxuta, flutuante em vidro: só onde a pessoa está e as ações
               rápidas. A navegação completa fica na sidebar (sem repetir itens aqui). */}
-          <header className="h-16 lg:h-[68px] sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-2 sm:mt-3 flex items-center justify-between gap-3 px-3 sm:px-4 rounded-2xl glass">
+          <header className="shrink-0 h-[72px] lg:h-[76px] sticky top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-3 flex items-center justify-between gap-4 px-4 sm:px-5 rounded-2xl glass">
             <div className="flex items-center gap-2 min-w-0">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -864,11 +863,11 @@ export function AdsLayout() {
               )}
               <div className="min-w-0 hidden sm:block">
                 {activeGroup && (
-                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground leading-none mb-1">
+                  <div className="text-xs uppercase tracking-[0.12em] text-muted-foreground leading-none mb-1.5">
                     {activeGroup.label}
                   </div>
                 )}
-                <div className="text-base lg:text-[17px] font-semibold leading-tight truncate">
+                <div className="text-lg lg:text-xl font-semibold leading-tight truncate">
                   {activeItem?.label ?? "IAplicada Ads"}
                 </div>
               </div>
@@ -880,12 +879,12 @@ export function AdsLayout() {
                 variant="outline"
                 size="sm"
                 onClick={() => setCmdOpen(true)}
-                className="h-10 gap-2.5 px-4 text-muted-foreground font-normal pr-2 hidden sm:inline-flex"
+                className="h-11 gap-2.5 px-4 text-muted-foreground font-normal pr-2 min-w-[200px] justify-start hidden sm:inline-flex"
                 aria-label="Buscar (⌘K)"
               >
                 <Search className="h-4 w-4" />
                 <span className="text-sm">Buscar…</span>
-                <kbd className="ml-3 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
+                <kbd className="ml-auto rounded-md border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
                   ⌘K
                 </kbd>
               </Button>
@@ -909,7 +908,7 @@ export function AdsLayout() {
                     onClick={refresh}
                     disabled={syncing}
                     className={cn(
-                      "h-10 inline-flex items-center gap-2 rounded-full border px-3.5 text-[13px] transition-colors",
+                      "h-11 inline-flex items-center gap-2 rounded-full border px-4 text-sm transition-colors",
                       syncStale
                         ? "border-warning/40 bg-warning-soft text-warning"
                         : "border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -951,7 +950,7 @@ export function AdsLayout() {
                 <TooltipTrigger asChild>
                   <Link
                     to="/ads/saude"
-                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    className="relative inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
                     aria-label={`${alertas} alertas de saúde`}
                   >
                     <Bell className="h-5 w-5" />

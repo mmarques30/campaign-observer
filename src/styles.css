@@ -402,29 +402,27 @@
   .lift:hover { transform: translateY(-3px); box-shadow: var(--sh-elevated), var(--sh-glow); }
   .animate-scale-in { animation: scale-in .6s cubic-bezier(.22,1,.36,1) both; }
 
-  /* Faixa de marca atrás do topo de cada página (hero discreto em todas as telas). */
-  .page-banner {
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 340px;
+  /* Fundo único da aplicação: luz de marca e malha de pontos cobrindo a tela inteira,
+     atrás da sidebar e do conteúdo (sem emenda entre eles). */
+  .app-bg {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
     pointer-events: none;
-    z-index: 0;
     background:
-      radial-gradient(ellipse 55% 90% at 80% 0%, color-mix(in oklch, var(--color-primary) 22%, transparent), transparent 70%),
-      radial-gradient(ellipse 40% 70% at 10% 0%, color-mix(in oklch, var(--color-olive) 14%, transparent), transparent 70%);
-    opacity: .6;
-    -webkit-mask-image: linear-gradient(180deg, black 30%, transparent);
-    mask-image: linear-gradient(180deg, black 30%, transparent);
+      radial-gradient(ellipse 55% 45% at 85% -5%, color-mix(in oklch, var(--color-primary) 16%, transparent), transparent 70%),
+      radial-gradient(ellipse 45% 40% at 10% -5%, color-mix(in oklch, var(--color-olive) 12%, transparent), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 50% 110%, color-mix(in oklch, var(--color-olive) 8%, transparent), transparent 70%);
   }
-  :root:not(.dark) .page-banner { opacity: .4; }
-  .page-banner::after {
+  :root:not(.dark) .app-bg { opacity: .7; }
+  .app-bg::after {
     content: "";
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(color-mix(in oklch, var(--color-foreground) 12%, transparent) 1px, transparent 1px);
+    background-image: radial-gradient(color-mix(in oklch, var(--color-foreground) 10%, transparent) 1px, transparent 1px);
     background-size: 18px 18px;
-    -webkit-mask-image: radial-gradient(ellipse 50% 80% at 85% 0%, black, transparent);
-    mask-image: radial-gradient(ellipse 50% 80% at 85% 0%, black, transparent);
+    -webkit-mask-image: radial-gradient(ellipse 60% 50% at 80% 0%, black, transparent);
+    mask-image: radial-gradient(ellipse 60% 50% at 80% 0%, black, transparent);
   }
   /* Título de página maior e com mais presença em todas as telas. */
   .page-content h1:not(.hero-title) {
