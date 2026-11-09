@@ -58,6 +58,30 @@ export function filtroCorrecao(v: ReelProps["timeline"]["visual"]) {
   return partes.join(" ");
 }
 
+/** Ajuste de luz/cor do bloco que contém o trecho (o de intervalo menor vence). */
+export function ajusteCorDoTrecho(tl: ReelProps["timeline"], t: { de: number; ate: number }) {
+  const meio = (t.de + t.ate) / 2;
+  const cand = (tl.ajustesCor ?? []).filter((a) => meio >= a.de && meio <= a.ate);
+  if (!cand.length) return undefined;
+  return cand.reduce((m, a) => (a.ate - a.de < m.ate - m.de ? a : m));
+}
+
+/** Filtro CSS do ajuste por bloco (vem antes do ajuste geral do vídeo). */
+export function filtroBloco(tl: ReelProps["timeline"], t: { de: number; ate: number }) {
+  const a = ajusteCorDoTrecho(tl, t);
+  if (!a) return undefined;
+  const partes: string[] = [];
+  if (a.brilho !== 1) partes.push(`brightness(${a.brilho.toFixed(3)})`);
+  if (a.contraste !== 1) partes.push(`contrast(${a.contraste.toFixed(3)})`);
+  if (a.saturacao !== 1) partes.push(`saturate(${a.saturacao.toFixed(3)})`);
+  if (a.temperatura > 0) partes.push(`sepia(${(a.temperatura * 0.28).toFixed(3)})`);
+  if (a.temperatura < 0)
+    partes.push(
+      `hue-rotate(${(a.temperatura * -14).toFixed(1)}deg) saturate(${(1 + a.temperatura * 0.08).toFixed(3)})`,
+    );
+  return partes.join(" ") || undefined;
+}
+
 const ALTERNA_ESCALA = 1.08;
 // Duração da fusão entre trechos na transição "suave" (~0,33 s a 30 fps).
 const DISSOLVE_QUADROS = 10;
@@ -144,11 +168,13 @@ function Dissolve({
   trimBefore,
   dur,
   objectPosition,
+  filtro,
 }: {
   src: string;
   trimBefore: number;
   dur: number;
   objectPosition: string;
+  filtro?: string;
 }) {
   const frame = useCurrentFrame();
   return (
@@ -165,7 +191,13 @@ function Dissolve({
         trimBefore={trimBefore}
         muted
         pauseWhenBuffering
-        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition }}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          objectPosition,
+          filter: filtro,
+        }}
       />
     </AbsoluteFill>
   );
@@ -378,6 +410,7 @@ export function Reel(bruto: ReelProps) {
       objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
       filter:
         [
+          inicioTrechoAtual ? filtroBloco(tl, inicioTrechoAtual) : "",
           filtroCorrecao(tl.visual),
           FILTRO_LOOK[tl.visual.look] === "none" ? "" : FILTRO_LOOK[tl.visual.look],
         ]
@@ -606,6 +639,7 @@ export function Reel(bruto: ReelProps) {
                       height: "100%",
                       objectFit: "cover",
                       objectPosition: `${enq.x * 100}% ${enq.y * 100}%`,
+                      filter: filtroBloco(tl, t),
                     }}
                   />
                   {tl.visual.look === "suave" && (
@@ -672,6 +706,7 @@ export function Reel(bruto: ReelProps) {
                       trimBefore={Math.round(ant.ate * fps)}
                       dur={d}
                       objectPosition={`${enq.x * 100}% ${enq.y * 100}%`}
+                      filtro={filtroBloco(tl, ant)}
                     />
                   </Sequence>
                 );

@@ -39,7 +39,7 @@ import { ESTILOS } from "@/video/catalogo";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { Trecho } from "@/video/tempo";
-import { CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
+import { CorPorBloco, CorrecaoImagem, SonsAplicados } from "./AjustesImagem";
 import { TrilhaSonora } from "./TrilhaSonora";
 import { ImagensSugeridas } from "./ImagensSugeridas";
 import { Roteiro } from "./Roteiro";
@@ -319,6 +319,15 @@ export function Painel({
         <SonsAplicados tl={tl} setTl={setTl} trechos={trechos} onIr={onIr} />
 
         <CorrecaoImagem tl={tl} setTl={setTl} amostra={amostra} />
+
+        <CorPorBloco
+          tl={tl}
+          setTl={setTl}
+          trechos={trechos}
+          agora={agora}
+          duracaoFonte={duracaoFonte}
+          onIr={onIr}
+        />
 
         <section className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

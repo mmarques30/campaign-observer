@@ -315,3 +315,197 @@ export function SonsAplicados({
     </section>
   );
 }
+
+type AjusteCor = Timeline["ajustesCor"][number];
+const COR_NEUTRA = { brilho: 1, contraste: 1, saturacao: 1, temperatura: 0 };
+const LINHAS_BLOCO: {
+  k: keyof typeof COR_NEUTRA;
+  nome: string;
+  min: number;
+  max: number;
+  fmt: (x: number) => string;
+}[] = [
+  { k: "brilho", nome: "Brilho", min: 0.6, max: 1.5, fmt: (x) => `${Math.round((x - 1) * 100)}` },
+  {
+    k: "contraste",
+    nome: "Contraste",
+    min: 0.6,
+    max: 1.5,
+    fmt: (x) => `${Math.round((x - 1) * 100)}`,
+  },
+  { k: "saturacao", nome: "Saturação", min: 0, max: 2, fmt: (x) => `${Math.round((x - 1) * 100)}` },
+  {
+    k: "temperatura",
+    nome: "Temperatura",
+    min: -1,
+    max: 1,
+    fmt: (x) =>
+      x > 0 ? `+${Math.round(x * 100)} quente` : x < 0 ? `${Math.round(x * 100)} frio` : "0",
+  },
+];
+
+/**
+ * Luz e cor por bloco: ajusta só o corte que está no player, ou a gravação inteira (quando o vídeo
+ * foi juntado de duas gravações). Fica em segundos do original, então sobrevive a ajustes de corte.
+ */
+export function CorPorBloco({
+  tl,
+  setTl,
+  trechos,
+  agora,
+  duracaoFonte,
+  onIr,
+}: {
+  tl: Timeline;
+  setTl: (t: Timeline, resumo: string) => void;
+  trechos: Trecho[];
+  agora: number;
+  duracaoFonte: number;
+  onIr: (segundosOriginal: number) => void;
+}) {
+  const emendas = [...(tl.emendas ?? [])].map((e) => e.em).sort((a, b) => a - b);
+  const temGravacoes = emendas.length > 0;
+  const [escopo, setEscopo] = useState<"corte" | "gravacao">("corte");
+  const ajustes = tl.ajustesCor ?? [];
+
+  // Bloco do player: o trecho que contém o instante atual (ou o mais perto).
+  let idx = trechos.findIndex((t) => agora >= t.de - 0.01 && agora <= t.ate + 0.01);
+  if (idx < 0 && trechos.length)
+    idx = trechos.reduce(
+      (m, t, k) =>
+        Math.abs((t.de + t.ate) / 2 - agora) <
+        Math.abs((trechos[m].de + trechos[m].ate) / 2 - agora)
+          ? k
+          : m,
+      0,
+    );
+  const trecho = trechos[idx];
+  const limites = [0, ...emendas, duracaoFonte || Infinity];
+  const g = Math.max(
+    0,
+    limites.findIndex((x, k) => k < limites.length - 1 && agora >= x && agora < limites[k + 1]),
+  );
+  const alvo =
+    escopo === "gravacao" && temGravacoes
+      ? { de: limites[g], ate: limites[g + 1], nome: `Gravação ${g + 1}` }
+      : trecho
+        ? { de: trecho.de, ate: trecho.ate, nome: `Corte ${idx + 1}` }
+        : null;
+
+  const mesmo = (a: AjusteCor) =>
+    alvo && Math.abs(a.de - alvo.de) < 0.05 && Math.abs(a.ate - alvo.ate) < 0.05;
+  const atual = ajustes.find(mesmo);
+  const val = { ...COR_NEUTRA, ...(atual ?? {}) };
+
+  function set(k: keyof typeof COR_NEUTRA, x: number) {
+    if (!alvo) return;
+    const novo: AjusteCor = { ...COR_NEUTRA, ...(atual ?? {}), de: alvo.de, ate: alvo.ate, [k]: x };
+    const lista = atual ? ajustes.map((a) => (a === atual ? novo : a)) : [...ajustes, novo];
+    setTl({ ...tl, ajustesCor: lista }, `${alvo.nome}: luz e cor ajustadas`);
+  }
+  function tirar(a: AjusteCor) {
+    setTl({ ...tl, ajustesCor: ajustes.filter((x) => x !== a) }, "Ajuste de bloco removido");
+  }
+  const nomeDe = (a: AjusteCor) => {
+    const k = limites.findIndex(
+      (x, j) =>
+        j < limites.length - 1 &&
+        Math.abs(x - a.de) < 0.05 &&
+        Math.abs(limites[j + 1] - a.ate) < 0.05,
+    );
+    if (temGravacoes && k >= 0) return `Gravação ${k + 1}`;
+    const t = trechos.findIndex((x) => (x.de + x.ate) / 2 >= a.de && (x.de + x.ate) / 2 <= a.ate);
+    return t >= 0 ? `Corte ${t + 1}` : "Bloco removido da edição";
+  };
+
+  return (
+    <section className="space-y-3">
+      <div className="flex items-center gap-2">
+        <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Luz por bloco
+        </span>
+        {atual && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 px-2 text-xs"
+            onClick={() => tirar(atual)}
+            title="Voltar este bloco ao original"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Ajusta só o bloco que está no player. Mova o player para escolher outro.
+      </p>
+      {temGravacoes && (
+        <div className="grid grid-cols-2 gap-1">
+          {(["corte", "gravacao"] as const).map((e) => (
+            <Button
+              key={e}
+              variant={escopo === e ? "default" : "outline"}
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setEscopo(e)}
+            >
+              {e === "corte" ? "Só este corte" : "Gravação inteira"}
+            </Button>
+          ))}
+        </div>
+      )}
+      {alvo ? (
+        <>
+          <div className="text-xs font-medium">
+            {alvo.nome}{" "}
+            <span className="text-muted-foreground tabular-nums">
+              ({fmtTempo(paraSaida(trechos, Math.max(alvo.de, trechos[0]?.de ?? 0)))})
+            </span>
+          </div>
+          {LINHAS_BLOCO.map((l) => (
+            <div key={l.k} className="space-y-1">
+              <Label className="text-xs flex justify-between">
+                <span>{l.nome}</span>
+                <span className="text-muted-foreground tabular-nums">{l.fmt(val[l.k])}</span>
+              </Label>
+              <Slider
+                min={l.min}
+                max={l.max}
+                step={0.01}
+                value={[val[l.k]]}
+                onValueChange={([x]) => set(l.k, x)}
+              />
+            </div>
+          ))}
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">Nenhum trecho no player.</p>
+      )}
+      {ajustes.length > 0 && (
+        <div className="space-y-1 pt-1">
+          <div className="text-xs text-muted-foreground">Blocos ajustados</div>
+          {ajustes.map((a, k) => (
+            <div key={k} className="flex items-center gap-2 text-xs">
+              <button
+                className="flex-1 text-left hover:underline"
+                onClick={() => onIr(a.de + 0.05)}
+              >
+                {nomeDe(a)}
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                onClick={() => tirar(a)}
+                title="Tirar ajuste"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}

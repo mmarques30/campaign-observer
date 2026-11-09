@@ -86,6 +86,21 @@ export const timelineSchema = z.object({
       }),
     )
     .default([]),
+  // Luz e cor por bloco (segundos do original): vale para os trechos cujo meio cai dentro do
+  // intervalo. Serve para igualar gravações diferentes ou um corte com luz ruim. Quando dois
+  // ajustes cobrem o mesmo trecho, vale o de intervalo menor (o do corte vence o da gravação).
+  ajustesCor: z
+    .array(
+      z.object({
+        de: z.number().min(0),
+        ate: z.number().min(0),
+        brilho: z.number().default(1),
+        contraste: z.number().default(1),
+        saturacao: z.number().default(1),
+        temperatura: z.number().default(0),
+      }),
+    )
+    .default([]),
   // Onde está o rosto da pessoa no quadro (0–1), detectado no navegador. Grafismos desviam dele.
   rosto: z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() }).nullish(),
   // Enquadramento do original dentro do quadro (reenquadrar 16:9 → 9:16).
