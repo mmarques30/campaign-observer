@@ -435,6 +435,11 @@
   }
 }
 
+/* Fluxo de energia nas linhas acesas do mapa de Conexões. */
+.fluxo { animation: fluxo 1.2s linear infinite; }
+@keyframes fluxo { to { stroke-dashoffset: -32; } }
+@media (prefers-reduced-motion: reduce) { .fluxo { animation: none; } }
+
 @keyframes petal-float {
   0% { transform: translate(0, 0) rotate(0deg) scale(1); }
   50% { transform: translate(14px, -10px) rotate(8deg) scale(1.04); }
