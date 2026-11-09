@@ -36,6 +36,9 @@ import {
   ShieldCheck,
   ScrollText,
   Lock,
+  Building2,
+  Wallet,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -68,7 +71,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useTheme, type Theme } from "@/lib/theme";
 import { Logo, LogoMark } from "@/components/ads/Logo";
 import { cn } from "@/lib/utils";
-import { usePermissoes, recursoDoPath, registrarAcesso } from "@/lib/permissoes";
+import { usePermissoes, recursoDoPath, registrarAcesso, trocarEmpresa, primeiraTelaLiberada } from "@/lib/permissoes";
 
 type NavItem ={ to: string; label: string; icon: any; exact?: boolean; keywords?: string };
 type NavGroup = { id: string; label: string; icon: any; items: NavItem[] };
@@ -219,6 +222,15 @@ const GROUPS: NavGroup[] = [
       },
     ],
   },
+  {
+    // Consumo de IA da empresa ativa, com fechamento por semana.
+    id: "conta",
+    label: "Conta",
+    icon: Wallet,
+    items: [
+      { to: "/ads/gastos", label: "Gasto de API", icon: Wallet, keywords: "custo api ia tokens consumo fechamento semana fatura" },
+    ],
+  },
 ];
 
 // Administração: só aparece para administradores (profiles.is_admin).
@@ -228,6 +240,7 @@ const ADMIN_GROUP: NavGroup = {
   icon: ShieldCheck,
   items: [
     { to: "/ads/admin", label: "Usuários", icon: Users, exact: true, keywords: "usuários permissões acessos cadastro senha" },
+    { to: "/ads/admin/empresas", label: "Empresas", icon: Building2, keywords: "empresas clientes módulos liberar acesso" },
     { to: "/ads/admin/acessos", label: "Log de acessos", icon: ScrollText, keywords: "log auditoria quem acessou" },
   ],
 };
@@ -263,7 +276,7 @@ export function AdsLayout() {
     const r = recursoDoPath(it.to);
     if (!r) return true;
     if (r.key === "admin") return perm.isAdmin;
-    return perm.carregando || perm.podeVer(r.key);
+    return !perm.carregando && perm.podeVer(r.key);
   };
   const dashVisivel = visivel(DASHBOARD);
   const gruposVisiveis = TODOS_GRUPOS.map((g) => ({ ...g, items: g.items.filter(visivel) })).filter(
@@ -276,6 +289,24 @@ export function AdsLayout() {
     !!perm.userId &&
     !!recursoAtual &&
     (recursoAtual.key === "admin" ? !perm.isAdmin : !perm.podeVer(recursoAtual.key));
+
+  // Empresa ativa: a IAplicada vê mídia paga (Meta); empresas clientes, não.
+  const ehInterna = !!perm.empresa?.interna;
+  const [trocando, setTrocando] = useState(false);
+  async function mudarEmpresa(id: string) {
+    if (id === perm.empresa?.id) return;
+    setTrocando(true);
+    try {
+      const p = await trocarEmpresa(id);
+      qc.clear(); // nada da empresa anterior fica em cache
+      toast.success(`Agora em ${p.empresa?.nome ?? "outra empresa"}`);
+      navigate({ to: primeiraTelaLiberada(p) as any });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setTrocando(false);
+    }
+  }
 
   // Na raiz (/ads) sem permissão de Dashboard, vai direto para a primeira tela
   // liberada em vez de mostrar "sem acesso" — a raiz não foi escolha da pessoa.
@@ -305,6 +336,7 @@ export function AdsLayout() {
       return data?.ultima_sincronizacao_em ? new Date(data.ultima_sincronizacao_em) : null;
     },
     refetchInterval: 60_000,
+    enabled: ehInterna,
   });
   const lastSync = lastSyncQ.data ?? null;
   const syncStale = !!lastSync && Date.now() - lastSync.getTime() > 2 * 3600 * 1000;
@@ -321,6 +353,7 @@ export function AdsLayout() {
         .reduce((a: number, h: any) => a + (h.total_campanhas ?? 0), 0);
     },
     refetchInterval: 5 * 60_000,
+    enabled: ehInterna,
   });
   const alertas = healthQ.data ?? 0;
 
@@ -555,6 +588,53 @@ export function AdsLayout() {
             )}
           </div>
 
+          {/* Empresa ativa (troca sem sair do sistema) */}
+          {perm.empresa && (
+            <div className="px-3 pt-3">
+              {perm.empresas.length > 1 ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      disabled={trocando}
+                      className="w-full flex items-center gap-2.5 rounded-lg border border-sidebar-border/70 bg-sidebar-accent/40 px-2.5 py-2 text-left transition-colors hover:bg-sidebar-accent disabled:opacity-60"
+                      aria-label="Trocar de empresa"
+                    >
+                      <span className="h-7 w-7 shrink-0 rounded-md bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center">
+                        {perm.empresa.nome.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10px] text-muted-foreground leading-none mb-0.5">Empresa</span>
+                        <span className="block text-[13px] font-semibold truncate leading-tight">{perm.empresa.nome}</span>
+                      </span>
+                      <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[14rem]">
+                    <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Trocar de empresa</DropdownMenuLabel>
+                    {perm.empresas.map((e) => (
+                      <DropdownMenuItem key={e.id} onClick={() => mudarEmpresa(e.id)} className="gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">{e.nome}</span>
+                        {e.id === perm.empresa?.id && <Check className="h-3.5 w-3.5 ml-auto text-primary" />}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2">
+                  <span className="h-7 w-7 shrink-0 rounded-md bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center">
+                    {perm.empresa.nome.slice(0, 2).toUpperCase()}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-[10px] text-muted-foreground leading-none mb-0.5">Empresa</span>
+                    <span className="block text-[13px] font-semibold truncate leading-tight">{perm.empresa.nome}</span>
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <nav
             className={cn(
               "flex-1 overflow-y-auto overflow-x-hidden py-3",
@@ -746,6 +826,8 @@ export function AdsLayout() {
               </Button>
 
               {/* Sync */}
+              {ehInterna && (
+              <>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -810,6 +892,8 @@ export function AdsLayout() {
                   {alertas > 0 ? `${alertas} campanha(s) com problema de conexão` : "Tudo saudável"}
                 </TooltipContent>
               </Tooltip>
+              </>
+              )}
 
               {/* Tema */}
               <DropdownMenu>
@@ -864,10 +948,12 @@ export function AdsLayout() {
                 <Outlet />
               )}
             </div>
-            <footer className="relative z-[1] mt-6 py-4 px-6 text-center text-[11px] text-muted-foreground/70">
-              Dados da Meta sincronizados automaticamente a cada 15 min · use o indicador no topo
-              para forçar agora.
-            </footer>
+            {ehInterna && (
+              <footer className="relative z-[1] mt-6 py-4 px-6 text-center text-[11px] text-muted-foreground/70">
+                Dados da Meta sincronizados automaticamente a cada 15 min · use o indicador no topo
+                para forçar agora.
+              </footer>
+            )}
           </div>
         </main>
 
@@ -891,6 +977,7 @@ export function AdsLayout() {
             </CommandGroup>
             <CommandSeparator />
             <CommandGroup heading="Ações">
+              {ehInterna && (
               <CommandItem
                 value="atualizar sincronizar dados meta"
                 onSelect={() => {
@@ -902,6 +989,24 @@ export function AdsLayout() {
                 <RefreshCw className="h-4 w-4 text-muted-foreground" />
                 Atualizar dados da Meta agora
               </CommandItem>
+              )}
+              {perm.empresas.length > 1 &&
+                perm.empresas
+                  .filter((e) => e.id !== perm.empresa?.id)
+                  .map((e) => (
+                    <CommandItem
+                      key={e.id}
+                      value={`empresa trocar ${e.nome}`}
+                      onSelect={() => {
+                        setCmdOpen(false);
+                        void mudarEmpresa(e.id);
+                      }}
+                      className="gap-2"
+                    >
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      Ir para {e.nome}
+                    </CommandItem>
+                  ))}
               {THEME_OPTS.map((o) => (
                 <CommandItem
                   key={o.v}

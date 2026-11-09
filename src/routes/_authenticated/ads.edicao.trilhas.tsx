@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Music, Pause, Play, Trash2, Upload } from "lucide-react";
+import { usePermissoes } from "@/lib/permissoes";
 import {
   enviarTrilha,
   HUMOR_POR_ENERGIA,
@@ -49,6 +50,8 @@ const HUMORES = [
 
 function TrilhasPage() {
   const qc = useQueryClient();
+  // Biblioteca da IAplicada: empresas clientes usam as faixas, mas não adicionam nem removem.
+  const podeEditar = usePermissoes().podeEditar("edicao.trilhas");
   const q = useQuery({ queryKey: ["vedit", "trilhas"], queryFn: listarTrilhas });
   const [tocando, setTocando] = useState<string | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -121,6 +124,8 @@ function TrilhasPage() {
         </p>
       </div>
 
+      {podeEditar && (
+      <>
       <Card>
         <CardContent className="p-4 space-y-2">
           <div className="font-semibold">Buscar músicas liberadas</div>
@@ -219,6 +224,8 @@ function TrilhasPage() {
           </div>
         </CardContent>
       </Card>
+      </>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {(q.data ?? []).map((t) => (
@@ -256,7 +263,7 @@ function TrilhasPage() {
                 </div>
                 <p className="text-xs">{t.uso}</p>
               </div>
-              {!t.base && (
+              {!t.base && podeEditar && (
                 <Button
                   variant="ghost"
                   size="icon"

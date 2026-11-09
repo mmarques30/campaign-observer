@@ -80,6 +80,28 @@ async function listarTrilhas(sb: any) {
 // Mesmo modelo das outras funções do projeto (centenas de chamadas ok com esta chave).
 const MODELO = Deno.env.get("VEDIT_MODELO") || "claude-opus-5";
 
+/**
+ * Empresa ativa de quem chamou (multiempresa do IAplicada Ads): atribui o gasto
+ * de API à empresa certa. Resolvida só na hora de gravar o log, uma vez por
+ * requisição. Nunca lança — sem usuário identificado, o banco usa a IAplicada.
+ */
+async function empresaDoChamador(sb: any): Promise<string | null> {
+  if (sb.__empresa !== undefined) return sb.__empresa;
+  sb.__empresa = null;
+  try {
+    const jwt = (sb.__req?.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (!jwt) return null;
+    const { data } = await sb.auth.getUser(jwt);
+    const uid = data?.user?.id;
+    if (!uid) return null;
+    const { data: emp } = await sb.rpc("mads_empresa_ativa_de", { _uid: uid });
+    sb.__empresa = (emp as string) ?? null;
+  } catch (_) {
+    /* sem empresa: fica a IAplicada */
+  }
+  return sb.__empresa;
+}
+
 /** Consumo em api_usage_log (aba Custo do PMO), como as demais funções. Nunca lança. */
 async function logUso(sb: any, origem: string, usage: any, projetoId: string | null) {
   try {
@@ -88,6 +110,7 @@ async function logUso(sb: any, origem: string, usage: any, projetoId: string | n
     if (!input && !output) return;
     await sb.from("api_usage_log").insert({
       provider: "anthropic",
+      empresa_id: await empresaDoChamador(sb),
       origem,
       model: MODELO,
       input_tokens: input,
@@ -876,6 +899,7 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+  (sb as any).__req = req;
   const body = await req.json().catch(() => ({}));
   const { projeto_id, mensagem, catalogo, acao } = body as {
     projeto_id?: string;
