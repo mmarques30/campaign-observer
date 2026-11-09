@@ -77,9 +77,11 @@ export function deltaPct(atual: number, anterior: number): number | null {
 }
 
 /* ── Sparkline ──────────────────────────────────────────────────────────── */
-export function Sparkline({ data, width = 96, height = 28, className, tone = "primary", area = true }: {
+export function Sparkline({ data, width = 96, height = 28, className, tone = "primary", area = true, fluid = false }: {
   data: number[]; width?: number; height?: number; className?: string;
   tone?: "primary" | "success" | "danger" | "muted"; area?: boolean;
+  /** Ocupa a largura do contêiner (estica o desenho). */
+  fluid?: boolean;
 }) {
   const id = `sp${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   if (!data.length) return null;
@@ -93,16 +95,25 @@ export function Sparkline({ data, width = 96, height = 28, className, tone = "pr
   const fill = `${pts[0][0].toFixed(1)},${height} ${line} ${pts[pts.length - 1][0].toFixed(1)},${height}`;
   const color = { primary: "var(--color-primary)", success: "var(--color-success)", danger: "var(--color-danger)", muted: "var(--color-muted-foreground)" }[tone];
   return (
-    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className={cn("shrink-0 overflow-visible", className)} aria-hidden>
+    <svg
+      width={fluid ? "100%" : width} height={height} viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio={fluid ? "none" : undefined}
+      className={cn("shrink-0 overflow-visible", className)} aria-hidden
+    >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.4" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
+        <filter id={`${id}g`} x="-20%" y="-50%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation="2.2" />
+        </filter>
       </defs>
       {area && <polygon points={fill} fill={`url(#${id})`} />}
-      <polyline points={line} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={2.2} fill={color} />
+      {/* Traço com brilho por baixo (profundidade dos gráficos de referência). */}
+      <polyline points={line} fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.45} filter={`url(#${id}g)`} vectorEffect="non-scaling-stroke" />
+      <polyline points={line} fill="none" stroke={color} strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      {!fluid && <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={2.2} fill={color} />}
     </svg>
   );
 }
@@ -113,25 +124,51 @@ export function Kpi({ icon: Icon, label, value, hint, delta, deltaInvert, spark,
   delta?: number | null; deltaInvert?: boolean; spark?: number[];
   tone?: Tone | "primary"; loading?: boolean; className?: string; onClick?: () => void;
 }) {
-  const iconTone = tone === "primary" ? "bg-primary/12 text-primary" : tone === "neutral" ? "bg-muted text-muted-foreground" : toneClass[tone];
+  const destaque = tone === "primary";
+  const sparkTone = tone === "danger" ? "danger" : tone === "success" ? "success" : "primary";
+  const temSpark = !!spark && spark.length > 1;
   return (
-    <Card interactive={!!onClick} onClick={onClick} className={cn("relative overflow-hidden", className)}>
-      <CardContent className="p-4 sm:p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="text-xs font-medium text-muted-foreground truncate">{label}</div>
-          {Icon && <div className={cn("h-7 w-7 shrink-0 rounded-lg flex items-center justify-center border border-transparent", iconTone)}><Icon className="h-3.5 w-3.5" /></div>}
-        </div>
-        {loading ? <Skeleton className="h-8 w-28 mt-2" /> : (
-          <div className="mt-1.5 font-display text-[26px] font-semibold tracking-tight tabular-nums leading-none">{value}</div>
-        )}
-        <div className="mt-2.5 flex items-end justify-between gap-2 min-h-[20px]">
-          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground min-w-0">
-            {delta !== undefined && <DeltaBadge value={delta} invert={deltaInvert} />}
-            {hint && <span className="truncate">{hint}</span>}
+    <Card
+      interactive={!!onClick}
+      onClick={onClick}
+      className={cn("group/kpi relative overflow-hidden flex flex-col", destaque && "border-gradient", className)}
+    >
+      {/* Luz de marca no canto do card em destaque (profundidade). */}
+      {destaque && (
+        <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full bg-primary/25 blur-3xl opacity-70 transition-opacity duration-500 group-hover/kpi:opacity-100" />
+      )}
+      <CardContent className={cn("relative p-4 sm:p-5 flex-1", temSpark && "pb-2 sm:pb-2")}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            {Icon && (
+              <span className={cn(
+                "h-6 w-6 shrink-0 rounded-full flex items-center justify-center ring-1",
+                destaque ? "bg-primary/15 text-primary ring-primary/30 shadow-[0_0_14px_-2px_var(--color-primary)]" : "bg-muted/70 text-muted-foreground ring-border",
+              )}>
+                <Icon className="h-3 w-3" />
+              </span>
+            )}
+            <div className="text-xs font-medium text-muted-foreground truncate">{label}</div>
           </div>
-          {spark && spark.length > 1 && <Sparkline data={spark} width={72} height={22} tone={tone === "danger" ? "danger" : tone === "success" ? "success" : "primary"} className="hidden sm:block" />}
+          {delta !== undefined && (
+            <span className="rounded-full bg-muted/60 px-1.5 py-0.5 ring-1 ring-border/60">
+              <DeltaBadge value={delta} invert={deltaInvert} />
+            </span>
+          )}
         </div>
+        {loading ? <Skeleton className="h-9 w-32 mt-3" /> : (
+          <div className={cn(
+            "mt-3 font-display text-[28px] sm:text-[30px] font-semibold tracking-tight tabular-nums leading-none animate-fade-up",
+            destaque && "text-glow",
+          )}>{value}</div>
+        )}
+        {hint && <div className="mt-2 text-[11px] text-muted-foreground truncate">{hint}</div>}
       </CardContent>
+      {temSpark && (
+        <div className="relative h-11 -mt-1 opacity-90 transition-opacity group-hover/kpi:opacity-100">
+          <Sparkline data={spark!} width={200} height={44} tone={sparkTone} fluid />
+        </div>
+      )}
     </Card>
   );
 }
@@ -207,12 +244,16 @@ export function useChartTheme() {
       grid: read("--border", "#333"),
       axis: fg,
       tooltip: {
+        // Tooltip em vidro, com brilho de marca (hover dos gráficos de referência).
         contentStyle: {
-          background: read("--popover", "#1a1a1a"),
-          border: `1px solid ${read("--border", "#333")}`,
-          borderRadius: 12,
-          boxShadow: read("--sh-elevated", "0 8px 24px rgba(0,0,0,.3)"),
+          background: `color-mix(in oklch, ${read("--popover", "#1a1a1a")} 78%, transparent)`,
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+          border: `1px solid color-mix(in oklch, ${read("--primary", "#a3cb20")} 30%, ${read("--border", "#333")})`,
+          borderRadius: 14,
+          boxShadow: `${read("--sh-elevated", "0 8px 24px rgba(0,0,0,.3)")}, ${read("--sh-glow", "none")}`,
           fontSize: 12,
+          padding: "10px 12px",
           color: read("--foreground", "#eee"),
         },
         labelStyle: { color: fg, fontSize: 11, marginBottom: 4 },
@@ -229,15 +270,18 @@ export function Section({ title, description, actions, children, className, body
   title: ReactNode; description?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; bodyClassName?: string;
 }) {
   return (
-    <Card className={cn("animate-fade-up", className)}>
+    <Card className={cn("animate-fade-up flex flex-col", className)}>
       <div className="flex items-start justify-between gap-3 flex-wrap p-5 sm:p-6 pb-3 sm:pb-3">
         <div className="min-w-0">
-          <div className="font-display text-base font-semibold tracking-tight">{title}</div>
+          <div className="font-display text-base font-semibold tracking-tight flex items-center gap-2">
+            <span aria-hidden className="h-3.5 w-1 rounded-full bg-primary shadow-[0_0_10px_var(--color-primary)]" />
+            {title}
+          </div>
           {description && <div className="text-xs text-muted-foreground mt-0.5">{description}</div>}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
-      <div className={cn("px-5 sm:px-6 pb-5 sm:pb-6", bodyClassName)}>{children}</div>
+      <div className={cn("px-5 sm:px-6 pb-5 sm:pb-6 flex-1 min-h-0", bodyClassName)}>{children}</div>
     </Card>
   );
 }

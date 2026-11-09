@@ -13,9 +13,13 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-2xl border border-border/70 bg-card text-card-foreground shadow-card",
-      "transition-[transform,box-shadow,border-color] duration-200 ease-out",
-      interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-elevated hover:border-border",
+      // Profundidade: degradê sutil de cima para baixo + realce na borda superior
+      // (luz vindo de cima, como nos painéis de referência) e brilho de marca no hover.
+      "relative rounded-2xl border border-border/70 bg-card text-card-foreground shadow-card",
+      "bg-[linear-gradient(180deg,color-mix(in_oklch,var(--color-foreground)_3.5%,transparent),transparent_42%)]",
+      "transition-[transform,box-shadow,border-color] duration-300 ease-out",
+      "hover:border-[color-mix(in_oklch,var(--color-primary)_28%,var(--color-border))]",
+      interactive && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[var(--sh-elevated),var(--sh-glow)]",
       className,
     )}
     {...props}

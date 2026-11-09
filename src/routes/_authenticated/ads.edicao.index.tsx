@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { CenterStage, GlassStat } from "@/components/ads/viz";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -120,18 +121,44 @@ function Estudio() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Estúdio de edição</h1>
-          <p className="text-sm text-muted-foreground">
-            Suba o vídeo cru, peça a edição em português ou por comando (/vidro, /trava, /legenda),
-            aprove e publique como anúncio ou Reel.
-          </p>
-        </div>
-        <Button onClick={() => setAberto(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Novo vídeo
-        </Button>
-      </div>
+      {/* Imagem no centro, indicadores dos lados (estrutura do anexo 2). */}
+      <CenterStage
+        title="Estúdio de edição"
+        subtitle="Suba o vídeo cru, peça a edição em português ou por comando e publique."
+        actions={
+          <Button onClick={() => setAberto(true)} className="shadow-[0_8px_24px_-8px_var(--color-primary)]">
+            <Plus className="h-4 w-4 mr-2" /> Novo vídeo
+          </Button>
+        }
+        left={
+          <>
+            <GlassStat icon={Clapperboard} label="Vídeos no estúdio" value={lista.length} detail={lista[0] ? `último: ${new Date(lista[0].updated_at).toLocaleDateString("pt-BR")}` : undefined} />
+            <GlassStat icon={Megaphone} label="Anúncios" value={lista.filter((p) => p.objetivo === "anuncio").length} detail="para Meta Ads" />
+          </>
+        }
+        right={
+          <>
+            <GlassStat icon={Sparkles} label="Orgânicos" value={lista.filter((p) => p.objetivo !== "anuncio").length} detail="Reels" />
+            <GlassStat icon={Wand2} label="Versões editadas" value={lista.reduce((a, p) => a + Number((p as any).versao ?? 0), 0)} detail="somando todos os vídeos" />
+          </>
+        }
+        media={
+          <Link
+            to={lista[0] ? "/ads/edicao/$id" : "/ads/edicao"}
+            params={lista[0] ? { id: lista[0].id } : undefined as any}
+            className="group relative block w-[168px] sm:w-[190px] aspect-[9/16] rounded-[28px] p-1.5 bg-white/10 ring-1 ring-white/20 shadow-[0_30px_80px_-20px_rgba(175,192,65,0.55)] lift"
+          >
+            <div className="relative h-full w-full overflow-hidden rounded-[22px] bg-[radial-gradient(circle_at_50%_30%,#2a3112,#0d0f08_70%)]">
+              <img src="/brand/iaplicada-mark.png" alt="" className="absolute left-1/2 top-[38%] w-[70%] -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_0_30px_rgba(175,192,65,0.7)] transition-transform duration-500 group-hover:scale-110" />
+              <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                <div className="text-[10px] uppercase tracking-wider text-[#AFC041]">{lista[0] ? "Último vídeo" : "Comece aqui"}</div>
+                <div className="text-xs font-semibold text-white truncate">{lista[0]?.nome ?? "Seu primeiro Reel"}</div>
+                <div className="mt-2 h-1 rounded-full bg-white/15 overflow-hidden"><div className="h-full w-2/3 rounded-full bg-[#AFC041] shadow-[0_0_10px_#AFC041]" /></div>
+              </div>
+            </div>
+          </Link>
+        }
+      />
 
       {projetos.isError && (
         <Card className="border-amber-500/40">
@@ -173,7 +200,7 @@ function Estudio() {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {lista.map((p) => (
             <Link key={p.id} to="/ads/edicao/$id" params={{ id: p.id }}>
-              <Card className="group relative hover:border-primary/50 hover:shadow-md transition">
+              <Card interactive className="group relative overflow-hidden">
                 <Button
                   variant="ghost"
                   size="icon"
