@@ -19,12 +19,14 @@ import { Route as AuthenticatedAdsAudienciasRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdsAutomacoesRouteImport } from './routes/_authenticated/ads.automacoes'
 import { Route as AuthenticatedAdsCapiEventsRouteImport } from './routes/_authenticated/ads.capi-events'
 import { Route as AuthenticatedAdsCriativosRouteImport } from './routes/_authenticated/ads.criativos'
+import { Route as AuthenticatedAdsGastosRouteImport } from './routes/_authenticated/ads.gastos'
 import { Route as AuthenticatedAdsInsightsRouteImport } from './routes/_authenticated/ads.insights'
 import { Route as AuthenticatedAdsLpsRouteImport } from './routes/_authenticated/ads.lps'
 import { Route as AuthenticatedAdsRotinasRouteImport } from './routes/_authenticated/ads.rotinas'
 import { Route as AuthenticatedAdsSaudeRouteImport } from './routes/_authenticated/ads.saude'
 import { Route as AuthenticatedAdsAdminIndexRouteImport } from './routes/_authenticated/ads.admin.index'
 import { Route as AuthenticatedAdsAdminAcessosRouteImport } from './routes/_authenticated/ads.admin.acessos'
+import { Route as AuthenticatedAdsAdminEmpresasRouteImport } from './routes/_authenticated/ads.admin.empresas'
 import { Route as AuthenticatedAdsCampanhasIndexRouteImport } from './routes/_authenticated/ads.campanhas.index'
 import { Route as AuthenticatedAdsCampanhasIdRouteImport } from './routes/_authenticated/ads.campanhas.$id'
 import { Route as AuthenticatedAdsCampanhasNovaRouteImport } from './routes/_authenticated/ads.campanhas.nova'
@@ -99,6 +101,11 @@ const AuthenticatedAdsCriativosRoute =
     path: '/criativos',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
+const AuthenticatedAdsGastosRoute = AuthenticatedAdsGastosRouteImport.update({
+  id: '/gastos',
+  path: '/gastos',
+  getParentRoute: () => AuthenticatedAdsRoute,
+} as any)
 const AuthenticatedAdsInsightsRoute =
   AuthenticatedAdsInsightsRouteImport.update({
     id: '/insights',
@@ -130,6 +137,12 @@ const AuthenticatedAdsAdminAcessosRoute =
   AuthenticatedAdsAdminAcessosRouteImport.update({
     id: '/admin/acessos',
     path: '/admin/acessos',
+    getParentRoute: () => AuthenticatedAdsRoute,
+  } as any)
+const AuthenticatedAdsAdminEmpresasRoute =
+  AuthenticatedAdsAdminEmpresasRouteImport.update({
+    id: '/admin/empresas',
+    path: '/admin/empresas',
     getParentRoute: () => AuthenticatedAdsRoute,
   } as any)
 const AuthenticatedAdsCampanhasIndexRoute =
@@ -255,12 +268,14 @@ export interface FileRoutesByFullPath {
   '/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/ads/criativos': typeof AuthenticatedAdsCriativosRoute
+  '/ads/gastos': typeof AuthenticatedAdsGastosRoute
   '/ads/insights': typeof AuthenticatedAdsInsightsRoute
   '/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/ads/rotinas': typeof AuthenticatedAdsRotinasRoute
   '/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/ads/': typeof AuthenticatedAdsIndexRoute
   '/ads/admin/acessos': typeof AuthenticatedAdsAdminAcessosRoute
+  '/ads/admin/empresas': typeof AuthenticatedAdsAdminEmpresasRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/ads/criar/$id': typeof AuthenticatedAdsCriarIdRoute
@@ -290,12 +305,14 @@ export interface FileRoutesByTo {
   '/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/ads/criativos': typeof AuthenticatedAdsCriativosRoute
+  '/ads/gastos': typeof AuthenticatedAdsGastosRoute
   '/ads/insights': typeof AuthenticatedAdsInsightsRoute
   '/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/ads/rotinas': typeof AuthenticatedAdsRotinasRoute
   '/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/ads': typeof AuthenticatedAdsIndexRoute
   '/ads/admin/acessos': typeof AuthenticatedAdsAdminAcessosRoute
+  '/ads/admin/empresas': typeof AuthenticatedAdsAdminEmpresasRoute
   '/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/ads/criar/$id': typeof AuthenticatedAdsCriarIdRoute
@@ -328,12 +345,14 @@ export interface FileRoutesById {
   '/_authenticated/ads/automacoes': typeof AuthenticatedAdsAutomacoesRoute
   '/_authenticated/ads/capi-events': typeof AuthenticatedAdsCapiEventsRoute
   '/_authenticated/ads/criativos': typeof AuthenticatedAdsCriativosRoute
+  '/_authenticated/ads/gastos': typeof AuthenticatedAdsGastosRoute
   '/_authenticated/ads/insights': typeof AuthenticatedAdsInsightsRoute
   '/_authenticated/ads/lps': typeof AuthenticatedAdsLpsRoute
   '/_authenticated/ads/rotinas': typeof AuthenticatedAdsRotinasRoute
   '/_authenticated/ads/saude': typeof AuthenticatedAdsSaudeRoute
   '/_authenticated/ads/': typeof AuthenticatedAdsIndexRoute
   '/_authenticated/ads/admin/acessos': typeof AuthenticatedAdsAdminAcessosRoute
+  '/_authenticated/ads/admin/empresas': typeof AuthenticatedAdsAdminEmpresasRoute
   '/_authenticated/ads/campanhas/$id': typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   '/_authenticated/ads/campanhas/nova': typeof AuthenticatedAdsCampanhasNovaRoute
   '/_authenticated/ads/criar/$id': typeof AuthenticatedAdsCriarIdRoute
@@ -366,12 +385,14 @@ export interface FileRouteTypes {
     | '/ads/automacoes'
     | '/ads/capi-events'
     | '/ads/criativos'
+    | '/ads/gastos'
     | '/ads/insights'
     | '/ads/lps'
     | '/ads/rotinas'
     | '/ads/saude'
     | '/ads/'
     | '/ads/admin/acessos'
+    | '/ads/admin/empresas'
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
     | '/ads/criar/$id'
@@ -401,12 +422,14 @@ export interface FileRouteTypes {
     | '/ads/automacoes'
     | '/ads/capi-events'
     | '/ads/criativos'
+    | '/ads/gastos'
     | '/ads/insights'
     | '/ads/lps'
     | '/ads/rotinas'
     | '/ads/saude'
     | '/ads'
     | '/ads/admin/acessos'
+    | '/ads/admin/empresas'
     | '/ads/campanhas/$id'
     | '/ads/campanhas/nova'
     | '/ads/criar/$id'
@@ -438,12 +461,14 @@ export interface FileRouteTypes {
     | '/_authenticated/ads/automacoes'
     | '/_authenticated/ads/capi-events'
     | '/_authenticated/ads/criativos'
+    | '/_authenticated/ads/gastos'
     | '/_authenticated/ads/insights'
     | '/_authenticated/ads/lps'
     | '/_authenticated/ads/rotinas'
     | '/_authenticated/ads/saude'
     | '/_authenticated/ads/'
     | '/_authenticated/ads/admin/acessos'
+    | '/_authenticated/ads/admin/empresas'
     | '/_authenticated/ads/campanhas/$id'
     | '/_authenticated/ads/campanhas/nova'
     | '/_authenticated/ads/criar/$id'
@@ -544,6 +569,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdsCriativosRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
+    '/_authenticated/ads/gastos': {
+      id: '/_authenticated/ads/gastos'
+      path: '/gastos'
+      fullPath: '/ads/gastos'
+      preLoaderRoute: typeof AuthenticatedAdsGastosRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
     '/_authenticated/ads/insights': {
       id: '/_authenticated/ads/insights'
       path: '/insights'
@@ -584,6 +616,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/acessos'
       fullPath: '/ads/admin/acessos'
       preLoaderRoute: typeof AuthenticatedAdsAdminAcessosRouteImport
+      parentRoute: typeof AuthenticatedAdsRoute
+    }
+    '/_authenticated/ads/admin/empresas': {
+      id: '/_authenticated/ads/admin/empresas'
+      path: '/admin/empresas'
+      fullPath: '/ads/admin/empresas'
+      preLoaderRoute: typeof AuthenticatedAdsAdminEmpresasRouteImport
       parentRoute: typeof AuthenticatedAdsRoute
     }
     '/_authenticated/ads/campanhas/': {
@@ -743,12 +782,14 @@ interface AuthenticatedAdsRouteChildren {
   AuthenticatedAdsAutomacoesRoute: typeof AuthenticatedAdsAutomacoesRoute
   AuthenticatedAdsCapiEventsRoute: typeof AuthenticatedAdsCapiEventsRoute
   AuthenticatedAdsCriativosRoute: typeof AuthenticatedAdsCriativosRoute
+  AuthenticatedAdsGastosRoute: typeof AuthenticatedAdsGastosRoute
   AuthenticatedAdsInsightsRoute: typeof AuthenticatedAdsInsightsRoute
   AuthenticatedAdsLpsRoute: typeof AuthenticatedAdsLpsRoute
   AuthenticatedAdsRotinasRoute: typeof AuthenticatedAdsRotinasRoute
   AuthenticatedAdsSaudeRoute: typeof AuthenticatedAdsSaudeRoute
   AuthenticatedAdsIndexRoute: typeof AuthenticatedAdsIndexRoute
   AuthenticatedAdsAdminAcessosRoute: typeof AuthenticatedAdsAdminAcessosRoute
+  AuthenticatedAdsAdminEmpresasRoute: typeof AuthenticatedAdsAdminEmpresasRoute
   AuthenticatedAdsCampanhasIdRoute: typeof AuthenticatedAdsCampanhasIdRouteWithChildren
   AuthenticatedAdsCampanhasNovaRoute: typeof AuthenticatedAdsCampanhasNovaRoute
   AuthenticatedAdsCriarIdRoute: typeof AuthenticatedAdsCriarIdRoute
@@ -776,12 +817,14 @@ const AuthenticatedAdsRouteChildren: AuthenticatedAdsRouteChildren = {
   AuthenticatedAdsAutomacoesRoute: AuthenticatedAdsAutomacoesRoute,
   AuthenticatedAdsCapiEventsRoute: AuthenticatedAdsCapiEventsRoute,
   AuthenticatedAdsCriativosRoute: AuthenticatedAdsCriativosRoute,
+  AuthenticatedAdsGastosRoute: AuthenticatedAdsGastosRoute,
   AuthenticatedAdsInsightsRoute: AuthenticatedAdsInsightsRoute,
   AuthenticatedAdsLpsRoute: AuthenticatedAdsLpsRoute,
   AuthenticatedAdsRotinasRoute: AuthenticatedAdsRotinasRoute,
   AuthenticatedAdsSaudeRoute: AuthenticatedAdsSaudeRoute,
   AuthenticatedAdsIndexRoute: AuthenticatedAdsIndexRoute,
   AuthenticatedAdsAdminAcessosRoute: AuthenticatedAdsAdminAcessosRoute,
+  AuthenticatedAdsAdminEmpresasRoute: AuthenticatedAdsAdminEmpresasRoute,
   AuthenticatedAdsCampanhasIdRoute:
     AuthenticatedAdsCampanhasIdRouteWithChildren,
   AuthenticatedAdsCampanhasNovaRoute: AuthenticatedAdsCampanhasNovaRoute,
