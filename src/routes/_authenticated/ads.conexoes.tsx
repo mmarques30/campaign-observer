@@ -19,10 +19,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
-  BookOpen, Clapperboard, FileText, Image as ImageIcon, Link2, Megaphone, Network, Send, Sparkles, Target, X,
+  BookOpen, Clapperboard, Info, FileText, Image as ImageIcon, Link2, Megaphone, Network, Send, Sparkles, Target, X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Kpi, Section, EmptyState } from "@/components/ads/kit";
@@ -207,7 +208,10 @@ function Conexoes() {
         if (n.col === 3) continue;
         if (origem === "video" && (n.tipo === "criativo" || n.tipo === "refc")) continue;
         if (origem === "criativo" && (n.tipo === "video" || n.tipo === "roteiro" || n.tipo === "ref")) continue;
-        if (n.col < 2 && !(filhos.get(n.id)?.length)) continue; // referência/roteiro solto fica de fora do mapa
+        // Referência sem nenhum desdobramento fica de fora; roteiro ligado a uma referência
+        // aparece mesmo sem vídeo ainda (está em produção).
+        if (n.col === 0 && !(filhos.get(n.id)?.length)) continue;
+        if (n.col === 1 && !n.pais.length && !(filhos.get(n.id)?.length)) continue;
         ok.add(n.id);
       }
     return [...grafo.nos.values()].filter((n) => ok.has(n.id));
@@ -278,8 +282,26 @@ function Conexoes() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs text-primary font-medium mb-1"><Network className="h-3.5 w-3.5" /> Mapa neural</div>
-          <h1>Conexões</h1>
-          <p className="text-sm text-muted-foreground mt-1">Da referência do nicho ao resultado no funil: o que gerou o que, e o que tende a funcionar.</p>
+          <div className="flex items-center gap-2">
+            <h1>Conexões</h1>
+            {/* Como ler o mapa: num ícone, para o mapa ficar com todo o espaço. */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" aria-label="Como ler o mapa" className="h-7 w-7 rounded-full inline-flex items-center justify-center text-muted-foreground ring-1 ring-border hover:text-primary hover:ring-primary/50 transition-colors">
+                  <Info className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[340px] text-sm">
+                <div className="font-medium mb-2">Como ler o mapa</div>
+                <ul className="space-y-2 text-muted-foreground">
+                  <li>Cada linha é uma ligação real: a referência que inspirou o roteiro, o vídeo ou criativo que nasceu dele e onde foi publicado.</li>
+                  <li>Linhas mais grossas e claras levam aos publicados com melhor resultado no objetivo escolhido.</li>
+                  <li>Passe o mouse para acender a cadeia inteira; clique para ver a chance de acerto e conectar vídeos ao roteiro.</li>
+                  <li>Linha tracejada é uma conexão sugerida pela semelhança entre a fala do vídeo e o roteiro.</li>
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
@@ -305,7 +327,7 @@ function Conexoes() {
         </InsightCallout>
       )}
 
-      <div className="grid grid-cols-1 2xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 items-start">
+      <div className={cn("grid grid-cols-1 gap-4 sm:gap-6 items-start", noSel && "xl:grid-cols-[1fr_380px]")}>
         <section className="relative overflow-hidden rounded-3xl border border-border/70 bg-[radial-gradient(ellipse_at_85%_50%,color-mix(in_oklch,var(--color-primary)_14%,transparent),transparent_55%)] bg-card shadow-card">
           <div aria-hidden className="absolute inset-0 dot-grid opacity-40 [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
           {dados.isLoading ? <Skeleton className="m-6 h-[520px]" /> : !grafo || !visiveis.length ? (
@@ -323,8 +345,8 @@ function Conexoes() {
           )}
         </section>
 
-        <aside className="2xl:sticky 2xl:top-24 space-y-4">
-          {noSel ? (
+        {noSel && (
+          <aside className="xl:sticky xl:top-24 space-y-4">
             <Detalhe
               no={noSel}
               prob={prob(noSel.id)}
@@ -335,17 +357,8 @@ function Conexoes() {
               onFechar={() => setSel(null)}
               onVincular={vincular}
             />
-          ) : (
-            <Section title="Como ler o mapa">
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Cada linha é uma ligação real: a referência que inspirou o roteiro, o vídeo ou criativo que nasceu dele e onde foi publicado.</li>
-                <li>Linhas mais grossas e claras levam aos publicados com melhor resultado no objetivo escolhido.</li>
-                <li>Passe o mouse para acender a cadeia inteira; clique para ver a chance de acerto e conectar vídeos ao roteiro.</li>
-                <li>Linha tracejada é uma conexão sugerida pela semelhança entre a fala do vídeo e o roteiro.</li>
-              </ul>
-            </Section>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
