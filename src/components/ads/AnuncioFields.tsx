@@ -130,7 +130,7 @@ export function AnuncioFields({ ad, onPatch }: { ad: Anuncio; onPatch: (patch: P
           <div className="flex flex-wrap gap-2 mt-2">
             {ad.midiasBucketUrls.map((u) => (
               <a key={u} href={u} target="_blank" rel="noreferrer" className="block">
-                <img src={u} alt="" className="h-16 w-16 object-cover rounded border border-border" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                <img src={u} alt="" className="h-16 w-16 object-cover rounded-lg border border-border" onError={(e) => { e.currentTarget.style.display = "none"; }} />
               </a>
             ))}
           </div>

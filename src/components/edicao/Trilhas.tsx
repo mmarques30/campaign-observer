@@ -201,7 +201,7 @@ export function Trilhas({
                         onSelecionarTrecho?.(sel ? null : i);
                       }}
                       className={cn(
-                        "absolute top-0.5 bottom-0.5 rounded-sm cursor-pointer",
+                        "absolute top-0.5 bottom-0.5 rounded-md cursor-pointer",
                         i % 2 ? "bg-zinc-600" : "bg-zinc-500",
                         sel && "ring-2 ring-primary bg-primary/60 z-[3]",
                       )}
@@ -260,7 +260,7 @@ export function Trilhas({
                     }}
                     title="Clique para editar ou apagar esta legenda"
                     className={cn(
-                      "absolute top-1 bottom-1 rounded-sm bg-primary/25 border border-primary/40 overflow-hidden text-[9px] px-0.5 leading-5 whitespace-nowrap cursor-pointer",
+                      "absolute top-1 bottom-1 rounded-md bg-primary/25 border border-primary/40 overflow-hidden text-[9px] px-0.5 leading-5 whitespace-nowrap cursor-pointer",
                       blocoSelecionado?.[0] === b.palavras[0]?.idx &&
                         "ring-2 ring-primary bg-primary/50",
                     )}
@@ -311,7 +311,7 @@ export function Trilhas({
                 return (
                   <div
                     key={i}
-                    className="absolute top-1.5 bottom-1.5 rounded-sm bg-orange-400/70"
+                    className="absolute top-1.5 bottom-1.5 rounded-md bg-orange-400/70"
                     style={{ left: pos(a), width: pos(Math.max(0.15, b - a)) }}
                     title={`zoom ${z.escala}x`}
                   />
@@ -342,7 +342,7 @@ export function Trilhas({
                     <div ref={linhaMusica} className="absolute inset-0">
                       <div
                         className={cn(
-                          "absolute top-0.5 bottom-0.5 rounded-sm bg-violet-500/60 overflow-hidden cursor-grab",
+                          "absolute top-0.5 bottom-0.5 rounded-md bg-violet-500/60 overflow-hidden cursor-grab",
                           musicaSel && "ring-2 ring-primary",
                         )}
                         style={{ left: pos(a), width: pos(Math.max(0.2, b - a)) }}

@@ -663,7 +663,7 @@ function PostsSemVinculo({
         <div className="divide-y">
           {posts.map((p) => (
             <div key={p.ig_media_id} className="py-2 flex gap-3 items-start">
-              <div className="h-16 w-12 shrink-0 rounded overflow-hidden border bg-muted">
+              <div className="h-16 w-12 shrink-0 rounded-lg overflow-hidden border bg-muted">
                 {p.thumb && <img src={p.thumb} className="h-full w-full object-cover" />}
               </div>
               <div className="flex-1 min-w-0 space-y-1">

@@ -437,7 +437,9 @@ export function AdsLayout() {
     [path],
   );
   const activeItem = useMemo(() => {
-    const hits = ALL_ITEMS.filter((it) => isActive(it.to, it.exact));
+    let hits = ALL_ITEMS.filter((it) => isActive(it.to, it.exact));
+    // Subpáginas (ex.: /ads/edicao/<id>) herdam o item do pai mesmo quando ele é "exact".
+    if (!hits.length) hits = ALL_ITEMS.filter((it) => it.to !== "/ads" && isActive(it.to, false));
     return (
       hits.sort((a, b) => b.to.length - a.to.length)[0] ??
       (path.startsWith("/ads") ? DASHBOARD : undefined)
@@ -508,7 +510,7 @@ export function AdsLayout() {
       active &&
         indent &&
         showLabels &&
-        "before:absolute before:-left-[17px] before:top-1/2 before:-translate-y-1/2 before:h-2 before:w-2 before:rounded-full before:bg-primary before:shadow-[0_0_10px_var(--color-primary)]",
+        "before:absolute before:-left-[14.5px] before:top-1/2 before:-translate-y-1/2 before:h-2 before:w-2 before:rounded-full before:bg-primary before:shadow-[0_0_10px_var(--color-primary)]",
     );
 
   const NavLink = ({ it, indent = false }: { it: NavItem; indent?: boolean }) => {
@@ -526,7 +528,7 @@ export function AdsLayout() {
           )}
           strokeWidth={active ? 2.25 : 1.75}
         />
-        {showLabels && <span className="truncate">{it.label}</span>}
+        {showLabels && <span className="truncate" title={it.label}>{it.label}</span>}
       </Link>
     );
     if (showLabels) return link;
@@ -567,7 +569,7 @@ export function AdsLayout() {
                   "sticky top-3 h-[calc(100dvh-1.5rem)] my-3 rounded-3xl border border-sidebar-border/80 shadow-elevated overflow-hidden",
                   collapsed
                     ? "w-0 ml-0 -translate-x-full border-0 pointer-events-none"
-                    : "w-[16rem] ml-3 translate-x-0",
+                    : "w-[17.5rem] ml-3 translate-x-0",
                 ),
           )}
           aria-label="Navegação principal"
@@ -648,7 +650,7 @@ export function AdsLayout() {
 
           <nav
             className={cn(
-              "flex-1 overflow-y-auto overflow-x-hidden py-3",
+              "flex-1 overflow-y-auto overflow-x-hidden py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(180deg,transparent,black_12px,black_calc(100%-24px),transparent)]",
               showLabels ? "px-3 space-y-0.5" : "px-2.5 space-y-1",
             )}
           >
@@ -698,7 +700,7 @@ export function AdsLayout() {
                         )}
                       >
                         <div className="overflow-hidden">
-                          <div className="space-y-0.5 pt-1 pb-1.5 ml-[1.45rem] pl-3 border-l border-sidebar-border">
+                          <div className="space-y-0.5 pt-1 pb-1.5 ml-[1.2rem] pl-2.5 border-l border-sidebar-border">
                             {g.items.map((it) => (
                               <NavLink key={it.to} it={it} indent />
                             ))}

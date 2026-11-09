@@ -127,7 +127,7 @@
 
 /* ── Tema claro (creme + olive) ─────────────────────────────────────────── */
 :root {
-  --radius: 0.75rem;
+  --radius: 1rem;
 
   --background: oklch(0.985 0.004 105);
   --surface: oklch(0.965 0.008 105);

@@ -723,9 +723,9 @@ function Editor() {
 
   return (
     <TooltipProvider>
-      <div className="-m-4 sm:-m-6 flex flex-col h-[calc(100vh-4rem)]">
+      <div className="flex flex-col gap-3 h-[calc(100dvh-10.5rem)] lg:h-[calc(100dvh-11.5rem)] min-h-[560px]">
         {/* Barra superior */}
-        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2 bg-card">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 px-3 sm:px-4 py-2 bg-card/80 backdrop-blur-md shadow-card">
           <Button variant="ghost" size="icon" asChild className="h-8 w-8">
             <Link to="/ads/edicao">
               <ArrowLeft className="h-4 w-4" />
@@ -867,13 +867,13 @@ function Editor() {
         {proj.fonte_path &&
           !proj.fonte_proxy_path &&
           Math.min(proj.fonte_largura ?? 0, proj.fonte_altura ?? 0) > 1080 && (
-            <div className="px-4 py-1 border-b bg-muted/40 text-xs text-muted-foreground">
+            <div className="px-4 py-1.5 rounded-xl border border-border/60 bg-muted/40 text-xs text-muted-foreground">
               Vídeo em {proj.fonte_largura}x{proj.fonte_altura}: o worker está gerando uma versão
               leve para o preview (1–3 min). Enquanto isso o preview pode engasgar.
             </div>
           )}
         {proj.status === "renderizando" && (
-          <div className="px-4 py-1.5 border-b bg-amber-500/5 flex items-center gap-3 text-xs">
+          <div className="px-4 py-1.5 rounded-xl border border-warning/30 bg-warning-soft flex items-center gap-3 text-xs">
             <span>
               Renderizando versão {render?.versao ?? proj.versao}
               {render?.status === "fila"
@@ -910,7 +910,7 @@ function Editor() {
           </div>
         )}
         {proj.status === "erro" && (
-          <div className="px-4 py-1.5 border-b bg-red-500/5 flex items-center gap-3 text-xs text-red-700">
+          <div className="px-4 py-1.5 rounded-xl border border-danger/30 bg-danger-soft flex items-center gap-3 text-xs text-danger">
             <span className="truncate">{proj.erro}</span>
             {proj.erro?.startsWith("Transcrição") && (
               <Button
@@ -929,8 +929,8 @@ function Editor() {
           </div>
         )}
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[300px_1fr_380px]">
-          <aside className="hidden lg:flex flex-col border-r min-h-0 bg-card">
+        <div className="flex-1 min-h-0 grid grid-cols-1 gap-3 lg:grid-cols-[320px_1fr_380px]">
+          <aside className="hidden lg:flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden">
             <Painel
               projeto={proj}
               onAtualizar={async (patch) => {
@@ -1012,8 +1012,8 @@ function Editor() {
             />
           </aside>
 
-          <main className="flex flex-col min-h-0 min-w-0">
-            <div className="flex-1 min-h-0 flex items-center justify-center p-4 bg-muted/40">
+          <main className="flex flex-col gap-3 min-h-0 min-w-0">
+            <div className="relative flex-1 min-h-0 flex items-center justify-center p-4 rounded-2xl border border-border/70 overflow-hidden bg-[radial-gradient(ellipse_at_50%_40%,color-mix(in_oklch,var(--color-primary)_10%,transparent),transparent_65%)] bg-muted/30 shadow-card">
               {!proj.fonte_path ? (
                 <div className="text-center space-y-3 text-muted-foreground max-w-sm">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -1094,7 +1094,7 @@ function Editor() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               )}
             </div>
-            <div className="border-t bg-card px-3">
+            <div className="rounded-2xl border border-border/70 bg-card px-3 shadow-card overflow-hidden">
               <Trilhas
                 tl={tl}
                 palavras={palavras}
@@ -1349,8 +1349,8 @@ function Editor() {
             </div>
           </main>
 
-          <aside className="flex flex-col border-l min-h-0 bg-background">
-            <div className="px-3 py-2 border-b text-sm font-semibold flex items-center gap-2">
+          <aside className="flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border/60 text-sm font-semibold flex items-center gap-2">
               Editor IA{" "}
               <span className="text-xs font-normal text-muted-foreground">
                 Claude · comandos com /

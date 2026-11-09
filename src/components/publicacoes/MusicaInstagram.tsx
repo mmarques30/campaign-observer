@@ -224,7 +224,7 @@ export function MusicaInstagram({
                   <Play className="h-3 w-3" />
                 )}
               </button>
-              {m.capa && <img src={m.capa} className="h-8 w-8 rounded object-cover shrink-0" />}
+              {m.capa && <img src={m.capa} className="h-8 w-8 rounded-lg object-cover shrink-0" />}
               <div className="min-w-0 flex-1">
                 <div className="truncate font-medium">{m.titulo}</div>
                 <div className="truncate text-xs text-muted-foreground">

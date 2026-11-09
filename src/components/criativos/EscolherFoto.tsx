@@ -90,7 +90,7 @@ export function EscolherFoto({
                   setAberto(false);
                 }}
                 className={cn(
-                  "aspect-[4/5] rounded overflow-hidden border",
+                  "aspect-[4/5] rounded-lg overflow-hidden border",
                   f.id === valor && "ring-2 ring-primary",
                 )}
               >

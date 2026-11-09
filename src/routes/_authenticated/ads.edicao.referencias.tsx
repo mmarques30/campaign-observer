@@ -314,13 +314,13 @@ function CartaoRef({
                 {a.estilo.nome} · {a.resumo}
               </div>
               <div className="flex gap-1.5 text-[11px]">
-                <span className={cn("px-1.5 rounded border", COR_STATUS.temos)}>
+                <span className={cn("px-1.5 rounded-lg border", COR_STATUS.temos)}>
                   {contagem.temos} temos
                 </span>
-                <span className={cn("px-1.5 rounded border", COR_STATUS.adaptar)}>
+                <span className={cn("px-1.5 rounded-lg border", COR_STATUS.adaptar)}>
                   {contagem.adaptar} adaptar
                 </span>
-                <span className={cn("px-1.5 rounded border", COR_STATUS.criar)}>
+                <span className={cn("px-1.5 rounded-lg border", COR_STATUS.criar)}>
                   {contagem.criar} criar
                 </span>
               </div>
@@ -542,7 +542,7 @@ function Detalhe({
                         <span
                           key={c}
                           title={c}
-                          className="h-5 w-5 rounded border"
+                          className="h-5 w-5 rounded-lg border"
                           style={{ background: c }}
                         />
                       ))}

@@ -159,14 +159,14 @@ function AutomacoesPage() {
               </p>
               <p className="flex items-center gap-2">
                 URL de callback:{" "}
-                <code className="bg-background px-1.5 py-0.5 rounded break-all">
+                <code className="bg-background px-1.5 py-0.5 rounded-lg break-all">
                   {s.webhook_url}
                 </code>
                 <BotaoCopiar texto={s.webhook_url ?? ""} />
               </p>
               <p className="flex items-center gap-2">
                 Token de verificação:{" "}
-                <code className="bg-background px-1.5 py-0.5 rounded break-all">
+                <code className="bg-background px-1.5 py-0.5 rounded-lg break-all">
                   {s.verify_token.verify_token}
                 </code>
                 <BotaoCopiar texto={s.verify_token.verify_token} />
