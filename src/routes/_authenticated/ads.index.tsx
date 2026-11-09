@@ -318,15 +318,14 @@ function Dashboard() {
                 <div className="h-7 w-7 shrink-0 rounded-lg bg-muted text-muted-foreground text-xs font-bold flex items-center justify-center tabular-nums group-hover:bg-primary/12 group-hover:text-primary transition-colors">{i + 1}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <div className="text-[13px] font-medium truncate">{c.nome}</div>
-                    <StatusPill tone="success" dot={false} className="hidden sm:inline-flex px-1.5 py-0 text-[10px]">ativa</StatusPill>
+                    <div className="text-[13px] font-medium leading-snug line-clamp-2" title={c.nome}>{c.nome}</div>
                   </div>
                   <div className="mt-1 flex items-center gap-3">
                     <MiniBar value={c.gasto} max={topMax} className="flex-1" />
                     <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">{num(c.leads)} leads</span>
                   </div>
                 </div>
-                <Sparkline data={c.spark} width={64} height={22} className="hidden sm:block" />
+                <Sparkline data={c.spark} width={56} height={22} className="hidden 2xl:block" />
                 <div className="text-right tabular-nums shrink-0 w-[88px] text-[13px] font-semibold">{brl(c.gasto)}</div>
               </Link>
             ))}

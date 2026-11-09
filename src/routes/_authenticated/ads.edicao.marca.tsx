@@ -119,7 +119,7 @@ function MarcaPage() {
           type="color"
           value={String(marca[k])}
           onChange={(e) => setM({ ...marca, [k]: e.target.value })}
-          className="h-9 w-10 rounded border bg-transparent"
+          className="h-9 w-10 rounded-lg border bg-transparent"
         />
         <Input
           value={String(marca[k])}

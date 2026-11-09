@@ -54,7 +54,7 @@ export function BarraFormato({
           title={m.t}
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => envolver(m.a, m.b)}
-          className="h-7 w-7 rounded hover:bg-muted flex items-center justify-center"
+          className="h-7 w-7 rounded-lg hover:bg-muted flex items-center justify-center"
         >
           <m.icon className="h-3.5 w-3.5" />
         </button>

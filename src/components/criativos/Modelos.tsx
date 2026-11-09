@@ -181,7 +181,7 @@ export function EscolherModelo({
               onClick={() => onChange(on ? null : m)}
               title={m.descricao ?? m.nome}
             >
-              <div className="rounded overflow-hidden bg-muted">
+              <div className="rounded-lg overflow-hidden bg-muted">
                 {s && fotos.data ? (
                   <SlideEscalado
                     slide={s}
@@ -207,7 +207,7 @@ export function EscolherModelo({
               <button
                 type="button"
                 title="Excluir modelo"
-                className="absolute top-2 right-2 h-6 w-6 rounded bg-background/90 items-center justify-center hidden group-hover:flex hover:text-red-600"
+                className="absolute top-2 right-2 h-6 w-6 rounded-lg bg-background/90 items-center justify-center hidden group-hover:flex hover:text-red-600"
                 onClick={(e) => {
                   e.stopPropagation();
                   void excluir(m);

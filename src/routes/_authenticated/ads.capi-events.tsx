@@ -308,7 +308,7 @@ function CapiEvents() {
                 {selected.last_error && (
                   <div>
                     <div className="text-xs text-muted-foreground">Erro</div>
-                    <div className="text-xs text-danger whitespace-pre-wrap bg-danger/5 rounded p-2 mt-1">{selected.last_error}</div>
+                    <div className="text-xs text-danger whitespace-pre-wrap bg-danger/5 rounded-lg p-2 mt-1">{selected.last_error}</div>
                   </div>
                 )}
               </div>

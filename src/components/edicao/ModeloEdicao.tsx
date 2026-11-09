@@ -221,7 +221,7 @@ export function ModeloEdicao({
                   .map((c) => (
                     <span
                       key={c as string}
-                      className="h-3 w-3 rounded-sm border"
+                      className="h-3 w-3 rounded-md border"
                       style={{ background: c as string }}
                     />
                   ))}

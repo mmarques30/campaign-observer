@@ -222,7 +222,7 @@ export function Publicar({
           className="min-w-0"
           defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
         >
-          <TabsList className="grid grid-cols-3">
+          <TabsList className="grid grid-cols-3 [&>*]:px-1.5">
             <TabsTrigger value="anuncio">
               <Megaphone className="h-4 w-4 mr-1" />
               Anúncio

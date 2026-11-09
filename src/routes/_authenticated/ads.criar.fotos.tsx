@@ -347,7 +347,7 @@ function MinhasFotos() {
                     <img src={f.url} className="h-full w-full object-cover" />
                     <button
                       type="button"
-                      className="absolute top-0.5 right-0.5 h-5 w-5 rounded bg-black/60 text-white flex items-center justify-center"
+                      className="absolute top-0.5 right-0.5 h-5 w-5 rounded-lg bg-black/60 text-white flex items-center justify-center"
                       onClick={() => alternar(f.id)}
                     >
                       <X className="h-3 w-3" />

@@ -74,7 +74,7 @@ export function EditorLegenda({
                 <button
                   key={e}
                   type="button"
-                  className="h-8 w-8 rounded hover:bg-muted text-lg leading-none"
+                  className="h-8 w-8 rounded-lg hover:bg-muted text-lg leading-none"
                   onClick={() => inserir(e)}
                 >
                   {e}

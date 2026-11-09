@@ -174,7 +174,7 @@ function RoteirosPage() {
                 <span
                   role="button"
                   title="Excluir"
-                  className="absolute top-2 right-2 hidden group-hover:inline-flex h-6 w-6 items-center justify-center rounded hover:text-red-600"
+                  className="absolute top-2 right-2 hidden group-hover:inline-flex h-6 w-6 items-center justify-center rounded-lg hover:text-red-600"
                   onClick={(e) => excluirDaLista(e, r)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />

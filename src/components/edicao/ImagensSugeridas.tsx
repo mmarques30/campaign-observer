@@ -264,7 +264,7 @@ export function ImagensSugeridas({
                     title={c.credito}
                     onClick={() => setSel((x) => ({ ...x, [i]: { ...s, cand: k } }))}
                     className={cn(
-                      "relative aspect-[3/4] rounded overflow-hidden border-2",
+                      "relative aspect-[3/4] rounded-lg overflow-hidden border-2",
                       s.cand === k ? "border-primary" : "border-transparent",
                     )}
                   >
@@ -275,7 +275,7 @@ export function ImagensSugeridas({
                       loading="lazy"
                     />
                     {c.tipo === "video" && (
-                      <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white px-1 rounded">
+                      <span className="absolute bottom-0.5 right-0.5 text-[9px] bg-black/70 text-white px-1 rounded-lg">
                         vídeo
                       </span>
                     )}
@@ -347,7 +347,7 @@ export function ImagensSugeridas({
             <button
               key={k}
               title={`${c.credito} — clique para colocar no ponto atual`}
-              className="aspect-[3/4] rounded overflow-hidden border hover:border-primary"
+              className="aspect-[3/4] rounded-lg overflow-hidden border hover:border-primary"
               onClick={() => {
                 void usar(
                   1000 + k,

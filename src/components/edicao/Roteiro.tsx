@@ -167,7 +167,7 @@ export function Roteiro({
             {pausas.map((p, i) => (
               <button
                 key={i}
-                className="text-[11px] rounded border px-1.5 py-0.5 hover:bg-muted font-mono"
+                className="text-[11px] rounded-lg border px-1.5 py-0.5 hover:bg-muted font-mono"
                 onClick={() => onIr(Math.max(0, p.de - 1))}
                 title="Ir para a pausa"
               >
@@ -269,7 +269,7 @@ export function Roteiro({
                   <span key={k}>
                     {p && (
                       <button
-                        className="mx-0.5 inline-flex items-center rounded bg-amber-500/15 text-amber-700 px-1 text-[10px] font-mono align-middle hover:bg-amber-500/30"
+                        className="mx-0.5 inline-flex items-center rounded-lg bg-amber-500/15 text-amber-700 px-1 text-[10px] font-mono align-middle hover:bg-amber-500/30"
                         onClick={() => encurtar(p)}
                         title="Pausa longa no vídeo: clique para encurtar"
                       >
@@ -289,7 +289,7 @@ export function Roteiro({
                       onClick={(e) => e.shiftKey && clique(k, e)}
                       onDoubleClick={() => onIr(Math.max(0, w.i - 0.5))}
                       className={cn(
-                        "cursor-pointer rounded px-[1px]",
+                        "cursor-pointer rounded-lg px-[1px]",
                         !mantida[k] &&
                           "line-through text-muted-foreground/60 decoration-red-500/70",
                         mantida[k] &&
@@ -310,7 +310,7 @@ export function Roteiro({
         ))}
         {pausaAntesDe.get(palavras.length) && (
           <button
-            className="inline-flex items-center rounded bg-amber-500/15 text-amber-700 px-1 text-[10px] font-mono hover:bg-amber-500/30"
+            className="inline-flex items-center rounded-lg bg-amber-500/15 text-amber-700 px-1 text-[10px] font-mono hover:bg-amber-500/30"
             onClick={() => encurtar(pausaAntesDe.get(palavras.length)!)}
           >
             ⏸ {pausaAntesDe.get(palavras.length)!.duracao.toFixed(1)}s no fim

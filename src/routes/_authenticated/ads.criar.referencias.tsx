@@ -338,7 +338,7 @@ function DetalheAnalise({ a }: { a: NonNullable<CriaReferencia["analise"]> }) {
               <span
                 key={c}
                 title={c}
-                className="h-5 w-5 rounded border"
+                className="h-5 w-5 rounded-lg border"
                 style={{ background: c }}
               />
             ))}

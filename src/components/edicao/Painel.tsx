@@ -107,7 +107,7 @@ export function Painel({
 
   return (
     <Tabs defaultValue="edicao" className="flex flex-col h-full min-h-0">
-      <TabsList className="grid grid-cols-4 m-2">
+      <TabsList className="grid grid-cols-4 m-2 [&>*]:px-1 [&>*]:text-[12.5px]">
         <TabsTrigger value="edicao">Na edição</TabsTrigger>
         <TabsTrigger value="roteiro">Cortes</TabsTrigger>
         <TabsTrigger value="biblioteca">Efeitos</TabsTrigger>

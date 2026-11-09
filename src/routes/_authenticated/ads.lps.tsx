@@ -300,7 +300,7 @@ function LPs() {
                 <PopoverContent className="w-52 p-2" align="start">
                   <div className="space-y-1.5">
                     {tiposDisponiveis.map((t) => (
-                      <label key={t} className="flex items-center gap-2 text-sm cursor-pointer px-1 py-1 rounded hover:bg-accent">
+                      <label key={t} className="flex items-center gap-2 text-sm cursor-pointer px-1 py-1 rounded-lg hover:bg-accent">
                         <Checkbox checked={(tiposAtivos ?? tiposDisponiveis).includes(t)} onCheckedChange={(c) => toggleTipo(t, !!c)} />
                         {t}
                       </label>

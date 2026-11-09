@@ -458,7 +458,7 @@ function EditorCriativo() {
                   )}
                 >
                   <SlideEscalado largura={104} {...props(s, i)} />
-                  <span className="absolute bottom-1 left-1 text-[10px] font-bold bg-black/60 text-white rounded px-1">
+                  <span className="absolute bottom-1 left-1 text-[10px] font-bold bg-black/60 text-white rounded-lg px-1">
                     {i + 1}
                   </span>
                 </button>

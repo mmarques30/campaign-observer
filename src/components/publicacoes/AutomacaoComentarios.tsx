@@ -440,7 +440,7 @@ export function EditorAutomacao({
                           type="button"
                           onClick={() => mudaBloco(i, { ...b, path: f.path, url: undefined })}
                           className={cn(
-                            "h-16 w-16 shrink-0 rounded border overflow-hidden",
+                            "h-16 w-16 shrink-0 rounded-lg border overflow-hidden",
                             b.path === f.path && "ring-2 ring-primary",
                           )}
                           title={f.nome ?? ""}
