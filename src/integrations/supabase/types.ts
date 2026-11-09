@@ -22747,6 +22747,10 @@ export type Database = {
         Args: { p_activity_id: string; p_motivo: string }
         Returns: undefined
       }
+      candidato_aceita_respostas: {
+        Args: { _candidato_id: string }
+        Returns: boolean
+      }
       checar_pg_net_sem_resposta: {
         Args: { p_janela?: string; p_piso?: number }
         Returns: Json
@@ -23062,6 +23066,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      form_aceita_envio: { Args: { _form_id: string }; Returns: boolean }
       generate_system_notifications: {
         Args: never
         Returns: {
