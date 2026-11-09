@@ -15,17 +15,19 @@ import { cn } from "@/lib/utils";
 const PETALAS = ["#EAECC8", "#D9DFA2", "#AFC041", "#738A25"];
 
 /** Arte de fundo: charcoal + luz lime, logo grande e pétalas flutuando. */
-function ArteMarca({ compacta = false }: { compacta?: boolean }) {
+function ArteMarca({ compacta = false, className }: { compacta?: boolean; className?: string }) {
   return (
-    <div aria-hidden className="absolute inset-0 overflow-hidden hero-art">
+    <div aria-hidden className={cn("absolute inset-0 overflow-hidden hero-art", className)}>
       <div className="absolute inset-0 dot-grid opacity-[0.18] [mask-image:radial-gradient(ellipse_70%_90%_at_70%_40%,black,transparent)]" />
       {/* Logo da IAplicada como imagem de fundo, à direita. */}
       <img
         src="/brand/iaplicada-mark.png"
         alt=""
         className={cn(
-          "absolute select-none opacity-[0.22] mix-blend-screen drop-shadow-[0_0_60px_rgba(175,192,65,0.55)]",
-          compacta ? "right-[-40px] top-1/2 -translate-y-1/2 h-[140%]" : "right-[-60px] top-1/2 -translate-y-1/2 h-[150%] max-h-[520px]",
+          "absolute select-none drop-shadow-[0_0_80px_rgba(175,192,65,0.6)]",
+          compacta
+            ? "right-[-40px] top-1/2 -translate-y-1/2 h-[140%] opacity-[0.22]"
+            : "right-[4%] top-[58%] -translate-y-1/2 h-[78%] max-h-[560px] opacity-80",
         )}
         style={{ animation: "petal-float 26s ease-in-out infinite alternate" }}
       />
@@ -45,7 +47,7 @@ function ArteMarca({ compacta = false }: { compacta?: boolean }) {
         />
       ))}
       {/* Véu para leitura do texto à esquerda. */}
-      <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(0.12_0.02_122/0.92),oklch(0.12_0.02_122/0.55)_45%,transparent_80%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,oklch(0.12_0.02_122/0.85),oklch(0.12_0.02_122/0.35)_50%,transparent_75%)]" />
     </div>
   );
 }
@@ -78,9 +80,12 @@ export function BrandHero({ eyebrow, title, nome, subtitle, actions, children, c
   className?: string;
 }) {
   return (
-    <section className={cn("relative overflow-hidden rounded-3xl border border-white/10 shadow-elevated animate-scale-in", className)}>
-      <ArteMarca />
-      <div className="relative z-[1] p-5 sm:p-7 lg:p-8 text-white">
+    <section className={cn("relative isolate animate-fade-up", className)}>
+      {/* A imagem da marca é o fundo (sem moldura): sangra até as bordas da página,
+          passa por trás da barra superior e some em degradê embaixo. Os cartões de
+          vidro por cima deixam ver a logo através deles. */}
+      <ArteMarca className="-z-10 -inset-x-4 sm:-inset-x-6 lg:-inset-x-8 -top-28 -bottom-10 [mask-image:linear-gradient(180deg,black_70%,transparent)]" />
+      <div className="relative pt-2 pb-2 sm:pt-4 text-white">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 mb-3">

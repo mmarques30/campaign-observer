@@ -362,9 +362,9 @@
   }
   /* Vidro escuro fixo (sobre a arte do hero, que é sempre escura). */
   .glass-dark {
-    background: oklch(0.16 0.02 122 / 0.42);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    background: oklch(0.16 0.02 122 / 0.22);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
     border: 1px solid oklch(1 0 0 / 0.12);
     box-shadow: 0 1px 0 0 oklch(1 0 0 / 0.1) inset, 0 20px 40px -20px oklch(0 0 0 / 0.6);
     color: oklch(0.97 0.01 110);
@@ -410,7 +410,6 @@
     pointer-events: none;
     z-index: 0;
     background:
-      url("/brand/iaplicada-mark.png") no-repeat right -40px top -70px / 380px auto,
       radial-gradient(ellipse 55% 90% at 80% 0%, color-mix(in oklch, var(--color-primary) 22%, transparent), transparent 70%),
       radial-gradient(ellipse 40% 70% at 10% 0%, color-mix(in oklch, var(--color-olive) 14%, transparent), transparent 70%);
     opacity: .6;
