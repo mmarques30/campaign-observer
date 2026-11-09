@@ -45,6 +45,7 @@ import {
   caminhosVoz,
   caminhoVozAudio,
   jobVoz,
+  jobImportar,
   NIVEIS_VOZ,
   pedirVozLimpa,
   atualizarProjeto,
@@ -235,6 +236,14 @@ function Editor() {
       ((await db().from("vedit_midias").select("*").eq("projeto_id", id).order("created_at"))
         .data ?? []) as Midia[],
   });
+  const importQ = useQuery({
+    queryKey: ["vedit", "importar", id],
+    enabled: !!proj && !proj.fonte_path,
+    queryFn: () => jobImportar(id),
+    refetchInterval: (q) =>
+      q.state.data && ["fila", "rodando"].includes(q.state.data.status) ? 3000 : false,
+  });
+  const importando = !!importQ.data && ["fila", "rodando"].includes(importQ.data.status);
   const vozQ = useQuery({
     queryKey: ["vedit", "voz", id, proj?.fonte_path],
     enabled: !!proj?.fonte_path,
@@ -1022,7 +1031,11 @@ function Editor() {
                   ) : (
                     <>
                       <div className="text-sm font-medium text-foreground">
-                        Enviando o vídeo… {envio?.video ?? proj.upload_progresso ?? 0}%
+                        {importando
+                          ? (proj.upload_progresso ?? 0) >= 90
+                            ? "Deixando em 1080p e separando o áudio…"
+                            : `Baixando do Google Drive… ${proj.upload_progresso ?? 0}%`
+                          : `Enviando o vídeo… ${envio?.video ?? proj.upload_progresso ?? 0}%`}
                       </div>
                       <Progress
                         value={envio?.video ?? proj.upload_progresso ?? 0}
@@ -1034,7 +1047,12 @@ function Editor() {
                     {envio?.audio === "ok" || palavras.length
                       ? "Áudio já transcrito: a sugestão aparece ao lado enquanto o vídeo termina."
                       : "Separando o áudio e transcrevendo…"}
-                    {envio == null && (proj.upload_progresso ?? 0) < 100 && (
+                    {importando && (
+                      <div className="mt-2">
+                        O servidor está buscando o vídeo direto do Drive. Pode fechar a aba.
+                      </div>
+                    )}
+                    {envio == null && !importando && !importQ.data && (proj.upload_progresso ?? 0) < 100 && (
                       <div className="mt-3 space-y-2">
                         <div className="text-amber-700">
                           O envio parou (a aba foi fechada ou recarregada). Escolha o mesmo arquivo

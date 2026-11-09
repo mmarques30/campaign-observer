@@ -340,6 +340,60 @@ export async function criarProjeto(dados: {
   return id;
 }
 
+/**
+ * Cria o projeto a partir de um link (Google Drive "qualquer pessoa com o link", ou link direto
+ * do arquivo). O servidor de vídeo baixa, padroniza em 1080p e transcreve; nada passa pelo navegador.
+ */
+export async function criarProjetoPorLink(dados: {
+  nome?: string;
+  objetivo?: "anuncio" | "organico";
+  formato?: Formato;
+  url: string;
+  marcaId?: string | null;
+}): Promise<string> {
+  const url = dados.url.trim();
+  if (!/^https?:\/\//.test(url)) throw new Error("Cole o link completo (começando com https://).");
+  if (/drive\.google\.com\/drive\/folders/.test(url))
+    throw new Error("Esse é o link de uma pasta. Abra o vídeo no Drive e copie o link dele.");
+  const formato: Formato = dados.formato ?? "9:16";
+  const nomeAuto = !dados.nome?.trim();
+  const { data: proj, error } = await db()
+    .from("vedit_projetos")
+    .insert({
+      nome: nomeAuto ? "Vídeo do Drive" : dados.nome!.trim(),
+      nome_automatico: nomeAuto,
+      objetivo: dados.objetivo ?? "organico",
+      formato,
+      status: "enviando",
+      upload_progresso: 0,
+      marca_id: dados.marcaId ?? null,
+      timeline: timelineVazia(formato),
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  const id = proj.id as string;
+  const job = await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "importar", params: { url } });
+  if (job.error) {
+    await db().from("vedit_projetos").update({ status: "erro", erro: job.error.message }).eq("id", id);
+    throw new Error(job.error.message);
+  }
+  return id;
+}
+
+/** Importação pelo link em andamento (para o editor mostrar "baixando do Drive" e não "envio parou"). */
+export async function jobImportar(projetoId: string) {
+  const { data } = await db()
+    .from("vedit_jobs")
+    .select("id, status, erro")
+    .eq("projeto_id", projetoId)
+    .eq("tipo", "importar")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data ?? null) as { id: string; status: string; erro: string | null } | null;
+}
+
 // Enquanto houver envio nesta aba, avisa antes de fechar/recarregar.
 let avisoSair = false;
 function vigiarSaida() {

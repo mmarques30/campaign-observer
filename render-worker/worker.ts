@@ -1001,6 +1001,123 @@ async function baixarLocal(id: string, url: string) {
   };
 }
 
+/** Link de compartilhamento do Google Drive → link de download direto (arquivo público). */
+function linkDiretoDrive(url: string) {
+  const id =
+    url.match(/drive\.google\.com\/file\/d\/([\w-]+)/)?.[1] ??
+    url.match(/[?&]id=([\w-]+)/)?.[1] ??
+    null;
+  if (!id || !/google\.com/.test(url)) return null;
+  return `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`;
+}
+
+/**
+ * Importa o vídeo cru de um link (Google Drive ou link direto do arquivo) para um projeto
+ * novo do editor, no lugar do upload pelo navegador: baixa, padroniza em H.264 até 1080p,
+ * separa o áudio da transcrição e segue o mesmo caminho do upload (transcrição, voz, proxy).
+ */
+async function importarDoLink(jobId: string, projetoId: string, url: string) {
+  if (!/^https?:\/\//.test(url)) throw new Error("link inválido");
+  const marcar = (patch: Record<string, unknown>) =>
+    sbc().from("vedit_projetos").update(patch).eq("id", projetoId);
+  const bruto = path.join(os.tmpdir(), `imp-${jobId}.bin`);
+  const fonte = path.join(os.tmpdir(), `imp-${jobId}.mp4`);
+  const wav = path.join(os.tmpdir(), `imp-${jobId}.wav`);
+  try {
+    const direto = linkDiretoDrive(url);
+    if (direto || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(url)) {
+      const r = await fetch(direto ?? url, { redirect: "follow" });
+      const tipo = r.headers.get("content-type") ?? "";
+      if (!r.ok || !r.body || /text\/html/i.test(tipo))
+        throw new Error(
+          direto
+            ? "não consegui baixar do Drive. Deixe o arquivo com acesso \"Qualquer pessoa com o link\" e tente de novo."
+            : `download falhou (${r.status})`,
+        );
+      const total = Number(r.headers.get("content-length")) || 0;
+      const { Readable, Transform } = await import("node:stream");
+      const { pipeline } = await import("node:stream/promises");
+      const { createWriteStream } = await import("node:fs");
+      let lidos = 0;
+      let ultimo = -1;
+      const contar = new Transform({
+        transform(chunk, _enc, cb) {
+          lidos += chunk.length;
+          const pct = total ? Math.floor((lidos / total) * 90) : 0;
+          if (pct >= ultimo + 5) {
+            ultimo = pct;
+            void marcar({ upload_progresso: pct });
+          }
+          cb(null, chunk);
+        },
+      });
+      await pipeline(Readable.fromWeb(r.body as any), contar, createWriteStream(bruto));
+    } else {
+      // Outros links (YouTube, Instagram…): o yt-dlp resolve.
+      const r = await baixarLocal(jobId, url);
+      await fs.rename(r.arquivo, bruto);
+    }
+
+    // Padroniza: H.264 até 1080p (gira conforme a orientação gravada), áudio AAC.
+    const { stdout } = await execFileP(
+      PROBE(),
+      ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:stream_side_data=rotation:stream_tags=rotate", "-of", "json", bruto],
+      { maxBuffer: 1 << 22 },
+    );
+    const st = JSON.parse(stdout).streams?.[0] ?? {};
+    const rot = Math.abs(
+      Number(st.tags?.rotate ?? st.side_data_list?.find((d: any) => d.rotation != null)?.rotation ?? 0),
+    );
+    let w = Number(st.width) || 1080,
+      h = Number(st.height) || 1920;
+    if (rot === 90 || rot === 270) [w, h] = [h, w];
+    if (!w || !h) throw new Error("não reconheci o vídeo (arquivo corrompido ou sem imagem)");
+    const vertical = h >= w;
+    const escala = Math.min(w, h) > 1080 ? (vertical ? "scale=1080:-2" : "scale=-2:1080") : "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+    await marcar({ upload_progresso: 92 });
+    await execFileP(
+      SYS(),
+      ["-y", "-loglevel", "error", "-i", bruto, "-vf", escala, "-fpsmax", "30", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", fonte],
+      { maxBuffer: 1 << 24 },
+    );
+    await fs.rm(bruto, { force: true });
+    await execFileP(SYS(), ["-y", "-loglevel", "error", "-i", fonte, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav], { maxBuffer: 1 << 24 });
+    const s = await sondar(fonte);
+    const { stdout: dims } = await execFileP(PROBE(), ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", fonte]);
+    const [lg, al] = dims.trim().split(",").map(Number);
+
+    for (const [arq, destino, tipo] of [
+      [wav, `${projetoId}/audio.wav`, "audio/wav"],
+      [fonte, `${projetoId}/fonte.mp4`, "video/mp4"],
+    ] as const) {
+      const up = await sbc()
+        .storage.from(BUCKET)
+        .upload(destino, await fs.readFile(arq), { contentType: tipo, upsert: true });
+      if (up.error) throw new Error(`subir ${destino}: ${up.error.message}`);
+    }
+    const tamanho = (await fs.stat(fonte)).size;
+    await marcar({
+      fonte_path: `${projetoId}/fonte.mp4`,
+      audio_path: `${projetoId}/audio.wav`,
+      fonte_duracao: s.dur,
+      fonte_largura: lg,
+      fonte_altura: al,
+      upload_progresso: 100,
+      status: "transcrevendo",
+      erro: null,
+    });
+    if (tamanho > 40 * 1024 * 1024)
+      await sbc().from("vedit_jobs").insert({ projeto_id: projetoId, tipo: "proxy" });
+    await sbc().from("vedit_jobs").insert({ projeto_id: projetoId, tipo: "voz" });
+    await chamarFuncao("vedit-transcrever", { projeto_id: projetoId });
+  } catch (e) {
+    await marcar({ status: "erro", erro: `Importar do link: ${(e as Error).message}`.slice(0, 500) });
+    throw e;
+  } finally {
+    for (const a of [bruto, fonte, wav]) await fs.rm(a, { force: true });
+  }
+}
+
 /** Só baixa e sobe (o navegador faz o resto). */
 async function baixarPorLink(id: string, url: string) {
   const r = await baixarLocal(id, url);
@@ -1540,6 +1657,8 @@ async function rodarJobs(tipos?: string[]): Promise<boolean> {
         String(job.params?.tema ?? ""),
         String(job.params?.pais ?? "BR"),
       );
+    else if (job.tipo === "importar")
+      await importarDoLink(job.id, job.projeto_id, String(job.params?.url ?? ""));
     else if (job.tipo === "baixar") {
       const resultado = await baixarPorLink(job.id, String(job.params?.url ?? ""));
       await sbc().from("vedit_jobs").update({ resultado }).eq("id", job.id);

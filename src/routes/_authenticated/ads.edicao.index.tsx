@@ -22,6 +22,7 @@ import { Clapperboard, Loader2, Megaphone, Plus, Sparkles, Trash2, Upload, Wand2
 import { ConfirmarExclusao } from "@/components/edicao/ConfirmarExclusao";
 import {
   criarProjeto,
+  criarProjetoPorLink,
   db,
   excluirProjeto,
   fmtTempo,
@@ -63,6 +64,7 @@ function Estudio() {
   const [objetivo, setObjetivo] = useState<"anuncio" | "organico">("organico");
   const [formato, setFormato] = useState<Formato>("9:16");
   const [arquivo, setArquivo] = useState<File | null>(null);
+  const [link, setLink] = useState("");
   const [etapa, setEtapa] = useState<string | null>(null);
   const [decidir, setDecidir] = useState(true);
 
@@ -87,17 +89,24 @@ function Estudio() {
   });
 
   async function criar() {
-    if (!arquivo) return toast.error("Escolha o vídeo cru.");
+    if (!arquivo && !link.trim()) return toast.error("Escolha o vídeo cru ou cole o link do Drive.");
     try {
-      setEtapa("Lendo o vídeo");
-      const id = await criarProjeto({
+      setEtapa(arquivo ? "Lendo o vídeo" : "Criando");
+      const comuns = {
         nome: nome.trim() || undefined,
         objetivo: decidir ? undefined : objetivo,
         formato: decidir ? undefined : formato,
-        arquivo,
         marcaId: marcas.data?.find((m) => m.padrao)?.id,
-      });
-      toast.success("Enviando em segundo plano. Você já pode acompanhar no editor.");
+      };
+      const id = arquivo
+        ? await criarProjeto({ ...comuns, arquivo })
+        : await criarProjetoPorLink({ ...comuns, url: link });
+      toast.success(
+        arquivo
+          ? "Enviando em segundo plano. Você já pode acompanhar no editor."
+          : "Buscando o vídeo no Drive. Pode fechar a aba: o servidor faz tudo sozinho.",
+      );
+      setLink("");
       setAberto(false);
       navigate({ to: "/ads/edicao/$id", params: { id } });
     } catch (e) {
@@ -255,6 +264,22 @@ function Estudio() {
                   {arquivo.name} · {(arquivo.size / 1024 / 1024).toFixed(1)} MB
                 </div>
               )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                Ou cole o link do Google Drive{" "}
+                <span className="text-muted-foreground font-normal">(sem baixar)</span>
+              </Label>
+              <Input
+                value={link}
+                disabled={!!arquivo}
+                onChange={(e) => setLink(e.target.value)}
+                placeholder="https://drive.google.com/file/d/…"
+              />
+              <div className="text-xs text-muted-foreground">
+                O arquivo precisa estar com acesso "Qualquer pessoa com o link". O servidor baixa,
+                deixa em 1080p e transcreve; você pode fechar a aba.
+              </div>
             </div>
             <Label
               className={cn(
