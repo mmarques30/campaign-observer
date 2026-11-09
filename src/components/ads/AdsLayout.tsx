@@ -491,15 +491,24 @@ export function AdsLayout() {
 
   const itemClass = (active: boolean, indent = false) =>
     cn(
-      "group relative flex items-center gap-3 rounded-lg text-[13px] font-medium transition-colors duration-150",
-      showLabels ? (indent ? "pl-9 pr-3 py-2" : "px-3 py-2") : "px-0 py-2.5 justify-center",
+      "group relative flex items-center gap-3 text-[13px] font-medium transition-all duration-200",
+      showLabels
+        ? indent
+          ? "h-9 rounded-xl px-3"
+          : "h-10 rounded-xl px-3"
+        : "h-10 rounded-xl px-0 justify-center",
       active
-        ? "bg-primary/12 text-primary"
-        : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-      // Rail lime à esquerda do item ativo.
+        ? indent
+          ? // Subitem ativo: pílula translúcida com brilho de marca.
+            "bg-primary/15 text-sidebar-foreground ring-1 ring-primary/30 shadow-[0_0_20px_-8px_var(--color-primary)] [&_svg]:text-primary"
+          : // Item principal ativo: pílula lime sólida.
+            "bg-primary text-primary-foreground shadow-[0_8px_22px_-10px_var(--color-primary)]"
+        : "text-sidebar-foreground/65 hover:bg-sidebar-accent/80 hover:text-sidebar-foreground hover:translate-x-0.5",
+      // Ponto na guia vertical à esquerda do subitem ativo.
       active &&
+        indent &&
         showLabels &&
-        "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-0.5 before:rounded-r-full before:bg-primary",
+        "before:absolute before:-left-[17px] before:top-1/2 before:-translate-y-1/2 before:h-2 before:w-2 before:rounded-full before:bg-primary before:shadow-[0_0_10px_var(--color-primary)]",
     );
 
   const NavLink = ({ it, indent = false }: { it: NavItem; indent?: boolean }) => {
@@ -546,24 +555,26 @@ export function AdsLayout() {
         {/* ── Sidebar ─────────────────────────────────────────────────── */}
         <aside
           className={cn(
-            "z-50 flex flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-md transition-[width,transform] duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
+            "z-50 flex flex-col bg-sidebar/95 backdrop-blur-xl transition-[width,transform,margin] duration-300 ease-[cubic-bezier(.22,1,.36,1)]",
+            "bg-[linear-gradient(180deg,color-mix(in_oklch,var(--color-primary)_7%,transparent),transparent_30%)]",
             isMobile
               ? cn(
-                  "fixed inset-y-0 left-0 w-72 shadow-elevated",
+                  "fixed inset-y-0 left-0 w-72 shadow-elevated border-r border-sidebar-border",
                   mobileOpen ? "translate-x-0" : "-translate-x-full",
                 )
               : cn(
-                  "sticky top-0 h-dvh",
+                  // Painel flutuante com cantos arredondados (estrutura das referências).
+                  "sticky top-3 h-[calc(100dvh-1.5rem)] my-3 rounded-3xl border border-sidebar-border/80 shadow-elevated overflow-hidden",
                   collapsed
-                    ? "w-0 -translate-x-full border-r-0 overflow-hidden pointer-events-none"
-                    : "w-[15.5rem] translate-x-0",
+                    ? "w-0 ml-0 -translate-x-full border-0 pointer-events-none"
+                    : "w-[16rem] ml-3 translate-x-0",
                 ),
           )}
           aria-label="Navegação principal"
         >
           <div
             className={cn(
-              "h-16 flex items-center border-b border-sidebar-border/70",
+              "h-16 shrink-0 flex items-center",
               showLabels ? "px-5 gap-2" : "px-0 justify-center",
             )}
           >
@@ -650,18 +661,28 @@ export function AdsLayout() {
                   const open = !!openGroups[g.id];
                   const groupActive = g.items.some((it) => isActive(it.to, it.exact));
                   return (
-                    <div key={g.id} className="pt-2">
+                    <div key={g.id} className="pt-1">
                       <button
                         type="button"
                         onClick={() => setOpenGroups((o) => ({ ...o, [g.id]: !o[g.id] }))}
                         className={cn(
-                          "w-full flex items-center gap-2 rounded-md px-3 py-1.5 text-[10.5px] font-semibold uppercase tracking-[0.14em] transition-colors",
+                          "w-full h-10 flex items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition-all duration-200",
                           groupActive
-                            ? "text-sidebar-foreground"
-                            : "text-sidebar-foreground/45 hover:text-sidebar-foreground/80",
+                            ? "bg-sidebar-accent text-sidebar-foreground ring-1 ring-sidebar-border"
+                            : open
+                              ? "text-sidebar-foreground hover:bg-sidebar-accent/70"
+                              : "text-sidebar-foreground/65 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                         )}
                         aria-expanded={open}
                       >
+                        <span
+                          className={cn(
+                            "h-6 w-6 shrink-0 rounded-lg flex items-center justify-center transition-colors",
+                            groupActive ? "bg-primary/20 text-primary shadow-[0_0_14px_-4px_var(--color-primary)]" : "text-sidebar-foreground/60",
+                          )}
+                        >
+                          <g.icon className="h-4 w-4" strokeWidth={1.9} />
+                        </span>
                         <span className="truncate flex-1 text-left">{g.label}</span>
                         <ChevronDown
                           className={cn(
@@ -677,7 +698,7 @@ export function AdsLayout() {
                         )}
                       >
                         <div className="overflow-hidden">
-                          <div className="space-y-0.5 pt-0.5">
+                          <div className="space-y-0.5 pt-1 pb-1.5 ml-[1.45rem] pl-3 border-l border-sidebar-border">
                             {g.items.map((it) => (
                               <NavLink key={it.to} it={it} indent />
                             ))}
@@ -780,7 +801,10 @@ export function AdsLayout() {
         </aside>
 
         {/* ── Conteúdo ────────────────────────────────────────────────── */}
-        <main className="flex-1 flex flex-col min-w-0 relative">
+        <main className="flex-1 flex flex-col min-w-0 relative h-dvh overflow-y-auto bg-aurora">
+          {/* Faixa de marca no topo de toda página: luz lime + logo IAplicada ao fundo.
+              Fica atrás da barra superior, que é a única barra do topo. */}
+          <div aria-hidden className="page-banner" />
           {/* Barra superior enxuta, flutuante em vidro: só onde a pessoa está e as ações
               rápidas. A navegação completa fica na sidebar (sem repetir itens aqui). */}
           <header className="h-14 sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-2 sm:mt-3 flex items-center justify-between gap-3 px-2.5 sm:px-3 rounded-2xl glass">
@@ -960,9 +984,7 @@ export function AdsLayout() {
             </div>
           </header>
 
-          <div className="flex-1 overflow-auto bg-aurora relative">
-            {/* Faixa de marca no topo de toda página: luz lime + logo IAplicada ao fundo. */}
-            <div aria-hidden className="page-banner" />
+          <div className="flex-1 relative">
             {/* Página de sistema ocupa toda a largura disponível (sem max-w + mx-auto):
                 cards, gráficos e tabelas se adaptam à tela em vez de ficarem numa
                 coluna centralizada com margens vazias. */}
