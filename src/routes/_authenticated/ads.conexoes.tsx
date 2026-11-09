@@ -207,7 +207,10 @@ function Conexoes() {
         if (n.col === 3) continue;
         if (origem === "video" && (n.tipo === "criativo" || n.tipo === "refc")) continue;
         if (origem === "criativo" && (n.tipo === "video" || n.tipo === "roteiro" || n.tipo === "ref")) continue;
-        if (n.col < 2 && !(filhos.get(n.id)?.length)) continue; // referência/roteiro solto fica de fora do mapa
+        // Referência sem nenhum desdobramento fica de fora; roteiro ligado a uma referência
+        // aparece mesmo sem vídeo ainda (está em produção).
+        if (n.col === 0 && !(filhos.get(n.id)?.length)) continue;
+        if (n.col === 1 && !n.pais.length && !(filhos.get(n.id)?.length)) continue;
         ok.add(n.id);
       }
     return [...grafo.nos.values()].filter((n) => ok.has(n.id));
