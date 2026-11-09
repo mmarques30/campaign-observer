@@ -821,13 +821,13 @@ export function AdsLayout() {
           <div aria-hidden className="page-banner" />
           {/* Barra superior enxuta, flutuante em vidro: só onde a pessoa está e as ações
               rápidas. A navegação completa fica na sidebar (sem repetir itens aqui). */}
-          <header className="h-14 sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-2 sm:mt-3 flex items-center justify-between gap-3 px-2.5 sm:px-3 rounded-2xl glass">
+          <header className="h-16 lg:h-[68px] sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-2 sm:mt-3 flex items-center justify-between gap-3 px-3 sm:px-4 rounded-2xl glass">
             <div className="flex items-center gap-2 min-w-0">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className={cn(
                       "text-muted-foreground",
                       collapsed && !isMobile && "text-primary bg-primary/10 hover:bg-primary/15",
@@ -839,11 +839,11 @@ export function AdsLayout() {
                     aria-expanded={isMobile ? mobileOpen : !collapsed}
                   >
                     {isMobile ? (
-                      <Menu className="h-4.5 w-4.5" />
+                      <Menu className="h-5 w-5" />
                     ) : collapsed ? (
-                      <PanelLeftOpen className="h-4.5 w-4.5" />
+                      <PanelLeftOpen className="h-5 w-5" />
                     ) : (
-                      <PanelLeftClose className="h-4.5 w-4.5" />
+                      <PanelLeftClose className="h-5 w-5" />
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -859,16 +859,16 @@ export function AdsLayout() {
                   className="hidden sm:inline-flex items-center rounded-md p-1 hover:bg-accent transition-colors animate-fade-up"
                   aria-label="Mostrar menu"
                 >
-                  <LogoMark size={22} />
+                  <LogoMark size={28} />
                 </button>
               )}
               <div className="min-w-0 hidden sm:block">
                 {activeGroup && (
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground leading-none mb-0.5">
+                  <div className="text-[11px] uppercase tracking-[0.12em] text-muted-foreground leading-none mb-1">
                     {activeGroup.label}
                   </div>
                 )}
-                <div className="text-sm font-semibold leading-none truncate">
+                <div className="text-base lg:text-[17px] font-semibold leading-tight truncate">
                   {activeItem?.label ?? "IAplicada Ads"}
                 </div>
               </div>
@@ -880,18 +880,18 @@ export function AdsLayout() {
                 variant="outline"
                 size="sm"
                 onClick={() => setCmdOpen(true)}
-                className="h-8 gap-2 text-muted-foreground font-normal pr-1.5 hidden sm:inline-flex"
+                className="h-10 gap-2.5 px-4 text-muted-foreground font-normal pr-2 hidden sm:inline-flex"
                 aria-label="Buscar (⌘K)"
               >
-                <Search className="h-3.5 w-3.5" />
-                <span className="text-xs">Buscar…</span>
-                <kbd className="ml-3 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
+                <Search className="h-4 w-4" />
+                <span className="text-sm">Buscar…</span>
+                <kbd className="ml-3 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[11px] font-mono text-muted-foreground">
                   ⌘K
                 </kbd>
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon"
                 onClick={() => setCmdOpen(true)}
                 className="sm:hidden text-muted-foreground"
                 aria-label="Buscar"
@@ -909,7 +909,7 @@ export function AdsLayout() {
                     onClick={refresh}
                     disabled={syncing}
                     className={cn(
-                      "h-8 inline-flex items-center gap-2 rounded-lg border px-2.5 text-xs transition-colors",
+                      "h-10 inline-flex items-center gap-2 rounded-full border px-3.5 text-[13px] transition-colors",
                       syncStale
                         ? "border-warning/40 bg-warning-soft text-warning"
                         : "border-border bg-card/60 text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -935,7 +935,7 @@ export function AdsLayout() {
                           ? `há ${formatDistanceToNow(lastSync, { locale: ptBR })}`
                           : "sem registro"}
                     </span>
-                    <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+                    <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
@@ -951,10 +951,10 @@ export function AdsLayout() {
                 <TooltipTrigger asChild>
                   <Link
                     to="/ads/saude"
-                    className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
                     aria-label={`${alertas} alertas de saúde`}
                   >
-                    <Bell className="h-4 w-4" />
+                    <Bell className="h-5 w-5" />
                     {alertas > 0 && (
                       <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-danger text-[10px] font-bold text-white flex items-center justify-center ring-2 ring-background">
                         {alertas > 9 ? "9+" : alertas}
@@ -974,14 +974,14 @@ export function AdsLayout() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
+                    size="icon"
                     className="text-muted-foreground"
                     aria-label="Tema"
                   >
                     {resolved === "dark" ? (
-                      <Moon className="h-4 w-4" />
+                      <Moon className="h-5 w-5" />
                     ) : (
-                      <Sun className="h-4 w-4" />
+                      <Sun className="h-5 w-5" />
                     )}
                   </Button>
                 </DropdownMenuTrigger>
