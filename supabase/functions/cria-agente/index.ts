@@ -433,11 +433,11 @@ async function contexto(sb: any, p: any, comModelo = false) {
   const [{ data: fotos }, { data: marca }, ref, { data: msgs }, modelo] = await Promise.all([
     sb
       .from("cria_fotos")
-      .select("id, nome, descricao, origem, favorita, created_at")
+      .select("id, nome, descricao, origem, favorita, created_at, path")
       .neq("origem", "referencia")
       .order("favorita", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(80),
+      .limit(300),
     sb
       .from("vedit_marcas")
       .select("nome, marca, instrucoes")
@@ -465,7 +465,14 @@ async function contexto(sb: any, p: any, comModelo = false) {
           .maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+  // Só oferece ao agente fotos cujo arquivo ainda existe no storage; foto sem arquivo vira slide em branco.
+  const { data: arquivos } = await sb.storage
+    .from("video-edicao")
+    .list("criativos/fotos", { limit: 2000 });
+  const existe = new Set((arquivos ?? []).map((o: any) => `criativos/fotos/${o.name}`));
   const lista = (fotos ?? [])
+    .filter((f: any) => !arquivos || existe.has(f.path))
+    .slice(0, 80)
     .map(
       (f: any) =>
         `- ${f.id} | ${f.origem === "ia" ? "gerada por IA" : "foto real"}${f.favorita ? " | favorita" : ""} | ${f.nome ?? ""}${f.descricao ? ` — ${f.descricao}` : ""}`,
