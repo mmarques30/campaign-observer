@@ -692,62 +692,98 @@ export function AdsLayout() {
           </nav>
 
           {/* Usuário */}
-          <div className={cn("border-t border-sidebar-border/70 p-3", !showLabels && "px-2.5")}>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+          {/* Cartão de marca no rodapé do menu (estrutura dos anexos 3 e 4). */}
+          {showLabels && (
+            <div className="px-3 pb-3 shrink-0 [@media(max-height:860px)]:hidden">
+              <div className="relative overflow-hidden rounded-2xl p-3.5 hero-art border border-white/10 text-white">
+                <img src="/brand/iaplicada-mark.png" alt="" aria-hidden className="absolute -right-5 -bottom-6 h-24 opacity-30 drop-shadow-[0_0_24px_rgba(175,192,65,0.6)]" />
+                <div className="relative">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#AFC041]">IAplicada</div>
+                  <p className="mt-1 text-[12px] leading-snug text-white/80">
+                    IA aplicada ao que dá resultado: mídia, criativo e edição no mesmo lugar.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setCmdOpen(true)}
+                    className="mt-2.5 inline-flex h-7 items-center gap-1.5 rounded-full bg-[#AFC041] px-3 text-[11px] font-semibold text-[#10120b] shadow-[0_6px_16px_-6px_#AFC041] transition-transform hover:-translate-y-px"
+                  >
+                    <Search className="h-3 w-3" /> Ir para…
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Rodapé da conta (referências 3 e 4): cartão de perfil com avatar em anel de
+              marca e ações visíveis — tema e Sair — em vez de escondidas num menu. */}
+          <div className={cn("p-3 pt-2 shrink-0", !showLabels && "px-2")}>
+            {showLabels ? (
+              <div className="rounded-2xl border border-sidebar-border/80 bg-[linear-gradient(180deg,color-mix(in_oklch,var(--color-foreground)_4%,transparent),transparent)] p-2.5 shadow-card">
+                <div className="flex items-center gap-2.5">
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9 rounded-full ring-2 ring-primary/50 ring-offset-2 ring-offset-sidebar shadow-[0_0_14px_-3px_var(--color-primary)]">
+                      <AvatarFallback className="rounded-full bg-primary/15 text-primary text-[11px] font-bold">{initials}</AvatarFallback>
+                    </Avatar>
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-success ring-2 ring-sidebar" aria-hidden />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold truncate">{email?.split("@")[0] ?? "Conta"}</div>
+                    <div className="text-[10.5px] text-muted-foreground truncate">{email ?? "IAplicada"}</div>
+                  </div>
+                </div>
+                <div className="mt-2.5 flex items-center gap-1.5">
+                  <div className="flex items-center rounded-full bg-muted/60 p-0.5 ring-1 ring-border/60" role="radiogroup" aria-label="Tema">
+                    {THEME_OPTS.map((o) => (
+                      <button
+                        key={o.v}
+                        type="button"
+                        role="radio"
+                        aria-checked={theme === o.v}
+                        aria-label={o.l}
+                        title={o.l}
+                        onClick={() => setTheme(o.v)}
+                        className={cn(
+                          "h-7 w-7 rounded-full inline-flex items-center justify-center transition-all duration-200",
+                          theme === o.v ? "bg-card text-primary shadow-sm ring-1 ring-primary/30" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <o.icon className="h-3.5 w-3.5" />
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="ml-auto h-8 inline-flex items-center gap-1.5 rounded-full px-3 text-xs font-medium text-muted-foreground ring-1 ring-border/70 bg-card/60 transition-all duration-200 hover:text-danger hover:ring-danger/40 hover:bg-danger-soft hover:shadow-[0_6px_16px_-8px_var(--color-danger)]"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Sair
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5">
+                <Avatar className="h-8 w-8 rounded-full ring-2 ring-primary/50 ring-offset-2 ring-offset-sidebar">
+                  <AvatarFallback className="rounded-full bg-primary/15 text-primary text-[10px] font-bold">{initials}</AvatarFallback>
+                </Avatar>
                 <button
                   type="button"
-                  className={cn(
-                    "w-full flex items-center gap-2.5 rounded-lg transition-colors hover:bg-sidebar-accent",
-                    showLabels ? "px-2 py-1.5 text-left" : "justify-center py-1.5",
-                  )}
-                  aria-label="Conta"
+                  onClick={signOut}
+                  aria-label="Sair"
+                  title="Sair"
+                  className="h-8 w-8 rounded-full inline-flex items-center justify-center text-muted-foreground ring-1 ring-border/70 transition-colors hover:text-danger hover:bg-danger-soft hover:ring-danger/40"
                 >
-                  <Avatar className="h-8 w-8 rounded-lg border border-border/60">
-                    <AvatarFallback className="rounded-lg bg-primary/15 text-primary text-[11px] font-bold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  {showLabels && (
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-semibold truncate">
-                        {email?.split("@")[0] ?? "Conta"}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {email ?? "IAplicada"}
-                      </div>
-                    </div>
-                  )}
+                  <LogOut className="h-3.5 w-3.5" />
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent side="top" align="start" className="w-56">
-                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground truncate">
-                  {email ?? "Conta IAplicada"}
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Tema
-                </DropdownMenuLabel>
-                {THEME_OPTS.map((o) => (
-                  <DropdownMenuItem key={o.v} onClick={() => setTheme(o.v)} className="gap-2">
-                    <o.icon className="h-4 w-4" />
-                    {o.l}
-                    {theme === o.v && <Check className="h-3.5 w-3.5 ml-auto text-primary" />}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} className="gap-2 text-danger focus:text-danger">
-                  <LogOut className="h-4 w-4" />
-                  Sair
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </div>
+            )}
           </div>
         </aside>
 
         {/* ── Conteúdo ────────────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col min-w-0 relative">
-          <header className="h-14 sticky top-0 z-30 flex items-center justify-between gap-3 px-3 sm:px-5 border-b border-border/60 bg-background/70 backdrop-blur-md">
+          {/* Barra superior enxuta, flutuante em vidro: só onde a pessoa está e as ações
+              rápidas. A navegação completa fica na sidebar (sem repetir itens aqui). */}
+          <header className="h-14 sticky top-2 sm:top-3 z-30 mx-2 sm:mx-4 lg:mx-6 mt-2 sm:mt-3 flex items-center justify-between gap-3 px-2.5 sm:px-3 rounded-2xl glass">
             <div className="flex items-center gap-2 min-w-0">
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -854,7 +890,7 @@ export function AdsLayout() {
                         )}
                       />
                     </span>
-                    <span className="hidden md:inline" key={tick}>
+                    <span className="hidden xl:inline whitespace-nowrap" key={tick}>
                       {syncing
                         ? "Sincronizando…"
                         : lastSync
@@ -924,11 +960,13 @@ export function AdsLayout() {
             </div>
           </header>
 
-          <div className="flex-1 overflow-auto bg-aurora">
+          <div className="flex-1 overflow-auto bg-aurora relative">
+            {/* Faixa de marca no topo de toda página: luz lime + logo IAplicada ao fundo. */}
+            <div aria-hidden className="page-banner" />
             {/* Página de sistema ocupa toda a largura disponível (sem max-w + mx-auto):
                 cards, gráficos e tabelas se adaptam à tela em vez de ficarem numa
                 coluna centralizada com margens vazias. */}
-            <div className="relative z-[1] p-4 sm:p-6 lg:p-8 w-full min-w-0">
+            <div className="page-content relative z-[1] p-4 sm:p-6 lg:p-8 w-full min-w-0">
               {semAcesso ? (
                 <div className="min-h-[50vh] flex items-center justify-center animate-fade-up">
                   <div className="text-center max-w-sm">

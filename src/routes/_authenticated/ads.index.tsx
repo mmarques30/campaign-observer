@@ -6,10 +6,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { brl, num, pct } from "@/lib/ads-utils";
 import { rangeFromPeriodo, rangeAnterior, periodoLabel, minFetchSince, type Periodo } from "@/lib/periodo";
-import { ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
+import { ResponsiveContainer, ComposedChart, Line, Area, XAxis, YAxis, Tooltip, CartesianGrid, Legend, PieChart, Pie, Cell } from "recharts";
 import { CheckCircle2, AlertTriangle, DollarSign, Users, TrendingUp, UserPlus, Sparkles, ArrowRight } from "lucide-react";
 import { PdfButton } from "@/components/ads/PdfButton";
-import { PageHeader, PeriodSelect, Kpi, deltaPct, Sparkline, MiniBar, EmptyState, Section, StatusPill, useChartTheme } from "@/components/ads/kit";
+import { Kpi, deltaPct, Sparkline, MiniBar, EmptyState, Section, StatusPill, useChartTheme } from "@/components/ads/kit";
+import { BrandHero, GlassStat, FilterChips, Gauge, Heatmap, InsightCallout } from "@/components/ads/viz";
+import { PERIODOS } from "@/lib/periodo";
+import { usePermissoes } from "@/lib/permissoes";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/ads/")({
   component: Dashboard,
@@ -148,18 +152,53 @@ function Dashboard() {
   const problemCount = (health.data ?? []).filter((h: any) => h.status_conexao !== "ok").reduce((a: number, h: any) => a + (h.total_campanhas ?? 0), 0);
   const ativas = (campanhas.data ?? []).filter((c: any) => (c.status ?? "").toLowerCase() === "ativa").length;
 
+  // Mapa de calor: leads da Meta por dia da semana nas últimas 8 semanas (dado diário real).
+  const calor = useMemo(() => {
+    const semanas = 8;
+    const fim = new Date(until + "T00:00:00");
+    const ini = new Date(fim); ini.setDate(fim.getDate() - semanas * 7 + 1);
+    const vals = Array.from({ length: 7 }, () => Array(semanas).fill(0));
+    for (const r of (funil.data ?? []) as any[]) {
+      const d = new Date(r.dia + "T00:00:00");
+      if (d < ini || d > fim) continue;
+      const w = Math.floor((d.getTime() - ini.getTime()) / (7 * 864e5));
+      vals[(d.getDay() + 6) % 7][w] += Number(r.leads_meta ?? 0);
+    }
+    const cols = Array.from({ length: semanas }, (_, i) => {
+      const d = new Date(ini); d.setDate(ini.getDate() + i * 7);
+      return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    });
+    // Melhor dia da semana (para a leitura do gráfico).
+    const totais = vals.map((l) => l.reduce((a, b) => a + b, 0));
+    const melhor = totais.indexOf(Math.max(...totais));
+    return { rows: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"], cols, vals, melhor, total: totais.reduce((a, b) => a + b, 0) };
+  }, [funil.data, until]);
+
+  // Divisão do gasto no período entre as 5 maiores campanhas ativas (+ demais).
+  const fatias = useMemo(() => {
+    const top = top5.map((c) => ({ nome: c.nome, valor: c.gasto }));
+    const resto = kpis.gasto - top.reduce((a, c) => a + c.valor, 0);
+    return resto > 1 ? [...top, { nome: "Demais", valor: resto }] : top;
+  }, [top5, kpis.gasto]);
+  const coresFatias = ["#AFC041", "#738A25", "#D9DFA2", "#EAECC8", "#5b6b1e", "#8a8f7a"];
+
+  const perm = usePermissoes();
+  const navigate = useNavigate();
+  const primeiroNome = (perm.nome ?? "").split(" ")[0] || null;
+  const cpmql = mqlPeriodo > 0 ? kpis.gasto / mqlPeriodo : 0;
+  const saudePct = okCount + problemCount > 0 ? (okCount / (okCount + problemCount)) * 100 : 0;
+
   const carregando = funil.isLoading || campanhas.isLoading;
   const temDados = evolucao.length > 0;
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Visão geral"
-        title="Dashboard"
+      <BrandHero
+        nome={primeiroNome}
+        eyebrow={perm.empresa?.nome ?? "IAplicada Ads"}
         subtitle={<>{periodoLabel(periodo)} · {ativas} campanha{ativas === 1 ? "" : "s"} ativa{ativas === 1 ? "" : "s"} · variação vs. período anterior</>}
         actions={
           <>
-            <PeriodSelect value={periodo} onChange={(v) => setPeriodo(v as Periodo)} />
             <PdfButton
               label="Relatório mensal"
               build={async () => {
@@ -181,10 +220,20 @@ function Dashboard() {
             />
           </>
         }
-      />
+      >
+        <GlassStat icon={DollarSign} label={`Investimento · ${periodoLabel(periodo)}`} value={brl(kpis.gasto)} detail={kpisAnt.gasto ? `${brl(kpisAnt.gasto)} no período anterior` : undefined} />
+        <GlassStat icon={Users} label="Leads Meta" value={num(kpis.leads)} detail={kpis.leads > 0 ? `CPL ${brl(kpis.gasto / kpis.leads)}` : undefined} />
+        <GlassStat icon={Sparkles} label="MQL" value={num(mqlPeriodo)} detail={cpmql > 0 ? `CPMQL ${brl(cpmql)}` : undefined} />
+        <GlassStat icon={CheckCircle2} label="Conexões saudáveis" value={`${okCount}${problemCount ? ` / ${okCount + problemCount}` : ""}`} detail={problemCount ? `${problemCount} com problema` : "Tudo certo"} />
+      </BrandHero>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <FilterChips options={PERIODOS} value={periodo} onChange={(v) => setPeriodo(v as Periodo)} />
+        <span className="text-xs text-muted-foreground">Atualiza todos os cards e gráficos</span>
+      </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 stagger">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3 sm:gap-4 stagger">
         <Kpi icon={DollarSign} tone="primary" label={`Gasto · ${periodoLabel(periodo)}`} value={brl(kpis.gasto)} delta={deltaPct(kpis.gasto, kpisAnt.gasto)} deltaInvert spark={sparks.gasto} loading={carregando} />
         <Kpi icon={Users} tone="info" label="Leads Meta" value={num(kpis.leads)} delta={deltaPct(kpis.leads, kpisAnt.leads)} spark={sparks.leads} loading={carregando} />
         <Kpi icon={UserPlus} tone="success" label="Contatos CRM" value={num(kpis.crm)} delta={deltaPct(kpis.crm, kpisAnt.crm)} spark={sparks.crm} loading={carregando} />
@@ -231,7 +280,7 @@ function Dashboard() {
                 <ComposedChart data={evolucao} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
                   <defs>
                     <linearGradient id="gGasto" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={ct.primary} stopOpacity={0.28} />
+                      <stop offset="0%" stopColor={ct.primary} stopOpacity={0.42} />
                       <stop offset="100%" stopColor={ct.primary} stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -241,9 +290,9 @@ function Dashboard() {
                   <YAxis yAxisId="right" orientation="right" tick={ct.tick} axisLine={false} tickLine={false} width={56} tickFormatter={(v) => `R$${v}`} />
                   <Tooltip {...ct.tooltip} formatter={(v: any, name: any) => [name === "Gasto R$" ? brl(Number(v)) : num(Number(v)), name]} />
                   <Legend wrapperStyle={{ fontSize: 11 }} iconType="circle" iconSize={8} />
-                  <Area yAxisId="right" type="monotone" dataKey="gasto_brl" stroke={ct.primary} strokeWidth={2} fill="url(#gGasto)" name="Gasto R$" dot={false} activeDot={{ r: 4 }} />
-                  <Line yAxisId="left" type="monotone" dataKey="leads_meta" stroke={ct.blue} strokeWidth={2} name="Leads Meta" dot={false} activeDot={{ r: 4 }} />
-                  <Line yAxisId="left" type="monotone" dataKey="contacts_crm" stroke={ct.green} strokeWidth={2} name="Contacts CRM" dot={false} activeDot={{ r: 4 }} />
+                  <Area yAxisId="right" type="monotone" dataKey="gasto_brl" stroke={ct.primary} strokeWidth={2.5} fill="url(#gGasto)" name="Gasto R$" dot={false} activeDot={{ r: 5, strokeWidth: 3, stroke: ct.primary, fill: "var(--color-card)" }} style={{ filter: `drop-shadow(0 6px 10px ${ct.primary}55)` }} animationDuration={900} />
+                  <Line yAxisId="left" type="monotone" dataKey="leads_meta" stroke={ct.blue} strokeWidth={2.25} name="Leads Meta" dot={false} activeDot={{ r: 5, strokeWidth: 3, stroke: ct.blue, fill: "var(--color-card)" }} style={{ filter: `drop-shadow(0 4px 8px ${ct.blue}66)` }} animationDuration={900} />
+                  <Line yAxisId="left" type="monotone" dataKey="contacts_crm" stroke={ct.green} strokeWidth={2.25} name="Contacts CRM" dot={false} activeDot={{ r: 5, strokeWidth: 3, stroke: ct.green, fill: "var(--color-card)" }} style={{ filter: `drop-shadow(0 4px 8px ${ct.green}66)` }} animationDuration={900} />
                 </ComposedChart>
               </ResponsiveContainer>
             )}
@@ -283,6 +332,62 @@ function Dashboard() {
             ))}
             {!carregando && top5.length === 0 && <EmptyState title="Nenhuma campanha ativa com gasto" description="Ative uma campanha ou amplie o período." />}
           </div>
+        </Section>
+      </div>
+
+      {/* Variedade de leituras: ritmo semanal, saúde e divisão do investimento. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+        <Section className="xl:col-span-2" title="Ritmo de leads" description="Leads da Meta por dia da semana · últimas 8 semanas">
+          {calor.total > 0 && (
+            <InsightCallout className="mb-4">
+              {calor.rows[calor.melhor]} é o dia que mais gera leads nas últimas 8 semanas ({num(calor.vals[calor.melhor].reduce((a: number, b: number) => a + b, 0))} de {num(calor.total)}).
+            </InsightCallout>
+          )}
+          {carregando ? <Skeleton className="h-56 w-full rounded-xl" /> : (
+            <Heatmap rows={calor.rows} cols={calor.cols} values={calor.vals} format={(v) => `${num(v)} leads`} />
+          )}
+        </Section>
+
+        <Section title="Saúde das conexões" description="Campanhas com Meta e CRM conectados" actions={<Link to="/ads/saude" className="text-[11px] font-medium text-primary hover:underline inline-flex items-center gap-1">Detalhes <ArrowRight className="h-3 w-3" /></Link>}>
+          <div className="h-full flex flex-col items-center justify-center gap-4 py-2">
+            <Gauge value={saudePct} label={`${okCount} de ${okCount + problemCount} campanhas OK`} />
+            <div className="grid grid-cols-2 gap-2 w-full">
+              <div className="rounded-xl bg-success-soft px-3 py-2 text-center"><div className="text-lg font-semibold tabular-nums text-success">{okCount}</div><div className="text-[11px] text-muted-foreground">saudáveis</div></div>
+              <div className={cn("rounded-xl px-3 py-2 text-center", problemCount ? "bg-danger-soft" : "bg-muted")}><div className={cn("text-lg font-semibold tabular-nums", problemCount ? "text-danger" : "text-muted-foreground")}>{problemCount}</div><div className="text-[11px] text-muted-foreground">com problema</div></div>
+            </div>
+          </div>
+        </Section>
+
+        <Section className="xl:col-span-3" title="Para onde foi o investimento" description={`Divisão do gasto entre as campanhas ativas · ${periodoLabel(periodo)}`}>
+          {fatias.length === 0 ? <EmptyState title="Sem gasto no período" /> : (
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,280px)_1fr] gap-6 items-center">
+              <div className="relative h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={fatias} dataKey="valor" nameKey="nome" innerRadius="64%" outerRadius="92%" paddingAngle={2} stroke="none" cornerRadius={6}
+                      animationDuration={900} onClick={(d: any) => { const c = top5.find((t) => t.nome === d?.nome); if (c) navigate({ to: "/ads/campanhas/$id", params: { id: c.id } }); }}>
+                      {fatias.map((_, k) => <Cell key={k} fill={coresFatias[k % coresFatias.length]} className="cursor-pointer outline-none" style={{ filter: k === 0 ? "drop-shadow(0 0 8px #AFC04188)" : undefined }} />)}
+                    </Pie>
+                    <Tooltip {...ct.tooltip} formatter={(v: any, n: any) => [brl(Number(v)), n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <div className="text-[11px] text-muted-foreground">Total</div>
+                  <div className="font-display text-xl font-semibold tabular-nums">{brl(kpis.gasto)}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+                {fatias.map((f, k) => (
+                  <div key={f.nome} className="flex items-center gap-2.5 min-w-0 rounded-lg px-2 py-1.5 hover:bg-accent/50 transition-colors">
+                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: coresFatias[k % coresFatias.length], boxShadow: `0 0 8px ${coresFatias[k % coresFatias.length]}` }} />
+                    <span className="text-xs truncate flex-1">{f.nome}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{kpis.gasto ? `${((f.valor / kpis.gasto) * 100).toFixed(0)}%` : "—"}</span>
+                    <span className="text-xs tabular-nums font-semibold w-24 text-right">{brl(f.valor)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Section>
       </div>
     </div>
