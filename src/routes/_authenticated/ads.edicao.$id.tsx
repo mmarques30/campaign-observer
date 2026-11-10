@@ -229,7 +229,16 @@ function Editor() {
     queryFn: async () =>
       ((await db().from("vedit_mensagens").select("*").eq("projeto_id", id).order("created_at"))
         .data ?? []) as Mensagem[],
+    // Pedido feito fora do chat (ex.: "Usar referência"): acompanha até a resposta chegar.
+    refetchInterval: (q) => (pedidoPendente(q.state.data as Mensagem[] | undefined) ? 4000 : false),
   });
+  const noServidor = pedidoPendente(msgsQ.data);
+  const ultimaResposta = msgsQ.data?.length ? msgsQ.data[msgsQ.data.length - 1].id : null;
+  useEffect(() => {
+    // Quando a resposta do editor chega, recarrega o projeto para a edição aparecer no player.
+    if (ultimaResposta) void projQ.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ultimaResposta]);
   const midiasQ = useQuery({
     queryKey: ["vedit", "midias", id],
     queryFn: async () =>
@@ -1052,34 +1061,37 @@ function Editor() {
                         O servidor está buscando o vídeo direto do Drive. Pode fechar a aba.
                       </div>
                     )}
-                    {envio == null && !importando && !importQ.data && (proj.upload_progresso ?? 0) < 100 && (
-                      <div className="mt-3 space-y-2">
-                        <div className="text-amber-700">
-                          O envio parou (a aba foi fechada ou recarregada). Escolha o mesmo arquivo
-                          e ele continua de onde parou — sem transcrever de novo.
+                    {envio == null &&
+                      !importando &&
+                      !importQ.data &&
+                      (proj.upload_progresso ?? 0) < 100 && (
+                        <div className="mt-3 space-y-2">
+                          <div className="text-amber-700">
+                            O envio parou (a aba foi fechada ou recarregada). Escolha o mesmo
+                            arquivo e ele continua de onde parou — sem transcrever de novo.
+                          </div>
+                          <Button size="sm" variant="outline" asChild>
+                            <label className="cursor-pointer">
+                              <Upload className="h-4 w-4 mr-2" /> Continuar envio
+                              <input
+                                type="file"
+                                accept="video/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const f = e.target.files?.[0];
+                                  if (!f) return;
+                                  try {
+                                    await retomarEnvio(proj, f);
+                                    toast.success("Retomando o envio de onde parou.");
+                                  } catch (err) {
+                                    toast.error((err as Error).message);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </Button>
                         </div>
-                        <Button size="sm" variant="outline" asChild>
-                          <label className="cursor-pointer">
-                            <Upload className="h-4 w-4 mr-2" /> Continuar envio
-                            <input
-                              type="file"
-                              accept="video/*"
-                              className="hidden"
-                              onChange={async (e) => {
-                                const f = e.target.files?.[0];
-                                if (!f) return;
-                                try {
-                                  await retomarEnvio(proj, f);
-                                  toast.success("Retomando o envio de onde parou.");
-                                } catch (err) {
-                                  toast.error((err as Error).message);
-                                }
-                              }}
-                            />
-                          </label>
-                        </Button>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </div>
               ) : props ? (
@@ -1356,47 +1368,52 @@ function Editor() {
                 Claude · comandos com /
               </span>
             </div>
-            {/* Logo depois da transcrição, antes de qualquer edição: o editor propõe como tratar o vídeo. */}
-            {proj.status === "pronto_para_editar" &&
-              !(proj.sugestao as any)?.aceita &&
-              palavras.length > 0 && (
-                <div className="p-3 border-b">
-                  <SugestaoCard
-                    projeto={proj}
-                    onAplicado={async () => {
-                      versaoCarregada.current = -1;
-                      await Promise.all([projQ.refetch(), msgsQ.refetch()]);
-                      toast.success("Pronto. Agora peça a edição: /storyboard ou /editar.");
-                    }}
-                  />
-                </div>
+            {/* Sugestão e repetições rolam sozinhas: o chat nunca some embaixo delas. */}
+            <div className="shrink-0 max-h-[55%] overflow-y-auto">
+              {/* Logo depois da transcrição, antes de qualquer edição: o editor propõe como tratar o vídeo. */}
+              {proj.status === "pronto_para_editar" &&
+                !(proj.sugestao as any)?.aceita &&
+                palavras.length > 0 && (
+                  <div className="p-3 border-b">
+                    <SugestaoCard
+                      projeto={proj}
+                      onAplicado={async () => {
+                        versaoCarregada.current = -1;
+                        await Promise.all([projQ.refetch(), msgsQ.refetch()]);
+                        toast.success("Pronto. Agora peça a edição: /storyboard ou /editar.");
+                      }}
+                    />
+                  </div>
+                )}
+              {repeticoes.length > 0 && (
+                <Repeticoes
+                  repeticoes={repeticoes}
+                  cortes={tl.cortes}
+                  onIr={irPara}
+                  onCortar={() => {
+                    const cortes = cortarSilencios(palavras, duracaoFonte, {
+                      tirarMuletas: true,
+                      tirarRepeticoes: true,
+                      repeticoes,
+                    });
+                    setTl({ ...tl, cortes }, `Repetições removidas: ${repeticoes.length}`);
+                    toast.success(
+                      `${repeticoes.length} fala(s) repetida(s) fora. Ficou a última tomada de cada.`,
+                    );
+                  }}
+                />
               )}
-            {repeticoes.length > 0 && (
-              <Repeticoes
-                repeticoes={repeticoes}
-                cortes={tl.cortes}
-                onIr={irPara}
-                onCortar={() => {
-                  const cortes = cortarSilencios(palavras, duracaoFonte, {
-                    tirarMuletas: true,
-                    tirarRepeticoes: true,
-                    repeticoes,
-                  });
-                  setTl({ ...tl, cortes }, `Repetições removidas: ${repeticoes.length}`);
-                  toast.success(
-                    `${repeticoes.length} fala(s) repetida(s) fora. Ficou a última tomada de cada.`,
-                  );
-                }}
+            </div>
+            <div className="flex-1 min-h-0">
+              <Chat
+                mensagens={msgsQ.data ?? []}
+                enviando={enviando || noServidor}
+                onEnviar={mandar}
+                storyboardPendente={storyboardPendente}
+                rascunho={rascunho}
+                setRascunho={setRascunho}
               />
-            )}
-            <Chat
-              mensagens={msgsQ.data ?? []}
-              enviando={enviando}
-              onEnviar={mandar}
-              storyboardPendente={storyboardPendente}
-              rascunho={rascunho}
-              setRascunho={setRascunho}
-            />
+            </div>
           </aside>
         </div>
       </div>
@@ -1471,4 +1488,11 @@ function VelocidadeLivre({
       </button>
     </span>
   );
+}
+
+/** A última mensagem é um pedido recente ainda sem resposta do editor (roda no servidor). */
+function pedidoPendente(msgs: Mensagem[] | undefined) {
+  const u = msgs?.[msgs.length - 1];
+  if (!u || u.papel !== "usuario") return false;
+  return Date.now() - new Date(u.created_at).getTime() < 6 * 60 * 1000;
 }
