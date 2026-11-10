@@ -30,6 +30,7 @@ import { Download, Instagram, Loader2, Megaphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import { adPayload, CTAS, novoAnuncio } from "@/components/ads/AnuncioFields";
+import { EditorLegenda } from "@/components/criativos/EditorLegenda";
 import { baixarRender, db, renderDesatualizado, versaoDoRender, type Projeto } from "@/lib/vedit";
 
 export function Publicar({
@@ -224,7 +225,9 @@ export function Publicar({
         )}
         <Tabs
           className="min-w-0"
-          defaultValue={!interna ? "baixar" : projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
+          defaultValue={
+            !interna ? "baixar" : projeto.objetivo === "anuncio" ? "anuncio" : "instagram"
+          }
         >
           <TabsList className={interna ? "grid grid-cols-3 [&>*]:px-1.5" : "grid grid-cols-1"}>
             {interna && (
@@ -305,15 +308,7 @@ export function Publicar({
             </p>
           </TabsContent>
           <TabsContent value="instagram" className="space-y-3 pt-2">
-            <div className="space-y-1">
-              <Label>Legenda do post</Label>
-              <Textarea
-                rows={5}
-                value={legenda}
-                onChange={(e) => setLegenda(e.target.value)}
-                placeholder="Texto do post, com a palavra-chave do CTA"
-              />
-            </div>
+            <EditorLegenda projetoId={projeto.id} valor={legenda} onChange={setLegenda} video />
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
                 <div className="text-sm font-medium">Trial Reel</div>

@@ -1,5 +1,5 @@
 // Legenda do post: texto livre + emojis + opções novas geradas pelo Claude (com um pedido opcional).
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Smile, Sparkles } from "lucide-react";
 import { chamarAgente } from "@/lib/criativos";
+import { callEdgeFunction } from "@/lib/ads-mutations";
 
 const EMOJIS =
   "😀 😂 🤣 😊 😍 🤩 😎 🤓 🤔 🫣 😮 😱 🥹 🙏 👏 🙌 💪 👇 👉 ☝️ ✅ ❌ ⚠️ 🚨 💡 🔥 ✨ ⭐ 🎯 🚀 📈 📉 📊 💰 💸 🧠 🤖 💻 📱 📩 📅 ⏰ ⏳ 🔑 🔒 🧩 🛠️ ⚙️ 📌 📍 🗂️ 📝 💬 🗣️ ❤️ 🤝 🏆 🎁 ➡️ ⬇️ ✱".split(
@@ -20,15 +21,19 @@ export function EditorLegenda({
   projetoId,
   valor,
   onChange,
+  video = false,
 }: {
   projetoId: string;
   valor: string;
   onChange: (v: string) => void;
+  /** Vídeo editado: gera pela fala e pela legenda da referência usada na edição, já ao abrir. */
+  video?: boolean;
 }) {
   const campo = useRef<HTMLTextAreaElement>(null);
   const [opcoes, setOpcoes] = useState<Opcao[]>([]);
   const [pedido, setPedido] = useState("");
   const [gerando, setGerando] = useState(false);
+  const [base, setBase] = useState<string | null>(null);
 
   function inserir(e: string) {
     const el = campo.current;
@@ -42,19 +47,30 @@ export function EditorLegenda({
     });
   }
 
-  async function gerar() {
+  async function gerar(preencher = false) {
     setGerando(true);
     try {
-      const r = (await chamarAgente({ acao: "legendas", projeto_id: projetoId, pedido })) as {
-        opcoes?: Opcao[];
-      };
+      const r = (
+        video
+          ? await callEdgeFunction("vedit-legenda", { projeto_id: projetoId, pedido })
+          : await chamarAgente({ acao: "legendas", projeto_id: projetoId, pedido })
+      ) as { opcoes?: Opcao[]; referencia?: string | null; error?: string };
+      if (r.error) throw new Error(r.error);
       setOpcoes(r.opcoes ?? []);
+      setBase(r.referencia ?? null);
+      if (preencher && r.opcoes?.[0]) onChange(r.opcoes[0].texto);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
       setGerando(false);
     }
   }
+
+  // Vídeo: abre já com a legenda escrita (a 1ª opção no campo, as outras logo abaixo).
+  useEffect(() => {
+    if (video && !valor.trim()) void gerar(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video, projetoId]);
 
   const hashtags = (valor.match(/#[\p{L}\p{N}_]+/gu) ?? []).length;
 
@@ -106,7 +122,7 @@ export function EditorLegenda({
             type="button"
             size="sm"
             className="h-8 shrink-0"
-            onClick={gerar}
+            onClick={() => gerar()}
             disabled={gerando}
           >
             {gerando ? (
@@ -118,7 +134,17 @@ export function EditorLegenda({
           </Button>
         </div>
         {gerando && (
-          <p className="text-xs text-muted-foreground">O Claude está escrevendo 3 versões…</p>
+          <p className="text-xs text-muted-foreground">
+            O Claude está escrevendo 3 versões
+            {video ? " a partir da sua fala e da referência da edição" : ""}…
+          </p>
+        )}
+        {!gerando && video && opcoes.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            {base
+              ? `Seguindo a legenda do post da referência ${base}, com o conteúdo da sua fala.`
+              : "Esta edição não usou referência: escrita a partir da sua fala."}
+          </p>
         )}
         {opcoes.map((o, i) => (
           <div key={i} className="rounded-md border bg-muted/30 p-2 space-y-1.5">
