@@ -444,6 +444,9 @@ export function AdsLayout() {
     exact ? path === to : path === to || path.startsWith(to + "/");
 
   // Grupo e item da página atual (título do topo + auto-expand do grupo).
+  // Editores (vídeo e criativo) ocupam a altura toda: sem rodapé e sem margem extra
+  // embaixo, alinhados com a base da sidebar.
+  const telaCheia = /^\/ads\/(edicao|criar)\/[0-9a-f]{8}-[0-9a-f-]{27}\/?$/i.test(path);
   const activeGroup = useMemo(
     () => TODOS_GRUPOS.find((g) => g.items.some((it) => isActive(it.to, it.exact))),
     [path],
@@ -1001,7 +1004,7 @@ export function AdsLayout() {
             {/* Página de sistema ocupa toda a largura disponível (sem max-w + mx-auto):
                 cards, gráficos e tabelas se adaptam à tela em vez de ficarem numa
                 coluna centralizada com margens vazias. */}
-            <div className="page-content relative z-[1] p-4 sm:p-6 lg:p-8 w-full min-w-0">
+            <div className={cn("page-content relative z-[1] p-4 sm:p-6 lg:p-8 w-full min-w-0", telaCheia && "pb-3 sm:pb-3 lg:pb-3")}>
               {semAcesso ? (
                 <div className="min-h-[50vh] flex items-center justify-center animate-fade-up">
                   <div className="text-center max-w-sm">
@@ -1021,7 +1024,7 @@ export function AdsLayout() {
                 <Outlet />
               )}
             </div>
-            {ehInterna && (
+            {ehInterna && !telaCheia && (
               <footer className="relative z-[1] mt-6 py-4 px-6 text-center text-[11px] text-muted-foreground/70">
                 Dados da Meta sincronizados automaticamente a cada 15 min · use o indicador no topo
                 para forçar agora.
