@@ -721,6 +721,7 @@ export type Database = {
           custo_usd: number
           data: string
           deal_id: string | null
+          empresa_id: string | null
           id: string
           input_tokens: number
           metadata: Json | null
@@ -736,6 +737,7 @@ export type Database = {
           custo_usd?: number
           data?: string
           deal_id?: string | null
+          empresa_id?: string | null
           id?: string
           input_tokens?: number
           metadata?: Json | null
@@ -751,6 +753,7 @@ export type Database = {
           custo_usd?: number
           data?: string
           deal_id?: string | null
+          empresa_id?: string | null
           id?: string
           input_tokens?: number
           metadata?: Json | null
@@ -761,7 +764,15 @@ export type Database = {
           projeto_id?: string | null
           provider?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_log_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       app_settings: {
         Row: {
@@ -1466,6 +1477,7 @@ export type Database = {
           extrato_upload_id: string | null
           id: string
           linha_digitavel: string | null
+          migrado_mp_cobranca_id: string | null
           nosso_numero: string | null
           numero_documento: string
           pagador_documento: string | null
@@ -1492,6 +1504,7 @@ export type Database = {
           extrato_upload_id?: string | null
           id?: string
           linha_digitavel?: string | null
+          migrado_mp_cobranca_id?: string | null
           nosso_numero?: string | null
           numero_documento: string
           pagador_documento?: string | null
@@ -1518,6 +1531,7 @@ export type Database = {
           extrato_upload_id?: string | null
           id?: string
           linha_digitavel?: string | null
+          migrado_mp_cobranca_id?: string | null
           nosso_numero?: string | null
           numero_documento?: string
           pagador_documento?: string | null
@@ -1551,6 +1565,13 @@ export type Database = {
             columns: ["extrato_upload_id"]
             isOneToOne: false
             referencedRelation: "extratos_uploads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "boletos_bancarios_migrado_mp_cobranca_id_fkey"
+            columns: ["migrado_mp_cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "mp_cobrancas"
             referencedColumns: ["id"]
           },
           {
@@ -3595,6 +3616,7 @@ export type Database = {
           id: string
           linha_digitavel: string | null
           link_pagamento: string | null
+          mp_cobranca_id: string | null
           observacao: string | null
           pix_copia_cola: string | null
           recorrencia_id: string
@@ -3618,6 +3640,7 @@ export type Database = {
           id?: string
           linha_digitavel?: string | null
           link_pagamento?: string | null
+          mp_cobranca_id?: string | null
           observacao?: string | null
           pix_copia_cola?: string | null
           recorrencia_id: string
@@ -3641,6 +3664,7 @@ export type Database = {
           id?: string
           linha_digitavel?: string | null
           link_pagamento?: string | null
+          mp_cobranca_id?: string | null
           observacao?: string | null
           pix_copia_cola?: string | null
           recorrencia_id?: string
@@ -3661,6 +3685,13 @@ export type Database = {
             columns: ["bank_transaction_id"]
             isOneToOne: false
             referencedRelation: "vw_financeiro_conciliacao"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cobrancas_recorrentes_lancamentos_mp_cobranca_id_fkey"
+            columns: ["mp_cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "mp_cobrancas"
             referencedColumns: ["id"]
           },
           {
@@ -5384,6 +5415,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           descricao: string | null
+          empresa_id: string
           favorita: boolean
           id: string
           largura: number | null
@@ -5398,6 +5430,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           descricao?: string | null
+          empresa_id: string
           favorita?: boolean
           id?: string
           largura?: number | null
@@ -5412,6 +5445,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           descricao?: string | null
+          empresa_id?: string
           favorita?: boolean
           id?: string
           largura?: number | null
@@ -5426,6 +5460,13 @@ export type Database = {
             columns: ["base_id"]
             isOneToOne: false
             referencedRelation: "cria_fotos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cria_fotos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
             referencedColumns: ["id"]
           },
         ]
@@ -5468,6 +5509,7 @@ export type Database = {
           created_by: string | null
           descricao: string | null
           design: Json
+          empresa_id: string
           formato: string
           id: string
           nome: string
@@ -5479,6 +5521,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           design: Json
+          empresa_id: string
           formato?: string
           id?: string
           nome: string
@@ -5490,6 +5533,7 @@ export type Database = {
           created_by?: string | null
           descricao?: string | null
           design?: Json
+          empresa_id?: string
           formato?: string
           id?: string
           nome?: string
@@ -5497,6 +5541,13 @@ export type Database = {
           tipo?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cria_modelos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cria_modelos_origem_id_fkey"
             columns: ["origem_id"]
@@ -5512,6 +5563,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           design: Json
+          empresa_id: string
           erro: string | null
           formato: string
           id: string
@@ -5530,6 +5582,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           design?: Json
+          empresa_id: string
           erro?: string | null
           formato?: string
           id?: string
@@ -5548,6 +5601,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           design?: Json
+          empresa_id?: string
           erro?: string | null
           formato?: string
           id?: string
@@ -5562,6 +5616,13 @@ export type Database = {
           versao?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "cria_projetos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cria_projetos_modelo_id_fkey"
             columns: ["modelo_id"]
@@ -5584,6 +5645,7 @@ export type Database = {
           autor: string | null
           created_at: string
           created_by: string | null
+          empresa_id: string
           erro: string | null
           id: string
           imagens: string[]
@@ -5596,6 +5658,7 @@ export type Database = {
           autor?: string | null
           created_at?: string
           created_by?: string | null
+          empresa_id: string
           erro?: string | null
           id?: string
           imagens?: string[]
@@ -5608,6 +5671,7 @@ export type Database = {
           autor?: string | null
           created_at?: string
           created_by?: string | null
+          empresa_id?: string
           erro?: string | null
           id?: string
           imagens?: string[]
@@ -5615,7 +5679,15 @@ export type Database = {
           status?: string
           url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "cria_referencias_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cria_versoes: {
         Row: {
@@ -7087,6 +7159,45 @@ export type Database = {
           status?: string
           tipo?: string
           valor?: number
+        }
+        Relationships: []
+      }
+      ecossistema_apps: {
+        Row: {
+          ativo: boolean
+          cor: string
+          created_at: string
+          descricao: string | null
+          icone: string
+          id: string
+          nome: string
+          ordem: number
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          icone?: string
+          id?: string
+          nome: string
+          ordem?: number
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          ativo?: boolean
+          cor?: string
+          created_at?: string
+          descricao?: string | null
+          icone?: string
+          id?: string
+          nome?: string
+          ordem?: number
+          updated_at?: string
+          url?: string
         }
         Relationships: []
       }
@@ -9047,6 +9158,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           duracao: number | null
+          empresa_id: string
           titulo: string
         }
         Insert: {
@@ -9056,6 +9168,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao?: number | null
+          empresa_id: string
           titulo?: string
         }
         Update: {
@@ -9065,9 +9178,18 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao?: number | null
+          empresa_id?: string
           titulo?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ig_musicas_salvas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ig_poll_state: {
         Row: {
@@ -10255,6 +10377,77 @@ export type Database = {
         }
         Relationships: []
       }
+      mads_empresa_membros: {
+        Row: {
+          created_at: string
+          empresa_id: string
+          papel: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          empresa_id: string
+          papel?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          empresa_id?: string
+          papel?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mads_empresa_membros_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mads_empresas: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          criado_por: string | null
+          id: string
+          interna: boolean
+          logo_url: string | null
+          nome: string
+          observacoes: string | null
+          recursos: string[]
+          slug: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          interna?: boolean
+          logo_url?: string | null
+          nome: string
+          observacoes?: string | null
+          recursos?: string[]
+          slug?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          interna?: boolean
+          logo_url?: string | null
+          nome?: string
+          observacoes?: string | null
+          recursos?: string[]
+          slug?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       mads_execution_log: {
         Row: {
           acao: string
@@ -10794,6 +10987,7 @@ export type Database = {
       }
       mads_permissoes: {
         Row: {
+          empresa_id: string
           nivel: string
           recurso: string
           updated_at: string
@@ -10801,6 +10995,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          empresa_id?: string
           nivel?: string
           recurso: string
           updated_at?: string
@@ -10808,19 +11003,29 @@ export type Database = {
           user_id: string
         }
         Update: {
+          empresa_id?: string
           nivel?: string
           recurso?: string
           updated_at?: string
           updated_by?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mads_permissoes_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mads_usuarios: {
         Row: {
           ativo: boolean
           created_at: string
           criado_por: string | null
+          empresa_ativa_id: string | null
           ultimo_acesso_em: string | null
           updated_at: string
           user_id: string
@@ -10829,6 +11034,7 @@ export type Database = {
           ativo?: boolean
           created_at?: string
           criado_por?: string | null
+          empresa_ativa_id?: string | null
           ultimo_acesso_em?: string | null
           updated_at?: string
           user_id: string
@@ -10837,11 +11043,20 @@ export type Database = {
           ativo?: boolean
           created_at?: string
           criado_por?: string | null
+          empresa_ativa_id?: string | null
           ultimo_acesso_em?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mads_usuarios_empresa_ativa_id_fkey"
+            columns: ["empresa_ativa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mensagens_aprovacao: {
         Row: {
@@ -11487,6 +11702,236 @@ export type Database = {
         }
         Relationships: []
       }
+      mp_cobrancas: {
+        Row: {
+          atualizado_mp_em: string | null
+          boleto_bancario_id: string | null
+          boleto_url: string | null
+          codigo_barras: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          criado_mp_em: string | null
+          data_aprovacao: string | null
+          data_liberacao: string | null
+          data_vencimento: string | null
+          descricao: string | null
+          erro: string | null
+          id: string
+          idempotency_key: string | null
+          lancamento_id: string | null
+          linha_digitavel: string | null
+          link_meios: string | null
+          link_pagamento: string | null
+          link_parcelas_max: number | null
+          meio_pagamento: string | null
+          mp_payment_id: string | null
+          mp_preference_id: string | null
+          origem: string
+          pagador_documento: string | null
+          pagador_email: string | null
+          pagador_nome: string | null
+          pagina_pagamento: string | null
+          parcela_id: string | null
+          pdf_path: string | null
+          pix_copia_cola: string | null
+          pix_qr_base64: string | null
+          raw: Json | null
+          status: string
+          status_detail: string | null
+          status_mp: string | null
+          taxas: number | null
+          tipo: string
+          tipo_pagamento: string | null
+          updated_at: string
+          valor: number
+          valor_liquido: number | null
+          valor_pago: number | null
+          venda_id: string | null
+        }
+        Insert: {
+          atualizado_mp_em?: string | null
+          boleto_bancario_id?: string | null
+          boleto_url?: string | null
+          codigo_barras?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          criado_mp_em?: string | null
+          data_aprovacao?: string | null
+          data_liberacao?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          erro?: string | null
+          id?: string
+          idempotency_key?: string | null
+          lancamento_id?: string | null
+          linha_digitavel?: string | null
+          link_meios?: string | null
+          link_pagamento?: string | null
+          link_parcelas_max?: number | null
+          meio_pagamento?: string | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          origem?: string
+          pagador_documento?: string | null
+          pagador_email?: string | null
+          pagador_nome?: string | null
+          pagina_pagamento?: string | null
+          parcela_id?: string | null
+          pdf_path?: string | null
+          pix_copia_cola?: string | null
+          pix_qr_base64?: string | null
+          raw?: Json | null
+          status?: string
+          status_detail?: string | null
+          status_mp?: string | null
+          taxas?: number | null
+          tipo: string
+          tipo_pagamento?: string | null
+          updated_at?: string
+          valor: number
+          valor_liquido?: number | null
+          valor_pago?: number | null
+          venda_id?: string | null
+        }
+        Update: {
+          atualizado_mp_em?: string | null
+          boleto_bancario_id?: string | null
+          boleto_url?: string | null
+          codigo_barras?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          criado_mp_em?: string | null
+          data_aprovacao?: string | null
+          data_liberacao?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          erro?: string | null
+          id?: string
+          idempotency_key?: string | null
+          lancamento_id?: string | null
+          linha_digitavel?: string | null
+          link_meios?: string | null
+          link_pagamento?: string | null
+          link_parcelas_max?: number | null
+          meio_pagamento?: string | null
+          mp_payment_id?: string | null
+          mp_preference_id?: string | null
+          origem?: string
+          pagador_documento?: string | null
+          pagador_email?: string | null
+          pagador_nome?: string | null
+          pagina_pagamento?: string | null
+          parcela_id?: string | null
+          pdf_path?: string | null
+          pix_copia_cola?: string | null
+          pix_qr_base64?: string | null
+          raw?: Json | null
+          status?: string
+          status_detail?: string | null
+          status_mp?: string | null
+          taxas?: number | null
+          tipo?: string
+          tipo_pagamento?: string | null
+          updated_at?: string
+          valor?: number
+          valor_liquido?: number | null
+          valor_pago?: number | null
+          venda_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mp_cobrancas_boleto_bancario_id_fkey"
+            columns: ["boleto_bancario_id"]
+            isOneToOne: false
+            referencedRelation: "boletos_bancarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts_full"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "v_oportunidade_abordagem"
+            referencedColumns: ["contact_id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_lancamento_id_fkey"
+            columns: ["lancamento_id"]
+            isOneToOne: false
+            referencedRelation: "cobrancas_recorrentes_lancamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_parcela_id_fkey"
+            columns: ["parcela_id"]
+            isOneToOne: false
+            referencedRelation: "parcelas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mp_cobrancas_venda_id_fkey"
+            columns: ["venda_id"]
+            isOneToOne: false
+            referencedRelation: "vendas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mp_eventos: {
+        Row: {
+          acao: string | null
+          assinatura_valida: boolean | null
+          data_id: string | null
+          erro: string | null
+          id: string
+          processado_em: string | null
+          raw: Json | null
+          recebido_em: string
+          request_id: string | null
+          tipo: string | null
+        }
+        Insert: {
+          acao?: string | null
+          assinatura_valida?: boolean | null
+          data_id?: string | null
+          erro?: string | null
+          id?: string
+          processado_em?: string | null
+          raw?: Json | null
+          recebido_em?: string
+          request_id?: string | null
+          tipo?: string | null
+        }
+        Update: {
+          acao?: string | null
+          assinatura_valida?: boolean | null
+          data_id?: string | null
+          erro?: string | null
+          id?: string
+          processado_em?: string | null
+          raw?: Json | null
+          recebido_em?: string
+          request_id?: string | null
+          tipo?: string | null
+        }
+        Relationships: []
+      }
       nf_dispensas: {
         Row: {
           created_at: string
@@ -12112,6 +12557,7 @@ export type Database = {
           lembrete_d0_em: string | null
           lembrete_d1_em: string | null
           lia_bill_id: string | null
+          mp_cobranca_id: string | null
           numero: number
           origem_cobranca: string | null
           pix_copia_cola: string | null
@@ -12145,6 +12591,7 @@ export type Database = {
           lembrete_d0_em?: string | null
           lembrete_d1_em?: string | null
           lia_bill_id?: string | null
+          mp_cobranca_id?: string | null
           numero?: number
           origem_cobranca?: string | null
           pix_copia_cola?: string | null
@@ -12178,6 +12625,7 @@ export type Database = {
           lembrete_d0_em?: string | null
           lembrete_d1_em?: string | null
           lia_bill_id?: string | null
+          mp_cobranca_id?: string | null
           numero?: number
           origem_cobranca?: string | null
           pix_copia_cola?: string | null
@@ -12196,6 +12644,13 @@ export type Database = {
             columns: ["abono_repasse_id"]
             isOneToOne: false
             referencedRelation: "repasses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcelas_mp_cobranca_id_fkey"
+            columns: ["mp_cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "mp_cobrancas"
             referencedColumns: ["id"]
           },
           {
@@ -15003,6 +15458,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           destino: string
+          empresa_id: string
           erro: string | null
           id: string
           ig_media_id: string | null
@@ -15030,6 +15486,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destino?: string
+          empresa_id: string
           erro?: string | null
           id?: string
           ig_media_id?: string | null
@@ -15057,6 +15514,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           destino?: string
+          empresa_id?: string
           erro?: string | null
           id?: string
           ig_media_id?: string | null
@@ -15076,7 +15534,15 @@ export type Database = {
           thumb?: string | null
           tipo?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       push_subscriptions: {
         Row: {
@@ -17123,6 +17589,48 @@ export type Database = {
           },
         ]
       }
+      tmp_vid: {
+        Row: {
+          path: string | null
+          req_sign: number | null
+          req_up: number | null
+          slug: string
+          url: string | null
+          video_id: string | null
+        }
+        Insert: {
+          path?: string | null
+          req_sign?: number | null
+          req_up?: number | null
+          slug: string
+          url?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          path?: string | null
+          req_sign?: number | null
+          req_up?: number | null
+          slug?: string
+          url?: string | null
+          video_id?: string | null
+        }
+        Relationships: []
+      }
+      tmp_vid_keep: {
+        Row: {
+          slug: string | null
+          video_id: string | null
+        }
+        Insert: {
+          slug?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          slug?: string | null
+          video_id?: string | null
+        }
+        Relationships: []
+      }
       user_goals: {
         Row: {
           created_at: string
@@ -17593,6 +18101,7 @@ export type Database = {
         Row: {
           concluido_em: string | null
           created_at: string
+          empresa_id: string
           erro: string | null
           id: string
           iniciado_em: string | null
@@ -17606,6 +18115,7 @@ export type Database = {
         Insert: {
           concluido_em?: string | null
           created_at?: string
+          empresa_id: string
           erro?: string | null
           id?: string
           iniciado_em?: string | null
@@ -17619,6 +18129,7 @@ export type Database = {
         Update: {
           concluido_em?: string | null
           created_at?: string
+          empresa_id?: string
           erro?: string | null
           id?: string
           iniciado_em?: string | null
@@ -17631,6 +18142,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "vedit_jobs_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vedit_jobs_projeto_id_fkey"
             columns: ["projeto_id"]
             isOneToOne: false
@@ -17642,6 +18160,7 @@ export type Database = {
       vedit_marcas: {
         Row: {
           created_at: string
+          empresa_id: string
           id: string
           instrucoes: string | null
           legenda_estilo: string
@@ -17651,6 +18170,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          empresa_id: string
           id?: string
           instrucoes?: string | null
           legenda_estilo?: string
@@ -17660,6 +18180,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          empresa_id?: string
           id?: string
           instrucoes?: string | null
           legenda_estilo?: string
@@ -17667,7 +18188,15 @@ export type Database = {
           nome?: string
           padrao?: boolean
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vedit_marcas_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vedit_mensagens: {
         Row: {
@@ -17756,6 +18285,7 @@ export type Database = {
           anunciante: string | null
           buscado_em: string
           descartado: boolean
+          empresa_id: string
           id: string
           inicio: string | null
           pais: string
@@ -17770,6 +18300,7 @@ export type Database = {
           anunciante?: string | null
           buscado_em?: string
           descartado?: boolean
+          empresa_id: string
           id: string
           inicio?: string | null
           pais?: string
@@ -17784,6 +18315,7 @@ export type Database = {
           anunciante?: string | null
           buscado_em?: string
           descartado?: boolean
+          empresa_id?: string
           id?: string
           inicio?: string | null
           pais?: string
@@ -17795,6 +18327,13 @@ export type Database = {
           variantes?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "vedit_nicho_ads_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vedit_nicho_ads_referencia_id_fkey"
             columns: ["referencia_id"]
@@ -17808,6 +18347,7 @@ export type Database = {
         Row: {
           alcance: string
           dias_janela: number
+          empresa_id: string
           hashtags: string[]
           id: number
           nicho: string | null
@@ -17819,6 +18359,7 @@ export type Database = {
         Insert: {
           alcance?: string
           dias_janela?: number
+          empresa_id: string
           hashtags?: string[]
           id?: number
           nicho?: string | null
@@ -17830,6 +18371,7 @@ export type Database = {
         Update: {
           alcance?: string
           dias_janela?: number
+          empresa_id?: string
           hashtags?: string[]
           id?: number
           nicho?: string | null
@@ -17838,12 +18380,21 @@ export type Database = {
           ultima_busca?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vedit_nicho_config_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vedit_nicho_perfis: {
         Row: {
           ativo: boolean
           created_at: string
+          empresa_id: string
           erro: string | null
           followers: number | null
           id: string
@@ -17859,6 +18410,7 @@ export type Database = {
         Insert: {
           ativo?: boolean
           created_at?: string
+          empresa_id: string
           erro?: string | null
           followers?: number | null
           id?: string
@@ -17874,6 +18426,7 @@ export type Database = {
         Update: {
           ativo?: boolean
           created_at?: string
+          empresa_id?: string
           erro?: string | null
           followers?: number | null
           id?: string
@@ -17886,7 +18439,15 @@ export type Database = {
           ultima_coleta?: string | null
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vedit_nicho_perfis_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vedit_nicho_reels: {
         Row: {
@@ -17896,6 +18457,7 @@ export type Database = {
           comments_count: number
           content_item_id: string | null
           descartado: boolean
+          empresa_id: string
           engajamento: number | null
           hashtag: string | null
           id: string
@@ -17924,6 +18486,7 @@ export type Database = {
           comments_count?: number
           content_item_id?: string | null
           descartado?: boolean
+          empresa_id: string
           engajamento?: number | null
           hashtag?: string | null
           id?: string
@@ -17952,6 +18515,7 @@ export type Database = {
           comments_count?: number
           content_item_id?: string | null
           descartado?: boolean
+          empresa_id?: string
           engajamento?: number | null
           hashtag?: string | null
           id?: string
@@ -17975,6 +18539,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "vedit_nicho_reels_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vedit_nicho_reels_perfil_id_fkey"
             columns: ["perfil_id"]
             isOneToOne: false
@@ -17997,6 +18568,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           duracao_alvo: number | null
+          empresa_id: string
           erro: string | null
           estilo: string
           fonte_altura: number | null
@@ -18016,8 +18588,10 @@ export type Database = {
           objetivo: string
           palavras: Json
           publicado_em: string | null
+          referencia_id: string | null
           render_path: string | null
           rosto: Json | null
+          roteiro_id: string | null
           status: string
           storyboard: Json | null
           sugestao: Json | null
@@ -18033,6 +18607,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao_alvo?: number | null
+          empresa_id: string
           erro?: string | null
           estilo?: string
           fonte_altura?: number | null
@@ -18052,8 +18627,10 @@ export type Database = {
           objetivo?: string
           palavras?: Json
           publicado_em?: string | null
+          referencia_id?: string | null
           render_path?: string | null
           rosto?: Json | null
+          roteiro_id?: string | null
           status?: string
           storyboard?: Json | null
           sugestao?: Json | null
@@ -18069,6 +18646,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao_alvo?: number | null
+          empresa_id?: string
           erro?: string | null
           estilo?: string
           fonte_altura?: number | null
@@ -18088,8 +18666,10 @@ export type Database = {
           objetivo?: string
           palavras?: Json
           publicado_em?: string | null
+          referencia_id?: string | null
           render_path?: string | null
           rosto?: Json | null
+          roteiro_id?: string | null
           status?: string
           storyboard?: Json | null
           sugestao?: Json | null
@@ -18108,10 +18688,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vedit_projetos_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "vedit_projetos_marca_id_fkey"
             columns: ["marca_id"]
             isOneToOne: false
             referencedRelation: "vedit_marcas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vedit_projetos_referencia_id_fkey"
+            columns: ["referencia_id"]
+            isOneToOne: false
+            referencedRelation: "vedit_referencias"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vedit_projetos_roteiro_id_fkey"
+            columns: ["roteiro_id"]
+            isOneToOne: false
+            referencedRelation: "vedit_roteiros"
             referencedColumns: ["id"]
           },
         ]
@@ -18126,6 +18727,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           duracao: number | null
+          empresa_id: string
           erro: string | null
           folhas: string[]
           id: string
@@ -18151,6 +18753,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao?: number | null
+          empresa_id: string
           erro?: string | null
           folhas?: string[]
           id?: string
@@ -18176,6 +18779,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duracao?: number | null
+          empresa_id?: string
           erro?: string | null
           folhas?: string[]
           id?: string
@@ -18192,7 +18796,15 @@ export type Database = {
           url?: string | null
           video_path?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "vedit_referencias_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vedit_renders: {
         Row: {
@@ -18255,6 +18867,7 @@ export type Database = {
           content_item_id: string | null
           created_at: string
           created_by: string | null
+          empresa_id: string
           erro: string | null
           estrutura: Json | null
           finalidade: string
@@ -18277,6 +18890,7 @@ export type Database = {
           content_item_id?: string | null
           created_at?: string
           created_by?: string | null
+          empresa_id: string
           erro?: string | null
           estrutura?: Json | null
           finalidade?: string
@@ -18299,6 +18913,7 @@ export type Database = {
           content_item_id?: string | null
           created_at?: string
           created_by?: string | null
+          empresa_id?: string
           erro?: string | null
           estrutura?: Json | null
           finalidade?: string
@@ -18315,6 +18930,13 @@ export type Database = {
           versao?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "vedit_roteiros_empresa_id_fkey"
+            columns: ["empresa_id"]
+            isOneToOne: false
+            referencedRelation: "mads_empresas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vedit_roteiros_reel_id_fkey"
             columns: ["reel_id"]
@@ -20343,6 +20965,7 @@ export type Database = {
           acessos_7d: number | null
           ativo: boolean | null
           email: string | null
+          empresas: string[] | null
           is_admin: boolean | null
           liberado_em: string | null
           nome: string | null
@@ -23250,6 +23873,8 @@ export type Database = {
       }
       is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_team_member: { Args: { _user_id: string }; Returns: boolean }
+      mads_empresa_ativa: { Args: never; Returns: string }
+      mads_empresa_ativa_de: { Args: { _uid: string }; Returns: string }
       mads_error_is_transient: {
         Args: { p_meta: Json; p_msg: string; p_status: number }
         Returns: boolean
@@ -23353,6 +23978,26 @@ export type Database = {
           valor_ganho_brl: number
         }[]
       }
+      mads_f_gastos_api: {
+        Args: {
+          p_empresa?: string
+          p_since: string
+          p_todas?: boolean
+          p_until: string
+        }
+        Returns: {
+          chamadas: number
+          custo_usd: number
+          empresa_id: string
+          empresa_nome: string
+          input_tokens: number
+          model: string
+          origem: string
+          output_tokens: number
+          provider: string
+          semana: string
+        }[]
+      }
       mads_f_lp_performance: {
         Args: { p_since: string; p_until: string }
         Returns: {
@@ -23384,11 +24029,34 @@ export type Database = {
           visits_total: number
         }[]
       }
+      mads_iaplicada_id: { Args: never; Returns: string }
+      mads_minhas_empresas: {
+        Args: never
+        Returns: {
+          ativa: boolean
+          id: string
+          interna: boolean
+          logo_url: string
+          nome: string
+          papel: string
+          recursos: string[]
+          slug: string
+        }[]
+      }
       mads_nivel: {
         Args: { _recurso: string; _user_id: string }
         Returns: string
       }
+      mads_nivel_empresa: {
+        Args: { _emp: string; _recurso: string; _uid: string }
+        Returns: string
+      }
+      mads_pode_empresa: {
+        Args: { _emp: string; _uid: string }
+        Returns: boolean
+      }
       mads_tem_acesso: { Args: { _user_id: string }; Returns: boolean }
+      mads_trocar_empresa: { Args: { _emp: string }; Returns: string }
       mais_dias_uteis: { Args: { _de: string; _n: number }; Returns: string }
       marcar_sugestao_enviada: {
         Args: {
@@ -23538,6 +24206,7 @@ export type Database = {
         Returns: {
           concluido_em: string | null
           created_at: string
+          empresa_id: string
           erro: string | null
           id: string
           iniciado_em: string | null
@@ -23560,6 +24229,7 @@ export type Database = {
         Returns: {
           concluido_em: string | null
           created_at: string
+          empresa_id: string
           erro: string | null
           id: string
           iniciado_em: string | null
