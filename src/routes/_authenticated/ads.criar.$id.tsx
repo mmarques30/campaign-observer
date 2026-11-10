@@ -403,7 +403,7 @@ function EditorCriativo() {
       )}
 
       {/* Ocupa a altura da tela: prévia e painel lado a lado, do mesmo tamanho. */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:h-[calc(100dvh-10.5rem)] xl:min-h-[560px]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:h-[calc(100dvh-132px)] xl:min-h-[560px]">
         <div className="flex flex-col gap-3 min-h-0">
           <div className="flex-1 min-h-[420px] xl:min-h-0 flex items-center justify-center gap-3 rounded-xl border bg-muted/40 p-4 overflow-hidden">
             {slide && design ? (
