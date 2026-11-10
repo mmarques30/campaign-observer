@@ -73,7 +73,13 @@ function palavrasDaJanela(ctx: EfeitoCtx, t0: number, t1: number) {
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 // ─── Nota de voz ─────────────────────────────────────────────────────────
-export function NotaDeVoz({ p, ctx, dur }: EfeitoProps) {
+export function NotaDeVoz(props: EfeitoProps) {
+  // visual: false = só o som abafado de áudio, sem o balão na tela.
+  if (props.p?.visual === false) return null;
+  return <NotaDeVozBalao {...props} />;
+}
+
+function NotaDeVozBalao({ p, ctx, dur }: EfeitoProps) {
   const { width, height } = useVideoConfig();
   const k = u(width);
   const { frame, fps, entrada, saida } = useEntradaSaida(dur, { saidaFrames: 8, damping: 17 });

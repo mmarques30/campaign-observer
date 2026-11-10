@@ -192,9 +192,9 @@ export const EFEITOS: EfeitoDef[] = [
     descricao:
       "O trecho falado vira um áudio tocando: balão escuro com botão, onda andando com a voz, tempo correndo e a transcrição aparecendo dentro do balão. A voz desse trecho troca para timbre de áudio de celular. A pessoa continua aparecendo atrás. Sem logo de app.",
     quandoUsar:
-      'Quando a pessoa "lê" ou imita um áudio/relato ("olha esse processo: quando o cliente entra…", "o cliente me mandou isso"). de/ate = exatamente o trecho do relato (início da 1ª palavra ao fim da última). NÃO monte isso com composição livre.',
+      'Quando a pessoa "lê" ou imita um áudio/relato ("olha esse processo: quando o cliente entra…", "o cliente me mandou isso"). de/ate = exatamente o trecho do relato (início da 1ª palavra ao fim da última). Para só o som abafado (fala de outra pessoa, citação), use visual: false. NÃO monte isso com composição livre.',
     params:
-      "posicao?: 'inferior'(padrão)|'centro'|'superior', rotulo?: texto curto acima da onda (opcional), transcricao?: false (sem texto), som?: false (mantém a voz normal)",
+      "posicao?: 'inferior'(padrão)|'centro'|'superior', rotulo?: texto curto acima da onda (opcional), transcricao?: false (sem texto), som?: false (mantém a voz normal), visual?: false (só o som abafado de áudio, sem balão na tela; a legenda continua)",
     duracaoPadrao: 8,
     escondeLegenda: true,
     disponivel: true,

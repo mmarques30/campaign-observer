@@ -728,6 +728,7 @@ export function Reel(bruto: ReelProps) {
       {camada(false)}
       {!efeitos.some((e) => {
         if (!EFEITO_POR_TIPO[e.tipo].escondeLegenda) return false;
+        if (e.tipo === "nota-de-voz" && e.props?.visual === false) return false;
         const [ini, dur] = janelaFrames(
           trechos,
           e.de,
