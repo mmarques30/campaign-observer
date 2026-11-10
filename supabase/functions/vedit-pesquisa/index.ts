@@ -78,6 +78,9 @@ async function empresaDoChamador(sb: any): Promise<string | null> {
   return sb.__empresa;
 }
 
+/** Empresa da pesquisa em curso (definida no início da requisição). */
+const emp = (sb: any): string => sb.__emp;
+
 async function logUso(sb: any, origem: string, usage: any, model = MODELO) {
   try {
     const input = usage?.input_tokens ?? 0,
@@ -150,6 +153,7 @@ async function cadastrarPerfil(
     .from("vedit_nicho_perfis")
     .upsert(
       {
+        empresa_id: emp(sb),
         username: d.username,
         nome: d.name ?? null,
         ig_user_id: d.id,
@@ -160,7 +164,7 @@ async function cadastrarPerfil(
         ativo: true,
         erro: null,
       },
-      { onConflict: "username" },
+      { onConflict: "empresa_id,username" },
     )
     .select("*")
     .single();
@@ -169,8 +173,8 @@ async function cadastrarPerfil(
 }
 
 async function sugerirPerfis(sb: any, key: string, ig: string, tk: string) {
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
-  const { data: atuais } = await sb.from("vedit_nicho_perfis").select("username");
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp(sb)).single();
+  const { data: atuais } = await sb.from("vedit_nicho_perfis").select("username").eq("empresa_id", emp(sb));
   const alcance = cfg?.alcance ?? "ambos";
   const quem =
     alcance === "brasil"
@@ -249,8 +253,8 @@ const mediana = (xs: number[]) => {
 };
 
 async function coletar(sb: any, ig: string, tk: string) {
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
-  const { data: perfis } = await sb.from("vedit_nicho_perfis").select("*").eq("ativo", true);
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp(sb)).single();
+  const { data: perfis } = await sb.from("vedit_nicho_perfis").select("*").eq("empresa_id", emp(sb)).eq("ativo", true);
   const desde = Date.now() - (cfg?.dias_janela ?? 90) * 86400_000;
   let total = 0;
   const erros: string[] = [];
@@ -267,6 +271,7 @@ async function coletar(sb: any, ig: string, tk: string) {
         .map((m: any) => {
           const eng = (m.like_count ?? 0) + (m.comments_count ?? 0);
           return {
+            empresa_id: emp(sb),
             perfil_id: p.id,
             origem: "perfil",
             ig_media_id: m.id,
@@ -288,7 +293,7 @@ async function coletar(sb: any, ig: string, tk: string) {
       if (linhas.length) {
         const { error } = await sb
           .from("vedit_nicho_reels")
-          .upsert(linhas, { onConflict: "ig_media_id" });
+          .upsert(linhas, { onConflict: "empresa_id,ig_media_id" });
         if (error) throw new Error(error.message);
       }
       total += linhas.length;
@@ -342,6 +347,7 @@ async function coletar(sb: any, ig: string, tk: string) {
       const linhas = (top.data ?? [])
         .filter((m: any) => m.media_type === "VIDEO")
         .map((m: any) => ({
+          empresa_id: emp(sb),
           origem: "hashtag",
           hashtag: tag,
           ig_media_id: m.id,
@@ -361,7 +367,7 @@ async function coletar(sb: any, ig: string, tk: string) {
         // Não sobrescreve perfil_id/indice de reels que já vieram de um perfil monitorado.
         const { error } = await sb
           .from("vedit_nicho_reels")
-          .upsert(linhas, { onConflict: "ig_media_id", ignoreDuplicates: true });
+          .upsert(linhas, { onConflict: "empresa_id,ig_media_id", ignoreDuplicates: true });
         if (error) throw new Error(error.message);
       }
       total += linhas.length;
@@ -372,7 +378,7 @@ async function coletar(sb: any, ig: string, tk: string) {
   await sb
     .from("vedit_nicho_config")
     .update({ ultima_busca: new Date().toISOString() })
-    .eq("id", 1);
+    .eq("empresa_id", emp(sb));
   return { coletados: total, erros };
 }
 
@@ -380,7 +386,7 @@ async function coletar(sb: any, ig: string, tk: string) {
 // A API só devolve o que os perfis monitorados postaram; para a busca responder ao ASSUNTO
 // digitado, cada reel ganha uma nota (0 = nada a ver, 3 = exatamente o tema) pela legenda.
 async function classificarRelevancia(sb: any, key: string, tema: string, soNovos = true) {
-  let q = sb.from("vedit_nicho_reels").select("id, caption, username").eq("descartado", false);
+  let q = sb.from("vedit_nicho_reels").select("id, caption, username").eq("empresa_id", emp(sb)).eq("descartado", false);
   if (soNovos) q = q.or(`relevancia.is.null,relevancia_tema.neq.${JSON.stringify(tema)}`);
   const { data: reels } = await q.limit(600);
   if (!reels?.length) return 0;
@@ -460,11 +466,12 @@ async function classificarRelevancia(sb: any, key: string, tema: string, soNovos
 
 /** Buscar agora: garante perfis do tema, coleta e classifica pelo assunto digitado. */
 async function buscar(sb: any, key: string, ig: string, tk: string) {
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp(sb)).single();
   const tema = String(cfg?.nicho ?? "").trim();
   const { count: ativos } = await sb
     .from("vedit_nicho_perfis")
     .select("id", { count: "exact", head: true })
+    .eq("empresa_id", emp(sb))
     .eq("ativo", true);
   let sugeridos = 0;
   // Tema novo (ou nenhum perfil ativo): o Claude sugere perfis do assunto antes de coletar.
@@ -476,12 +483,13 @@ async function buscar(sb: any, key: string, ig: string, tk: string) {
   let classificados = 0;
   if (tema) {
     classificados = await classificarRelevancia(sb, key, tema, cfg?.tema_buscado === tema);
-    await sb.from("vedit_nicho_config").update({ tema_buscado: tema }).eq("id", 1);
+    await sb.from("vedit_nicho_config").update({ tema_buscado: tema }).eq("empresa_id", emp(sb));
   }
   const { count: noTema } = tema
     ? await sb
         .from("vedit_nicho_reels")
         .select("id", { count: "exact", head: true })
+        .eq("empresa_id", emp(sb))
         .eq("descartado", false)
         .eq("relevancia_tema", tema)
         .gte("relevancia", 2)
@@ -569,9 +577,9 @@ const FERRAMENTA_ANALISE = {
 };
 
 async function analisar(sb: any, key: string, ids: string[]) {
-  const { data: reels } = await sb.from("vedit_nicho_reels").select("*").in("id", ids.slice(0, 8));
+  const { data: reels } = await sb.from("vedit_nicho_reels").select("*").eq("empresa_id", emp(sb)).in("id", ids.slice(0, 8));
   if (!reels?.length) return json({ error: "nenhum reel" }, 400);
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).single();
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp(sb)).single();
   const { data: marca } = await sb
     .from("vedit_marcas")
     .select("instrucoes")
@@ -639,6 +647,7 @@ async function reelPorLink(
   const { data: ja } = await sb
     .from("vedit_nicho_reels")
     .select("username, permalink, media_url, caption, like_count, comments_count")
+    .eq("empresa_id", emp(sb))
     .ilike("permalink", `%${codigo}%`)
     .limit(1)
     .maybeSingle();
@@ -686,7 +695,7 @@ async function reelPorLink(
 }
 
 async function enviarMarketing(sb: any, id: string) {
-  const { data: r } = await sb.from("vedit_nicho_reels").select("*").eq("id", id).single();
+  const { data: r } = await sb.from("vedit_nicho_reels").select("*").eq("empresa_id", emp(sb)).eq("id", id).single();
   if (!r?.roteiro) return json({ error: "analise o reel antes" }, 400);
   const ro = r.roteiro;
   const texto = `GANCHO: ${ro.gancho}\n\n${ro.falas}\n\nCTA: ${ro.cta}`;
@@ -725,6 +734,13 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   (sb as any).__req = req;
+  // Pesquisa de nicho por empresa: tudo o que esta função lê e grava fica na empresa de
+  // quem chamou (sem usuário identificado, na IAplicada). Garante a configuração dela.
+  (sb as any).__emp =
+    (await empresaDoChamador(sb)) ?? ((await sb.rpc("mads_iaplicada_id")).data as string);
+  await sb
+    .from("vedit_nicho_config")
+    .upsert({ empresa_id: (sb as any).__emp }, { onConflict: "empresa_id", ignoreDuplicates: true });
   const body = await req.json().catch(() => ({}));
   const { acao } = body as { acao?: string };
   try {
@@ -741,7 +757,7 @@ Deno.serve(async (req) => {
       const { data: cfg } = await sb
         .from("vedit_nicho_config")
         .select("nicho")
-        .eq("id", 1)
+        .eq("empresa_id", emp(sb))
         .single();
       const tema = String(cfg?.nicho ?? "").trim();
       if (!tema) return json({ error: "descreva o conteúdo (tema) antes" }, 400);

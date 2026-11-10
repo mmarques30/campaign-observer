@@ -58,7 +58,7 @@ export const RECURSOS: Recurso[] = [
   { key: "edicao", label: "Estúdio", grupo: "edicao", path: "/ads/edicao", exact: true, empresa: true },
   { key: "edicao.efeitos", label: "Efeitos", grupo: "edicao", path: "/ads/edicao/efeitos", empresa: true, compartilhado: true },
   { key: "edicao.trilhas", label: "Trilhas", grupo: "edicao", path: "/ads/edicao/trilhas", empresa: true, compartilhado: true },
-  { key: "edicao.pesquisa", label: "Pesquisa", grupo: "edicao", path: "/ads/edicao/pesquisa" },
+  { key: "edicao.pesquisa", label: "Pesquisa", grupo: "edicao", path: "/ads/edicao/pesquisa", empresa: true },
   { key: "edicao.referencias", label: "Referências", grupo: "edicao", path: "/ads/edicao/referencias", empresa: true },
   { key: "edicao.roteiros", label: "Roteiros", grupo: "edicao", path: "/ads/edicao/roteiros", empresa: true },
   { key: "edicao.publicados", label: "Publicados", grupo: "edicao", path: "/ads/edicao/publicados", empresa: true },
@@ -82,7 +82,6 @@ export const RECURSOS_EMPRESA_PADRAO = RECURSOS_EMPRESA.map((r) => r.key);
  * estar separados por empresa (empresa_id + RLS) e o recurso ganha `empresa: true`.
  */
 export function motivoSoInterna(r: Recurso): string {
-  if (r.key === "edicao.pesquisa") return "Pesquisa de nicho ainda é única: usa o nicho e os perfis monitorados da IAplicada.";
   if (r.grupo === "midia" || r.grupo === "conversao" || r.key === "dashboard" || r.key === "insights")
     return "Usa a conta de anúncios Meta e o CRM da IAplicada; falta a conexão própria da empresa.";
   if (r.key === "saude") return "Monitora as conexões Meta e CRM da IAplicada.";

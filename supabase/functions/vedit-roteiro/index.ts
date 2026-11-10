@@ -274,7 +274,8 @@ const FERRAMENTA = {
 };
 
 async function sistema(sb: any, idioma: string, finalidade: string) {
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("id", 1).maybeSingle();
+  const emp = (await empresaDoChamador(sb)) ?? ((await sb.rpc("mads_iaplicada_id")).data as string);
+  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp).maybeSingle();
   const { data: marca } = await sb
     .from("vedit_marcas")
     .select("instrucoes")
