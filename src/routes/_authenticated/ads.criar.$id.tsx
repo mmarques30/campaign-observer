@@ -307,8 +307,10 @@ function EditorCriativo() {
   });
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+    // Em telas largas, cabeçalho + editor ocupam exatamente a altura disponível (alinhados com
+    // a base da sidebar) e cada painel rola por dentro; em telas menores a página rola normal.
+    <div className="flex flex-col gap-4 xl:h-[calc(100dvh-132px)] xl:min-h-[600px]">
+      <div className="flex flex-wrap items-center gap-3 shrink-0">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/ads/criar">
             <ArrowLeft className="h-4 w-4" />
@@ -403,7 +405,7 @@ function EditorCriativo() {
       )}
 
       {/* Ocupa a altura da tela: prévia e painel lado a lado, do mesmo tamanho. */}
-      <div className="grid gap-4 xl:grid-cols-[1fr_420px] xl:h-[calc(100dvh-132px)] xl:min-h-[560px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:grid-rows-[minmax(0,1fr)] xl:flex-1 xl:min-h-0">
         <div className="flex flex-col gap-3 min-h-0">
           <div className="flex-1 min-h-[420px] xl:min-h-0 flex items-center justify-center gap-3 rounded-xl border bg-muted/40 p-4 overflow-hidden">
             {slide && design ? (
