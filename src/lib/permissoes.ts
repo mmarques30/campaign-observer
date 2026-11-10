@@ -53,7 +53,7 @@ export const RECURSOS: Recurso[] = [
   { key: "capi", label: "Eventos CAPI", grupo: "conversao", path: "/ads/capi-events" },
   { key: "automacoes", label: "Automações do Instagram", grupo: "conversao", path: "/ads/automacoes" },
   { key: "insights", label: "Insights", grupo: "analise", path: "/ads/insights" },
-  { key: "conexoes", label: "Conexões", grupo: "performance", path: "/ads/conexoes" },
+  { key: "conexoes", label: "Conexões", grupo: "performance", path: "/ads/conexoes", empresa: true },
   { key: "saude", label: "Saúde", grupo: "analise", path: "/ads/saude" },
   { key: "edicao", label: "Estúdio", grupo: "edicao", path: "/ads/edicao", exact: true, empresa: true },
   { key: "edicao.efeitos", label: "Efeitos", grupo: "edicao", path: "/ads/edicao/efeitos", empresa: true, compartilhado: true },
@@ -74,6 +74,21 @@ export const RECURSOS: Recurso[] = [
 export const RECURSOS_EMPRESA = RECURSOS.filter((r) => r.empresa);
 /** Módulos já marcados ao cadastrar uma empresa nova. */
 export const RECURSOS_EMPRESA_PADRAO = RECURSOS_EMPRESA.map((r) => r.key);
+
+/**
+ * Módulos que ainda só existem para a IAplicada, com o motivo. Aparecem em
+ * Admin › Empresas (desabilitados), para nenhum módulo novo ficar fora do
+ * catálogo sem explicação. Para liberar um deles a clientes, os dados precisam
+ * estar separados por empresa (empresa_id + RLS) e o recurso ganha `empresa: true`.
+ */
+export function motivoSoInterna(r: Recurso): string {
+  if (r.key === "edicao.pesquisa") return "Pesquisa de nicho ainda é única: usa o nicho e os perfis monitorados da IAplicada.";
+  if (r.grupo === "midia" || r.grupo === "conversao" || r.key === "dashboard" || r.key === "insights")
+    return "Usa a conta de anúncios Meta e o CRM da IAplicada; falta a conexão própria da empresa.";
+  if (r.key === "saude") return "Monitora as conexões Meta e CRM da IAplicada.";
+  return "Ainda sem separação de dados por empresa.";
+}
+export const RECURSOS_SO_INTERNA = RECURSOS.filter((r) => !r.empresa);
 
 /** Rotas que pertencem a um recurso sem compartilhar o prefixo do menu. */
 const ALIASES: Record<string, string> = {

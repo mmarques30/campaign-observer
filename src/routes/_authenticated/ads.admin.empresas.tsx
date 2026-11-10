@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PageHeader, Kpi, StatusPill, EmptyState } from "@/components/ads/kit";
 import { callEdgeFunction } from "@/lib/ads-mutations";
-import { GRUPOS, RECURSOS_EMPRESA, RECURSOS_EMPRESA_PADRAO, usePermissoes } from "@/lib/permissoes";
+import { GRUPOS, RECURSOS_EMPRESA, RECURSOS_EMPRESA_PADRAO, RECURSOS_SO_INTERNA, motivoSoInterna, usePermissoes } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/ads/admin/empresas")({
@@ -266,6 +266,25 @@ function EmpresaSheet({ empresa, usuarios, onOpenChange, onSalva }: {
                   </div>
                 );
               })}
+              {RECURSOS_SO_INTERNA.length > 0 && (
+                <details className="rounded-xl border border-dashed border-border/70 px-4 py-2.5 group">
+                  <summary className="cursor-pointer text-sm font-medium text-muted-foreground flex items-center justify-between">
+                    Ainda só na IAplicada
+                    <span className="text-xs">{RECURSOS_SO_INTERNA.length}</span>
+                  </summary>
+                  <ul className="mt-2 divide-y divide-border/50">
+                    {RECURSOS_SO_INTERNA.map((r) => (
+                      <li key={r.key} className="py-2 flex items-start justify-between gap-3 opacity-70">
+                        <span className="text-sm">
+                          {r.label}
+                          <span className="block text-xs text-muted-foreground">{motivoSoInterna(r)}</span>
+                        </span>
+                        <Checkbox disabled checked={false} aria-label={`${r.label} indisponível para empresas`} />
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
 
