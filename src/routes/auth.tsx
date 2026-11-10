@@ -117,10 +117,23 @@ function AuthPage() {
       return;
     }
     await registrarAcesso("login");
-    if (p.empresas.length > 1) {
-      setEmpresas(p.empresas);
+    // Só os ambientes em que a pessoa é membro (o admin global também vê a IAplicada).
+    // Empresas de clientes em que o admin não é membro ficam fora do login; ele troca
+    // para elas pela sidebar quando precisar dar suporte.
+    const { data: vinculos } = await (supabase as any)
+      .from("mads_empresa_membros").select("empresa_id").eq("user_id", p.userId);
+    const membro = new Set(((vinculos ?? []) as { empresa_id: string }[]).map((v) => v.empresa_id));
+    const acessiveis = p.empresas.filter((e) => membro.has(e.id) || (e.interna && p.isAdmin));
+    const lista = acessiveis.length ? acessiveis : p.empresas.filter((e) => e.id === p.empresa!.id);
+    if (lista.length > 1) {
+      setEmpresas(lista);
       setPasso("empresa");
       setCarregando(false);
+      return;
+    }
+    if (lista[0] && lista[0].id !== p.empresa.id) {
+      setCarregando(false);
+      await escolher(lista[0]);
       return;
     }
     setCarregando(false);
@@ -186,7 +199,7 @@ function AuthPage() {
         .iap-login .emp:hover,.iap-login .emp:focus-visible{border-color:var(--l-accent);background:rgba(175,192,65,.08);transform:translateX(6px);outline:none}
         .iap-login .emp:disabled{opacity:.5;cursor:wait}
         .iap-login .emp .ini{height:38px;width:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;background:rgba(175,192,65,.16);color:var(--l-accent);flex-shrink:0}
-        .iap-login .emp .nome{font-size:16px;font-weight:600;line-height:1.2}
+        .iap-login .emp .nome{font-size:17px;font-weight:600;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .iap-login .emp .sub{font-family:var(--l-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,245,238,.45);margin-top:3px}
         .iap-login .emp .seta{margin-left:auto;color:rgba(244,245,238,.4)}
         .iap-login .voltar{background:none;border:0;color:rgba(244,245,238,.5);font-family:var(--l-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;margin-top:18px;padding:0}
@@ -261,13 +274,7 @@ function AuthPage() {
               {empresas.map((emp) => (
                 <button key={emp.id} type="button" className="emp" role="listitem" disabled={carregando} onClick={() => escolher(emp)}>
                   <span className="ini">{emp.nome.slice(0, 2).toUpperCase()}</span>
-                  <span>
-                    <span className="nome" style={{ display: "block" }}>{emp.nome}</span>
-                    <span className="sub" style={{ display: "block" }}>
-                      {emp.interna ? "IAplicada · todos os módulos" : emp.papel === "admin" ? "Admin da empresa" : "Membro"}
-                      {emp.ativa ? " · último acesso" : ""}
-                    </span>
-                  </span>
+                  <span className="nome">{emp.nome}</span>
                   <ArrowRight className="seta" size={18} />
                 </button>
               ))}
@@ -280,7 +287,7 @@ function AuthPage() {
         )}
 
         <footer className="foot">
-          <span>{passo === "login" ? <><ShieldCheck size={12} />Acesso por convite</> : <><Building2 size={12} />{empresas.length} empresas</>}</span>
+          <span>{passo === "login" ? <><ShieldCheck size={12} />Acesso por convite</> : <><Building2 size={12} />{empresas.length} {empresas.length === 1 ? "empresa" : "empresas"}</>}</span>
           <a href="https://iaplicada.com" target="_blank" rel="noreferrer">IAplicada</a>
         </footer>
       </main>
