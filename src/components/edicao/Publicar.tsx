@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissoes } from "@/lib/permissoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,6 +42,9 @@ export function Publicar({
   onFechar: () => void;
 }) {
   const [ocupado, setOcupado] = useState(false);
+  // Anúncio e Reel publicam pelas contas Meta da IAplicada: só para ela. Empresas
+  // clientes baixam o vídeo e publicam pela própria plataforma.
+  const interna = !!usePermissoes().empresa?.interna;
   const [adsetId, setAdsetId] = useState("");
   const [ad, setAd] = useState(() => ({ ...novoAnuncio(), nome: projeto.nome, formato: "video" }));
   const [legenda, setLegenda] = useState("");
@@ -220,17 +224,21 @@ export function Publicar({
         )}
         <Tabs
           className="min-w-0"
-          defaultValue={projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
+          defaultValue={!interna ? "baixar" : projeto.objetivo === "anuncio" ? "anuncio" : "instagram"}
         >
-          <TabsList className="grid grid-cols-3 [&>*]:px-1.5">
-            <TabsTrigger value="anuncio">
-              <Megaphone className="h-4 w-4 mr-1" />
-              Anúncio
-            </TabsTrigger>
-            <TabsTrigger value="instagram">
-              <Instagram className="h-4 w-4 mr-1" />
-              Reel
-            </TabsTrigger>
+          <TabsList className={interna ? "grid grid-cols-3 [&>*]:px-1.5" : "grid grid-cols-1"}>
+            {interna && (
+              <>
+                <TabsTrigger value="anuncio">
+                  <Megaphone className="h-4 w-4 mr-1" />
+                  Anúncio
+                </TabsTrigger>
+                <TabsTrigger value="instagram">
+                  <Instagram className="h-4 w-4 mr-1" />
+                  Reel
+                </TabsTrigger>
+              </>
+            )}
             <TabsTrigger value="baixar">
               <Download className="h-4 w-4 mr-1" />
               Baixar

@@ -132,13 +132,14 @@ function PesquisaPage() {
   const cfgQ = useQuery({
     queryKey: ["vedit", "nicho", "config"],
     queryFn: async () => {
-      const { data, error } = await db()
-        .from("vedit_nicho_config")
-        .select("*")
-        .eq("id", 1)
-        .single();
+      // Uma configuração por empresa (o RLS devolve só a da empresa ativa);
+      // no primeiro acesso da empresa ela é criada vazia.
+      const { data, error } = await db().from("vedit_nicho_config").select("*").maybeSingle();
       if (error) throw error;
-      return data as Config;
+      if (data) return data as Config;
+      const { data: nova, error: e2 } = await db().from("vedit_nicho_config").insert({}).select("*").single();
+      if (e2) throw e2;
+      return nova as Config;
     },
   });
   const perfisQ = useQuery({
@@ -190,8 +191,7 @@ function PesquisaPage() {
         const { data: c } = await db()
           .from("vedit_nicho_config")
           .select("nicho")
-          .eq("id", 1)
-          .single();
+          .maybeSingle();
         const tema = String(c?.nicho ?? "").trim();
         if (!tema) throw new Error("Digite o tema antes de buscar.");
         await pedirBuscaAds(tema, "BR");
@@ -522,7 +522,7 @@ function BuscaPorTema({
         publico: vPublico.trim() || null,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", 1);
+      .gte("id", 0);
     if (error) throw error;
     setNicho(null);
     setPublico(null);
@@ -603,7 +603,7 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
             .filter(Boolean),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", 1);
+        .gte("id", 0);
       if (error) throw error;
       setHashtags(null);
       if (!silencioso) toast.success("Hashtags salvas.");
@@ -704,7 +704,7 @@ function Nicho({ cfg, perfis, onMudou }: { cfg?: Config; perfis: Perfil[]; onMud
               const { error } = await db()
                 .from("vedit_nicho_config")
                 .update({ alcance: v })
-                .eq("id", 1);
+                .gte("id", 0);
               if (error) return toast.error(error.message);
               toast.success(
                 v === "brasil"

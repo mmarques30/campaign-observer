@@ -36,6 +36,7 @@ import {
 import { SlideEscalado, SlideView } from "@/components/criativos/SlideView";
 import { EscolherFoto } from "@/components/criativos/EscolherFoto";
 import { PublicarCriativo } from "@/components/criativos/PublicarCriativo";
+import { usePermissoes } from "@/lib/permissoes";
 import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
 import { BotaoCopiar } from "@/components/BotaoCopiar";
@@ -110,6 +111,9 @@ function EditorCriativo() {
   const [exportandoTodos, setExportandoTodos] = useState(false);
   const nosPorFormato = useRef<Record<string, (HTMLDivElement | null)[]>>({});
   const [publicar, setPublicar] = useState(false);
+  // Publicação direta (Instagram e anúncio) usa as contas Meta da IAplicada: só para ela.
+  // Empresas clientes publicam pela própria plataforma (baixam o criativo pronto).
+  const podePublicar = !!usePermissoes().empresa?.interna;
   const versaoVista = useRef(-1);
   const nos = useRef<(HTMLDivElement | null)[]>([]);
   const fimChat = useRef<HTMLDivElement>(null);
@@ -384,9 +388,11 @@ function EditorCriativo() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" onClick={() => setPublicar(true)} disabled={!slides.length || gerando}>
-            <Send className="h-4 w-4 mr-1.5" /> Publicar
-          </Button>
+          {podePublicar && (
+            <Button size="sm" onClick={() => setPublicar(true)} disabled={!slides.length || gerando}>
+              <Send className="h-4 w-4 mr-1.5" /> Publicar
+            </Button>
+          )}
         </div>
       </div>
 
