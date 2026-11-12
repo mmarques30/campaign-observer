@@ -72,18 +72,26 @@ async function claude(prompt: string) {
   throw new Error("O Claude está sobrecarregado. Tente de novo em instantes.");
 }
 
-async function gerar(sb: any, req: Request, projetoId: string, pedido: string) {
+async function gerar(
+  sb: any,
+  req: Request,
+  projetoId: string,
+  pedido: string,
+  empresaAtiva: string | null,
+) {
   const { data: p } = await sb
     .from("vedit_projetos")
-    .select("id, objetivo, transcricao_texto, timeline, marca_id")
+    .select("id, objetivo, transcricao_texto, timeline, marca_id, empresa_id")
     .eq("id", projetoId)
     .single();
-  if (!p) throw new Error("vídeo não encontrado");
+  // Só vídeos da conta de quem pediu.
+  if (!p || (empresaAtiva && p.empresa_id !== empresaAtiva))
+    throw new Error("vídeo não encontrado");
   const fala = String(p.transcricao_texto ?? "").trim();
   if (!fala) throw new Error("a transcrição deste vídeo ainda não terminou");
   const modeloId = String(p.timeline?.modelo?.id ?? "");
   const refId = modeloId.startsWith("ref-") ? modeloId.slice(4) : null;
-  const [{ data: ref }, { data: marca }] = await Promise.all([
+  const [{ data: ref }, { data: marca }, { data: empresa }] = await Promise.all([
     refId
       ? sb.from("vedit_referencias").select("autor, legenda, analise").eq("id", refId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -92,10 +100,16 @@ async function gerar(sb: any, req: Request, projetoId: string, pedido: string) {
       : sb
           .from("vedit_marcas")
           .select("instrucoes")
+          .eq("empresa_id", p.empresa_id)
           .order("padrao", { ascending: false })
           .limit(1)
           .maybeSingle(),
+    sb.from("mads_empresas").select("nome, interna").eq("id", p.empresa_id).maybeSingle(),
   ]);
+  const quem =
+    !empresa || empresa.interna
+      ? "da Mariana Marques (IAplicada, IA aplicada a negócios)"
+      : `da ${empresa.nome} (escreva como a própria empresa; nunca mencione a IAplicada)`;
   const cta = (p.timeline?.efeitos ?? []).find((e: any) => e?.tipo === "cta-final")?.props ?? null;
   const palavraCta = cta?.palavra ? `${cta.verbo ?? "Comenta"} ${cta.palavra}` : "";
   // Tamanho segue o da referência (legenda de 1 linha pede legenda curta), com um piso para caber o CTA.
@@ -113,7 +127,7 @@ ${String(ref.legenda).slice(0, 2000)}
 Siga a FORMA dela: tamanho, estrutura (gancho, quebras de linha, lista, pergunta), tom e tipo de CTA. Não copie frases, assunto, nomes, números, @ nem a palavra de CTA dela: o conteúdo sai da fala DESTE vídeo.${ref.analise?.resumo ? `\nO que a referência faz: ${ref.analise.resumo}` : ""}
 `
     : "";
-  const prompt = `Escreva 3 opções de legenda de Instagram para este Reel da Mariana Marques (IAplicada, IA aplicada a negócios). Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
+  const prompt = `Escreva 3 opções de legenda de Instagram para este Reel ${quem}. Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
 ${marca?.instrucoes ? `Tom da marca: ${marca.instrucoes}\n` : ""}
 O QUE ELA FALA NO VÍDEO (transcrição):
 """
@@ -152,9 +166,16 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+  // O deploy automático publica as funções sem exigir login: a checagem fica aqui.
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const { data: u } = token ? await sb.auth.getUser(token) : { data: null };
+  if (!u?.user) return json({ error: "faça login para gerar a legenda" }, 401);
+  const { data: empAtiva } = await sb.rpc("mads_empresa_ativa_de", { _uid: u.user.id });
   const body = await req.json().catch(() => ({}));
   try {
-    return json(await gerar(sb, req, String(body.projeto_id ?? ""), String(body.pedido ?? "")));
+    return json(
+      await gerar(sb, req, String(body.projeto_id ?? ""), String(body.pedido ?? ""), empAtiva),
+    );
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }

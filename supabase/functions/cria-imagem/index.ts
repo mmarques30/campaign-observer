@@ -50,6 +50,29 @@ async function modeloImagem(key: string) {
   }
 }
 
+/**
+ * Conta da foto: quem chama é o usuário (JWT) ou o cria-agente (chave de serviço + empresa_id).
+ * Sem isso o banco grava tudo na IAplicada e a foto some da biblioteca da empresa que pediu.
+ */
+async function contaDaChamada(sb: any, req: Request, body: any) {
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  const servico = !!token && token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  let empresa: string | null = null;
+  if (servico) empresa = body.empresa_id ? String(body.empresa_id) : null;
+  else {
+    const { data } = token ? await sb.auth.getUser(token) : { data: null };
+    const uid = data?.user?.id;
+    if (!uid) return null; // sem login: recusa
+    const { data: emp } = await sb.rpc("mads_empresa_ativa_de", { _uid: uid });
+    empresa = (emp as string) ?? null;
+  }
+  const { data: e } = empresa
+    ? await sb.from("mads_empresas").select("interna").eq("id", empresa).maybeSingle()
+    : { data: null };
+  // Sem empresa identificada, o banco cai na IAplicada (interna).
+  return { empresa, interna: e ? !!e.interna : true };
+}
+
 async function salvar(sb: any, b64: string, info: Record<string, unknown>) {
   const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   const path = `criativos/fotos/ia-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.png`;
@@ -73,6 +96,9 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
   const body = await req.json().catch(() => ({}));
+  const conta = await contaDaChamada(sb, req, body);
+  if (!conta) return json({ error: "faça login para gerar fotos" }, 401);
+  const daConta = conta.empresa ? { empresa_id: conta.empresa } : {};
   const key = Deno.env.get("OPENAI_API_KEY");
   if (!key) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
   try {
@@ -95,10 +121,11 @@ Deno.serve(async (req) => {
     if (!prompt) return json({ error: "prompt vazio" }, 400);
     // Com a marca: a logo da IAplicada entra como referência extra e o cenário segue a identidade
     // (fundo quase preto, verde-lima nos detalhes, logo repetida no backdrop como parede de imprensa).
-    const comMarca = body.marca === true || body.marca === "clara";
+    // O cenário com a logo é da IAplicada: outras empresas não usam.
+    const comMarca = conta.interna && (body.marca === true || body.marca === "clara");
     // Parede clara: cor padrão off-white neutro; "cor_fundo" permite outra (ex.: "#EEF5DA, pale lime tint").
     const corClara = String(body.cor_fundo ?? "").trim() || "#F3F1EC, a warm neutral off-white";
-    if (body.marca === "clara")
+    if (comMarca && body.marca === "clara")
       prompt += `\n\nBRAND: the last reference image is the IAplicada logo (four-leaf green mark + dark wordmark). Set the scene in IAplicada's LIGHT identity: a seamless studio backdrop in ${corClara}, slightly lighter toward the center behind the person and gently deeper toward the edges, evenly lit, with the IAplicada logo appearing only 2 or 3 times on the backdrop, large and widely spaced, printed tone-on-tone in a slightly deeper shade of the backdrop color so it reads as subtle texture, never behind the face, never dense. Soft neutral key light on the face, no colored light on the person. Reproduce the logo exactly, without distortion or extra text.`;
     else if (comMarca)
       prompt += `\n\nBRAND: the last reference image is the IAplicada logo (four-leaf green mark + wordmark). Set the scene in IAplicada's identity, kept CLEAN and well lit: a plain matte dark-charcoal studio wall (#15181A), evenly lit, with the IAplicada logo appearing only 3 or 4 times, large and widely spaced, printed tone-on-tone in a slightly lighter grey so it reads as subtle texture, never a dense grid, never behind the face. Strong soft neutral key light on the face (well exposed, no murky shadows); NO colored light on the person (no green tint on hair, skin or clothes), the lime green appears only as a faint accent far in the background, if at all. Reproduce the logo exactly, without distortion or extra text.`;
@@ -108,10 +135,11 @@ Deno.serve(async (req) => {
     if (body.acao === "editar") {
       const ids: string[] = body.fotos_ids ?? (body.foto_id ? [body.foto_id] : []);
       if (!ids.length) return json({ error: "escolha ao menos uma foto" }, 400);
-      const { data: fotos } = await sb
-        .from("cria_fotos")
-        .select("id, path")
-        .in("id", ids.slice(0, 6));
+      let q = sb.from("cria_fotos").select("id, path").in("id", ids.slice(0, 6));
+      if (conta.empresa) q = q.eq("empresa_id", conta.empresa);
+      const { data: fotos } = await q;
+      if (!fotos?.length)
+        return json({ error: "não achei essas fotos na biblioteca desta conta" }, 400);
       const form = new FormData();
       form.append("model", modelo);
       form.append("prompt", prompt);
@@ -162,6 +190,7 @@ Deno.serve(async (req) => {
             descricao: prompt.slice(0, 500),
             prompt,
             base_id: ids[0],
+            ...daConta,
           }),
         );
       return json({ fotos: novas, modelo });
@@ -192,6 +221,7 @@ Deno.serve(async (req) => {
             nome: String(body.nome ?? prompt).slice(0, 80),
             descricao: prompt.slice(0, 500),
             prompt,
+            ...daConta,
           }),
         );
       return json({ fotos: novas, modelo });

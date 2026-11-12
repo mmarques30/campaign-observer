@@ -391,7 +391,11 @@ function EditorCriativo() {
             </DropdownMenuContent>
           </DropdownMenu>
           {podePublicar && (
-            <Button size="sm" onClick={() => setPublicar(true)} disabled={!slides.length || gerando}>
+            <Button
+              size="sm"
+              onClick={() => setPublicar(true)}
+              disabled={!slides.length || gerando}
+            >
               <Send className="h-4 w-4 mr-1.5" /> Publicar
             </Button>
           )}
@@ -1048,50 +1052,55 @@ function EditorCriativo() {
                       />
                       Numeração e @ no rodapé
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={design.assinatura === "marca"}
-                        onCheckedChange={(v) =>
-                          mudar((d) => {
-                            d.assinatura = v ? "marca" : "autor";
-                            return d;
-                          })
-                        }
-                      />
-                      Logo no lugar do nome e foto
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={!!design.logo}
-                        onCheckedChange={(v) =>
-                          mudar((d) => {
-                            d.logo = v ? { onde: "todos", lado: "esquerda" } : null;
-                            return d;
-                          })
-                        }
-                      />
-                      Logo IAplicada
-                    </label>
-                    {design.logo && (
-                      <Select
-                        value={design.logo.onde}
-                        onValueChange={(v) =>
-                          mudar((d) => {
-                            if (d.logo) d.logo.onde = v as NonNullable<Design["logo"]>["onde"];
-                            return d;
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-44 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="todos">Em todos os slides</SelectItem>
-                          <SelectItem value="primeiro">Só no primeiro</SelectItem>
-                          <SelectItem value="ultimo">Só no último</SelectItem>
-                          <SelectItem value="primeiro-e-ultimo">Primeiro e último</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    {/* Logo e parede da IAplicada: só na conta da IAplicada (outras empresas não usam a marca dela). */}
+                    {podePublicar && (
+                      <>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={design.assinatura === "marca"}
+                            onCheckedChange={(v) =>
+                              mudar((d) => {
+                                d.assinatura = v ? "marca" : "autor";
+                                return d;
+                              })
+                            }
+                          />
+                          Logo no lugar do nome e foto
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={!!design.logo}
+                            onCheckedChange={(v) =>
+                              mudar((d) => {
+                                d.logo = v ? { onde: "todos", lado: "esquerda" } : null;
+                                return d;
+                              })
+                            }
+                          />
+                          Logo IAplicada
+                        </label>
+                        {design.logo && (
+                          <Select
+                            value={design.logo.onde}
+                            onValueChange={(v) =>
+                              mudar((d) => {
+                                if (d.logo) d.logo.onde = v as NonNullable<Design["logo"]>["onde"];
+                                return d;
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 w-44 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="todos">Em todos os slides</SelectItem>
+                              <SelectItem value="primeiro">Só no primeiro</SelectItem>
+                              <SelectItem value="ultimo">Só no último</SelectItem>
+                              <SelectItem value="primeiro-e-ultimo">Primeiro e último</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="space-y-1">

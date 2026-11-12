@@ -126,6 +126,41 @@ const jsonDe = (t: string) => {
   return m ? JSON.parse(m[0]) : null;
 };
 
+// ---------- conta (multiempresa) ----------
+// O guia foi escrito para a IAplicada. Em outra empresa, a marca, as fotos e o nome são dela,
+// e a identidade da IAplicada (logo, parede com a logo, Mariana como autora) fica proibida.
+type Conta = { empresa: string | null; nome: string; interna: boolean; marca: any };
+
+async function contaDaEmpresa(sb: any, empresaId: string | null): Promise<Conta> {
+  const { data: e } = empresaId
+    ? await sb.from("mads_empresas").select("nome, interna").eq("id", empresaId).maybeSingle()
+    : { data: null };
+  let q = sb
+    .from("vedit_marcas")
+    .select("nome, marca, instrucoes")
+    .order("padrao", { ascending: false })
+    .limit(1);
+  if (empresaId) q = q.eq("empresa_id", empresaId);
+  const { data: marca } = await q.maybeSingle();
+  return {
+    empresa: empresaId,
+    nome: e?.nome ?? "IAplicada",
+    interna: e ? !!e.interna : true,
+    marca: marca ?? null,
+  };
+}
+
+function regrasDaConta(c: Conta) {
+  if (c.interna) return "";
+  return `
+
+CONTA DESTE CRIATIVO: ${c.nome}. Este criativo é da empresa ${c.nome}, NÃO da IAplicada e NÃO da Mariana Marques. Tudo o que o guia acima diz sobre IAplicada ou Mariana vale para ${c.nome}:
+- "autor": {"nome":"${c.nome}","arroba":"" (só preencha se ela informar o @),"verificado":false} e a foto do autor só se houver na biblioteca uma foto adequada da própria empresa.
+- As fotos da BIBLIOTECA são da ${c.nome}: use só elas. "Fotos reais dela" = fotos reais da biblioteca desta empresa.
+- PROIBIDO (é identidade da IAplicada): "logo" (sempre null), "assinatura": "marca", "fundo": "marca" e gerar_foto com com_marca. Nenhum texto menciona a IAplicada.
+- Cores e fontes: ${c.marca?.marca ? "as da MARCA informada no contexto." : "esta empresa ainda não cadastrou a marca. Use uma paleta sóbria e profissional (fundo neutro escuro ou claro e um destaque) e, na resposta, diga em uma frase que dá para cadastrar cores e fontes em Edição > Marca."}`;
+}
+
 // ---------- fotos ----------
 async function descreverFoto(sb: any, id: string) {
   const { data: f } = await sb.from("cria_fotos").select("id, path").eq("id", id).single();
@@ -237,7 +272,7 @@ async function analisarReferencia(sb: any, id: string) {
               ...imgs,
               {
                 type: "text",
-                text: `Estes são os slides, em ordem, de um ${imgs.length > 1 ? "carrossel" : "post de imagem única"} do Instagram${ref.autor ? ` de @${ref.autor}` : ""} que a Mariana salvou como referência de qualidade.${ref.legenda ? `\nLegenda do post: ${String(ref.legenda).slice(0, 1200)}` : ""}
+                text: `Estes são os slides, em ordem, de um ${imgs.length > 1 ? "carrossel" : "post de imagem única"} do Instagram${ref.autor ? ` de @${ref.autor}` : ""} salvo como referência de qualidade.${ref.legenda ? `\nLegenda do post: ${String(ref.legenda).slice(0, 1200)}` : ""}
 
 Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
 {
@@ -250,7 +285,7 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
  "frames": 3  (só quando a imagem é de frames empilhados: quantos frames e, em "estrutura", a fala de cada frame),
  "gancho": "como a capa prende",
  "dicas": ["detalhes de acabamento que fazem parecer profissional", ...],
- "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da Mariana"
+ "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da marca"
 }`,
               },
             ],
@@ -275,12 +310,11 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
 async function gerarLegendas(sb: any, projetoId: string, pedido: string) {
   const { data: p } = await sb.from("cria_projetos").select("*").eq("id", projetoId).single();
   if (!p) throw new Error("projeto não encontrado");
-  const { data: marca } = await sb
-    .from("vedit_marcas")
-    .select("instrucoes")
-    .order("padrao", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const conta = await contaDaEmpresa(sb, p.empresa_id ?? null);
+  const marca = conta.marca;
+  const quem = conta.interna
+    ? "da Mariana Marques (IAplicada, IA aplicada a negócios)"
+    : `da ${conta.nome} (escreva como a própria empresa; nunca mencione a IAplicada)`;
   const slides = (p.design?.slides ?? [])
     .map(
       (s: any, i: number) =>
@@ -302,7 +336,7 @@ async function gerarLegendas(sb: any, projetoId: string, pedido: string) {
       messages: [
         {
           role: "user",
-          content: `Escreva 3 opções de legenda de Instagram para este ${p.tipo === "unico" ? "post" : "carrossel"} da Mariana Marques (IAplicada, IA aplicada a negócios). Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
+          content: `Escreva 3 opções de legenda de Instagram para este ${p.tipo === "unico" ? "post" : "carrossel"} ${quem}. Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
 ${p.briefing ? `Briefing: ${p.briefing}\n` : ""}${marca?.instrucoes ? `Tom da marca: ${marca.instrucoes}\n` : ""}
 CONTEÚDO DOS SLIDES:
 ${slides}
@@ -428,7 +462,7 @@ const FERRAMENTAS = [
   },
 ];
 
-async function gerarFotoIA(input: any) {
+async function gerarFotoIA(input: any, conta: Conta) {
   const ids = (input.fotos_base ?? []).filter(Boolean).slice(0, 2);
   const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/cria-imagem`, {
     method: "POST",
@@ -444,7 +478,12 @@ async function gerarFotoIA(input: any) {
         : input.prompt,
       formato: input.formato ?? "4:5",
       nome: input.nome,
-      marca: input.com_marca === "clara" ? "clara" : input.com_marca === true,
+      marca: !conta.interna
+        ? false
+        : input.com_marca === "clara"
+          ? "clara"
+          : input.com_marca === true,
+      empresa_id: conta.empresa,
     }),
   });
   const j = await r.json().catch(() => ({}));
@@ -452,21 +491,19 @@ async function gerarFotoIA(input: any) {
   return j.fotos?.[0];
 }
 
-async function contexto(sb: any, p: any, comModelo = false) {
-  const [{ data: fotos }, { data: marca }, ref, { data: msgs }, modelo] = await Promise.all([
-    sb
-      .from("cria_fotos")
-      .select("id, nome, descricao, origem, favorita, created_at, path")
-      .neq("origem", "referencia")
+async function contexto(sb: any, p: any, conta: Conta, comModelo = false) {
+  let qFotos = sb
+    .from("cria_fotos")
+    .select("id, nome, descricao, origem, favorita, created_at, path")
+    .neq("origem", "referencia");
+  // Biblioteca só da empresa do criativo (sem isso, fotos de uma conta apareciam na outra).
+  if (p.empresa_id) qFotos = qFotos.eq("empresa_id", p.empresa_id);
+  const marca = conta.marca;
+  const [{ data: fotos }, ref, { data: msgs }, modelo] = await Promise.all([
+    qFotos
       .order("favorita", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(300),
-    sb
-      .from("vedit_marcas")
-      .select("nome, marca, instrucoes")
-      .order("padrao", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
     p.referencia_id
       ? sb
           .from("cria_referencias")
@@ -506,7 +543,7 @@ async function contexto(sb: any, p: any, comModelo = false) {
 Tipo: ${p.tipo === "unico" ? "post único (1 slide)" : "carrossel"} · Formato ${p.formato} · Objetivo: ${p.objetivo === "anuncio" ? "anúncio pago (clareza e CTA)" : "orgânico (salvamentos e compartilhamentos)"}
 Briefing: ${p.briefing || "(sem briefing)"}
 ${p.roteiro ? `\nROTEIRO da Mariana (distribua slide a slide, nesta ordem, sem perder nada):\n"""\n${p.roteiro}\n"""\n` : ""}
-MARCA (padrão do editor de vídeo): ${JSON.stringify(marca?.marca ?? {})}${marca?.instrucoes ? `\nInstruções da marca: ${marca.instrucoes}` : ""}
+MARCA${conta.interna ? " (padrão do editor de vídeo)" : ` da ${conta.nome}`}: ${JSON.stringify(marca?.marca ?? {})}${marca?.instrucoes ? `\nInstruções da marca: ${marca.instrucoes}` : ""}
 
 ${
   modelo?.data
@@ -516,7 +553,7 @@ ${
     : ""
 }${ref?.data?.analise ? `REFERÊNCIA a seguir${ref.data.autor ? ` (@${ref.data.autor})` : ""}:\n${JSON.stringify(ref.data.analise)}\n` : ""}
 BIBLIOTECA DE FOTOS (id | tipo | nome — descrição):
-${lista || "(vazia: faça sem fotos ou gere do zero)"}
+${lista || `(vazia: faça sem fotos ou gere do zero${conta.interna ? "" : `, sem pessoas; diga que dá para subir fotos da ${conta.nome} na Biblioteca`})`}
 
 DESIGN ATUAL:
 ${JSON.stringify(p.design ?? {})}`,
@@ -535,11 +572,15 @@ async function rodar(
   const { data: p } = await sb.from("cria_projetos").select("*").eq("id", projetoId).single();
   if (!p) throw new Error("projeto não encontrado");
   try {
-    const ctx = await contexto(sb, p, comModelo);
+    const conta = await contaDaEmpresa(sb, p.empresa_id ?? null);
+    const ctx = await contexto(sb, p, conta, comModelo);
     const conversa = ctx.historico
       .filter((m: any) => m.papel !== "sistema")
       .slice(0, -1)
-      .map((m: any) => `${m.papel === "usuario" ? "Mariana" : "Você"}: ${m.conteudo}`)
+      .map(
+        (m: any) =>
+          `${m.papel === "usuario" ? (conta.interna ? "Mariana" : "Cliente") : "Você"}: ${m.conteudo}`,
+      )
       .join("\n");
     const principal = `${ctx.texto}${conversa ? `\n\nCONVERSA ANTERIOR:\n${conversa}` : ""}\n\nPEDIDO AGORA: ${pedido}`;
     // Na criação, o Claude vê os slides da referência (o molde), não só a análise em texto.
@@ -569,7 +610,7 @@ async function rodar(
     for (let volta = 0; volta < 8; volta++) {
       const j = await claude(
         sb,
-        { max_tokens: 12000, system: GUIA, tools: FERRAMENTAS, messages },
+        { max_tokens: 12000, system: GUIA + regrasDaConta(conta), tools: FERRAMENTAS, messages },
         "cria-agente",
       );
       messages.push({ role: "assistant", content: j.content });
@@ -632,7 +673,7 @@ async function rodar(
                 papel: "sistema",
                 conteudo: `Gerando foto: ${String(u.input?.nome ?? u.input?.prompt ?? "").slice(0, 120)}`,
               });
-              const f = await gerarFotoIA(u.input ?? {});
+              const f = await gerarFotoIA(u.input ?? {}, conta);
               return { type: "tool_result", tool_use_id: u.id, content: `foto criada: id ${f.id}` };
             }
             if (u.name === "ver_fotos") {
