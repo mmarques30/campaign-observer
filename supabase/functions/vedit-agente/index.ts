@@ -918,7 +918,14 @@ Deno.serve(async (req) => {
   if (error || !proj) return json({ error: "projeto não encontrado" }, 404);
   const { data: marcaRow } = proj.marca_id
     ? await sb.from("vedit_marcas").select("*").eq("id", proj.marca_id).single()
-    : await sb.from("vedit_marcas").select("*").eq("padrao", true).limit(1).maybeSingle();
+    : // Marca da empresa do vídeo (antes pegava a "padrão" de qualquer empresa: a da IAplicada).
+      await sb
+        .from("vedit_marcas")
+        .select("*")
+        .eq("empresa_id", proj.empresa_id)
+        .order("padrao", { ascending: false })
+        .limit(1)
+        .maybeSingle();
   const key = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("CLAUDE_API_KEY");
   if (!key) return json({ error: "CLAUDE_API_KEY não configurada" }, 500);
   if (acao === "sugerir") return sugerir(sb, proj, key, catalogo ?? "", marcaRow);
@@ -993,7 +1000,7 @@ Deno.serve(async (req) => {
     "viral";
   const sistemaTxt = sistema(
     catalogo ?? "",
-    marcaRow?.marca ?? {},
+    marcaRow?.marca ?? proj.timeline?.marca ?? {},
     marcaRow?.instrucoes ?? "",
     objetivoAtual,
     formatoAtual,

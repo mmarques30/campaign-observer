@@ -4,6 +4,7 @@ import { EFEITO_POR_TIPO } from "@/video/catalogo";
 import { ESTILOS_LEGENDA, LOOKS, TRANSICOES, normalizarTimeline } from "@/video/schema";
 import type { Analise, Referencia } from "@/lib/referencias";
 import { dosagemLuz, lookCompativel, type Luz } from "@/lib/luz";
+import { FONTES } from "@/video/fontes";
 
 // Ao seguir referência, todo o visual sai da composição livre (cards, telas, ícones e imagens
 // viram elementos dela): os modelos prontos (cards-flutuantes, mockup, broll…) destoavam.
@@ -37,6 +38,25 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
   // O look da referência só entra se não brigar com a luz do nosso vídeo (medida no editor).
   const look = valido(LOOKS, lookCompativel(pr.look, luz));
   const transicao = valido(TRANSICOES, pr.transicao);
+  // Marca: a cadastrada da empresa ativa (RLS), lida agora — não a que ficou gravada no vídeo,
+  // senão trocar a marca do cliente não mudava nada. Empresa sem marca segue a tipografia e a
+  // cor de destaque da própria referência (antes caía no padrão do editor, que não é de ninguém).
+  const { data: marcas } = await db()
+    .from("vedit_marcas")
+    .select("marca")
+    .order("padrao", { ascending: false })
+    .limit(1);
+  const marcaEmpresa = (marcas?.[0] as { marca?: Partial<typeof tl.marca> } | undefined)?.marca;
+  const fonte = (f?: string) => (f && FONTES.includes(f) ? f : undefined);
+  const hex = (c?: string) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : undefined);
+  const daReferencia = {
+    ...(fonte(pr.fonte_titulo) ? { fonteTitulo: fonte(pr.fonte_titulo) } : {}),
+    ...((fonte(pr.fonte_texto) ?? fonte(pr.fonte_titulo))
+      ? { fonteLegenda: fonte(pr.fonte_texto) ?? fonte(pr.fonte_titulo) }
+      : {}),
+    ...(hex(pr.cor_destaque) ? { destaque: hex(pr.cor_destaque) } : {}),
+  };
+  const usaMarca = !!marcaEmpresa && Object.keys(marcaEmpresa).length > 0;
   const novo = {
     ...tl,
     // Começa limpo: os grafismos e sons do estilo anterior saem (não empilha estilos).
@@ -63,7 +83,7 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
     },
     // Tipografia e cores continuam as da marca: da referência vem a forma (layout, ritmo,
     // legenda, look), não a identidade visual de outra empresa.
-    marca: { ...tl.marca },
+    marca: usaMarca ? { ...tl.marca, ...marcaEmpresa } : { ...tl.marca, ...daReferencia },
     modelo: {
       id: `ref-${r.id}`,
       nome: `Referência ${r.autor ? `@${r.autor}` : (r.titulo ?? "")}`.trim(),
@@ -90,7 +110,11 @@ ${a.prompt_para_editor}
 TÉCNICAS DA REFERÊNCIA (reproduza a forma de cada uma no que fizer sentido para este vídeo):
 ${tecnicas}
 
-DESIGN: use SEMPRE as fontes e cores da MARCA (marca.fonteTitulo, marca.fonteLegenda, marca.destaque) em todos os elementos; não use as fontes nem as cores da referência (ela é de outra empresa). Da referência vem só a disposição: onde o grafismo fica, tamanho relativo, acabamento (cantos, borda, sombra) e as entradas.
+${
+  usaMarca
+    ? "DESIGN: use SEMPRE as fontes e cores da MARCA (marca.fonteTitulo, marca.fonteLegenda, marca.destaque) em todos os elementos; não use as fontes nem as cores da referência (ela é de outra empresa). Da referência vem só a disposição: onde o grafismo fica, tamanho relativo, acabamento (cantos, borda, sombra) e as entradas."
+    : `DESIGN: esta empresa não tem marca cadastrada, então a tipografia e a cor de destaque são as da REFERÊNCIA (já gravadas em marca: ${JSON.stringify(daReferencia)}). Siga também o acabamento dela (${a.estilo?.tipografia ?? "tipografia da referência"}): disposição, tamanhos, caixa, espaçamento, cantos e entradas.`
+}
 ${
   a.layouts?.length
     ? `LAYOUTS-CHAVE DA REFERÊNCIA (use como base de /composicao, trocando os textos entre chaves pelo conteúdo da fala deste vídeo e ajustando ao que é dito; adapte tamanho e quantidade de itens livremente):

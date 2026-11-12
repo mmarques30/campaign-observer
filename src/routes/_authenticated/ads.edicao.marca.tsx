@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { usePermissoes } from "@/lib/permissoes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ const PALAVRAS: Palavra[] = FRASE.map((p, i) => ({
 }));
 
 function MarcaPage() {
+  const empresaNome = usePermissoes().empresa?.nome;
   const q = useQuery({
     queryKey: ["vedit", "marcas"],
     queryFn: async () =>
@@ -100,7 +102,7 @@ function MarcaPage() {
         ? await db().from("vedit_marcas").update(dados).eq("id", atual.id)
         : await db()
             .from("vedit_marcas")
-            .insert({ ...dados, nome: "IAplicada", padrao: true });
+            .insert({ ...dados, nome: empresaNome ?? "Marca", padrao: true });
       if (r.error) throw new Error(r.error.message);
       toast.success("Marca salva. Vale para os próximos pedidos ao Claude.");
       q.refetch();
@@ -161,7 +163,7 @@ function MarcaPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{atual?.nome ?? "IAplicada"}</CardTitle>
+              <CardTitle className="text-base">{atual?.nome ?? empresaNome ?? "Marca"}</CardTitle>
               <CardDescription>Padrão para vídeos novos.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">

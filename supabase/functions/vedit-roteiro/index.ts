@@ -273,16 +273,40 @@ const FERRAMENTA = {
   },
 };
 
-async function sistema(sb: any, idioma: string, finalidade: string) {
-  const emp = (await empresaDoChamador(sb)) ?? ((await sb.rpc("mads_iaplicada_id")).data as string);
-  const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp).maybeSingle();
+async function sistema(
+  sb: any,
+  idioma: string,
+  finalidade: string,
+  empresaRoteiro?: string | null,
+) {
+  // A empresa é a do roteiro (gravada na criação); sem ela, a de quem chamou.
+  const emp =
+    empresaRoteiro ??
+    (await empresaDoChamador(sb)) ??
+    ((await sb.rpc("mads_iaplicada_id")).data as string);
+  const { data: cfg } = await sb
+    .from("vedit_nicho_config")
+    .select("*")
+    .eq("empresa_id", emp)
+    .maybeSingle();
   const { data: marca } = await sb
     .from("vedit_marcas")
     .select("instrucoes")
-    .eq("padrao", true)
+    .eq("empresa_id", emp)
+    .order("padrao", { ascending: false })
+    .limit(1)
     .maybeSingle();
+  const { data: empresa } = await sb
+    .from("mads_empresas")
+    .select("nome, interna")
+    .eq("id", emp)
+    .maybeSingle();
+  const interna = !empresa || !!empresa.interna;
   const lingua = IDIOMAS[idioma] ?? idioma;
-  return `Você é roteirista da IAplicada (IA aplicada a negócios, para donos de empresa) e escreve para a Mariana Marques gravar falando para a câmera. Ela foi executiva por 11 anos (AngloGold Ashanti, Mercado Livre, Suzano) e hoje constrói sistemas com IA para empresas.
+  const quem = interna
+    ? `Você é roteirista da IAplicada (IA aplicada a negócios, para donos de empresa) e escreve para a Mariana Marques gravar falando para a câmera. Ela foi executiva por 11 anos (AngloGold Ashanti, Mercado Livre, Suzano) e hoje constrói sistemas com IA para empresas.`
+    : `Você é roteirista da ${empresa.nome} e escreve para a pessoa da ${empresa.nome} gravar falando para a câmera. O roteiro é da ${empresa.nome}: nunca mencione a IAplicada nem a Mariana, e os exemplos vêm do negócio e do público da ${empresa.nome} (veja NICHO, PÚBLICO e MARCA abaixo; sem isso, deduza do assunto pedido).`;
+  return `${quem}
 
 TAREFA: escrever um roteiro ORIGINAL sobre o ASSUNTO pedido, espelhando o esqueleto de um vídeo que performou muito bem:
 - mesma sequência de papéis (gancho, viradas, prova, payoff, CTA) e a mesma quantidade de blocos — junte frases muito curtas da referência num bloco só quando fizer sentido e diga em "ref" quais frases o bloco espelha;
@@ -291,9 +315,9 @@ TAREFA: escrever um roteiro ORIGINAL sobre o ASSUNTO pedido, espelhando o esquel
 - o mesmo tipo de gancho e de mecanismo (curiosidade, quebra de crença, lista, história…), nunca a mesma frase: nada copiado, tema e exemplos nossos.
 
 IDIOMA: escreva TODA fala, CTA e legenda em ${lingua}${idioma === "pt-BR" ? "" : " (natural para nativos, sem soar traduzido); as indicações 'como_falar' e 'na_tela' ficam em português"}.
-VOZ: direta, concreta, de quem já fez; exemplos de empresa real (WhatsApp, CRM, comercial, atendimento, operação, relatórios); números quando houver. Sem emojis, sem jargão, nunca a palavra "PME" (use "empresa"), nunca "teu/tua".
-FINALIDADE: ${finalidade === "anuncio" ? "anúncio — termina chamando para agendar um diagnóstico com a IAplicada." : "orgânico — termina pedindo um comentário com palavra-chave."}
-NICHO: ${cfg?.nicho ?? "IA aplicada a negócios"} · PÚBLICO: ${cfg?.publico ?? "donos de empresa"}
+VOZ: direta, concreta, de quem já fez; ${interna ? "exemplos de empresa real (WhatsApp, CRM, comercial, atendimento, operação, relatórios)" : "exemplos concretos do dia a dia do público dessa empresa"}; números quando houver. Sem emojis, sem jargão, nunca a palavra "PME" (use "empresa"), nunca "teu/tua".
+FINALIDADE: ${finalidade === "anuncio" ? `anúncio — termina chamando para ${interna ? "agendar um diagnóstico com a IAplicada" : `falar com a ${empresa.nome}`}.` : "orgânico — termina pedindo um comentário com palavra-chave."}
+NICHO: ${cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
 
 AJUSTES: quando a Mariana pedir mudanças, mude SÓ o que ela pediu e mantenha o resto palavra por palavra; continue respeitando o esqueleto e as pausas, a não ser que ela peça para sair dele. Grave sempre o roteiro completo com salvar_roteiro.`;
@@ -307,7 +331,7 @@ async function gerar(sb: any, id: string) {
       sb,
       {
         max_tokens: 6000,
-        system: await sistema(sb, r.idioma, r.finalidade),
+        system: await sistema(sb, r.idioma, r.finalidade, r.empresa_id),
         tools: [FERRAMENTA],
         tool_choice: { type: "tool", name: "salvar_roteiro" },
         messages: [
@@ -355,7 +379,7 @@ async function ajustar(sb: any, r: any, msgs: any[], pedido: string) {
       sb,
       {
         max_tokens: 6000,
-        system: await sistema(sb, r.idioma, r.finalidade),
+        system: await sistema(sb, r.idioma, r.finalidade, r.empresa_id),
         tools: [FERRAMENTA],
         tool_choice: { type: "tool", name: "salvar_roteiro" },
         messages: [
@@ -416,6 +440,14 @@ function textoCorrido(ro: any) {
 async function enviarMarketing(sb: any, id: string) {
   const { data: r } = await sb.from("vedit_roteiros").select("*").eq("id", id).single();
   if (!r?.roteiro) throw new Error("o roteiro ainda não está pronto");
+  // O quadro de marketing (content_items) é só da IAplicada.
+  const { data: dona } = await sb
+    .from("mads_empresas")
+    .select("interna")
+    .eq("id", r.empresa_id)
+    .maybeSingle();
+  if (dona && !dona.interna)
+    throw new Error("enviar para o marketing só existe na conta da IAplicada");
   const ro = r.roteiro;
   const fonte = r.estrutura?.fonte ?? {};
   const { data: ci, error } = await sb
@@ -468,6 +500,8 @@ Deno.serve(async (req) => {
       const { data, error } = await sb
         .from("vedit_roteiros")
         .insert({
+          // Função roda como serviço: sem isso o roteiro ia para a IAplicada e sumia da conta que pediu.
+          ...((await empresaDoChamador(sb)) ? { empresa_id: await empresaDoChamador(sb) } : {}),
           reel_id: body.reel_id ?? null,
           referencia_id: est.fonte.referencia_id,
           tema,

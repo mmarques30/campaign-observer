@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { db } from "@/lib/vedit";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,7 @@ const ROTULO: Record<Categoria, string> = {
 };
 
 // Frase de exemplo para as legendas (tempos fictícios).
-const FRASE = "A IAplicada automatiza o atendimento da sua empresa em sete dias".split(" ");
+const FRASE = "Sua empresa atendendo cada cliente em menos de um minuto".split(" ");
 const PALAVRAS: Palavra[] = FRASE.map((p, i) => ({
   p,
   i: 0.3 + i * 0.36,
@@ -33,10 +35,19 @@ function Galeria() {
   const [tipo, setTipo] = useState<string>("vidro");
   const [legenda, setLegenda] = useState<string | null>(null);
   const def = EFEITOS.find((e) => e.tipo === tipo)!;
+  // Prévia nas cores e fontes da marca da empresa ativa (antes era sempre o padrão do editor).
+  const marcaQ = useQuery({
+    queryKey: ["vedit", "marcas"],
+    queryFn: async () =>
+      ((await db().from("vedit_marcas").select("*").order("padrao", { ascending: false })).data ??
+        []) as { marca?: Record<string, string> }[],
+  });
+  const marca = marcaQ.data?.[0]?.marca ?? {};
 
   const props: ReelProps = useMemo(() => {
     if (legenda) {
       const tl = timelineSchema.parse({
+        marca,
         legenda: {
           estilo: legenda,
           destaques: [1, 4],
@@ -54,6 +65,7 @@ function Galeria() {
     }
     const dur = def.duracaoPadrao;
     const tl = timelineSchema.parse({
+      marca,
       legenda: { ativa: false },
       efeitos: [{ id: "g", tipo: def.tipo, de: 0.2, ate: 0.2 + dur, props: def.exemplo ?? {} }],
       sfx: def.somPadrao ? [{ em: 0.2, som: def.somPadrao, volume: 0.5 }] : [],
@@ -66,7 +78,7 @@ function Galeria() {
       midias: {},
       modoGaleria: true,
     };
-  }, [def, legenda]);
+  }, [def, legenda, marca]);
 
   const disponiveis = EFEITOS.filter((e) => e.disponivel);
   const fase2 = EFEITOS.filter((e) => !e.disponivel);
