@@ -166,17 +166,17 @@ async function novaReferencia(sb: any, url: string, autor: string) {
   if (!LINK_POST.test(bruto))
     throw new Error("cole o link de um post do Instagram (instagram.com/p/...)");
   const limpo = bruto.split("?")[0].replace(/\/?$/, "/");
-  const { data: ja } = await sb
-    .from("cria_referencias")
-    .select("*")
-    .eq("url", limpo)
-    .neq("status", "erro")
-    .order("created_at", { ascending: false })
-    .limit(1);
+  // A função roda como serviço: sem dizer a empresa, o banco grava na IAplicada e a conta
+  // que pediu (ex.: B&Z) não enxerga a referência. Grava e reaproveita só na empresa de quem chamou.
+  const empresa = await empresaDoChamador(sb);
+  let busca = sb.from("cria_referencias").select("*").eq("url", limpo).neq("status", "erro");
+  if (empresa) busca = busca.eq("empresa_id", empresa);
+  const { data: ja } = await busca.order("created_at", { ascending: false }).limit(1);
   if (ja?.[0]) return ja[0];
   const { data, error } = await sb
     .from("cria_referencias")
     .insert({
+      ...(empresa ? { empresa_id: empresa } : {}),
       url: limpo,
       autor: autor.replace(/^@/, "").trim() || null,
       imagens: [],
