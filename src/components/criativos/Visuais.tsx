@@ -409,6 +409,20 @@ export function VisualSlide({ v, c }: { v: Visual; c: Cores }) {
   if (v.tipo === "cards") return <Cards v={v} c={c} />;
   if (v.tipo === "fluxo") return <Fluxo v={v} c={c} />;
   if (v.tipo === "linhas") return <Linhas v={v} c={c} />;
+  if (v.tipo === "oferta")
+    // no estilo clássico a oferta vira cards: o número primeiro, depois os itens
+    return (
+      <Cards
+        v={{
+          tipo: "cards",
+          itens: [
+            { icone: "dinheiro", titulo: v.valor, detalhe: v.rotulo ?? null, tag: null },
+            ...(v.itens ?? []).map((i) => ({ ...i, tag: null })),
+          ],
+        }}
+        c={c}
+      />
+    );
   return null;
 }
 

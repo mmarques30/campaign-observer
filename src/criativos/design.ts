@@ -56,6 +56,23 @@ export const visualSchema = z.discriminatedUnion("tipo", [
     centro: z.string(),
     saida: z.string(),
   }),
+  // condição comercial em destaque (estilo painel): número grande com anel, itens e prazo
+  z.object({
+    tipo: z.literal("oferta"),
+    valor: z.string(), // "15%"
+    rotulo: z.string().nullish(), // "no total do projeto"
+    itens: z
+      .array(
+        z.object({
+          icone: z.string().nullish(),
+          titulo: z.string(),
+          detalhe: z.string().nullish(),
+        }),
+      )
+      .nullish(),
+    prazo: z.string().nullish(), // data ISO "2026-11-30": desenha o calendário do mês
+    prazoRotulo: z.string().nullish(), // "contratos fechados até"
+  }),
   // gráfico de linhas (ex.: clientes x equipe); destaque = linha na cor de destaque
   z.object({
     tipo: z.literal("linhas"),
@@ -98,6 +115,40 @@ export const slideSchema = z.object({
   // foco da foto de fundo (CSS object-position), ex.: "50% 20%"
   foco: z.string().nullish(),
   visual: visualSchema.nullish().catch(null),
+  // Estilo painel: widgets por cima da cena.
+  // destaque: cartão com número grande (ex.: a condição da campanha na capa)
+  destaque: z
+    .object({ rotulo: z.string().nullish(), valor: z.string(), detalhe: z.string().nullish() })
+    .nullish()
+    .catch(null),
+  // chips: lista curta (frentes na capa, fluxo no slide de foto, agenda na chamada final)
+  chips: z.array(z.string()).nullish(),
+  // marcas: anotações saindo da foto. Ponto (x,y) em % da foto, linha até o rótulo em (lx,ly).
+  marcas: z
+    .array(
+      z.object({
+        x: z.number(),
+        y: z.number(),
+        lx: z.number(),
+        ly: z.number(),
+        valor: z.string(),
+        rotulo: z.string().nullish(),
+        tag: z.string().nullish(),
+      }),
+    )
+    .nullish()
+    .catch(null),
+  // alerta: cartão de notificação do sistema flutuando sobre a foto do tópico
+  alerta: z
+    .object({
+      icone: z.string().nullish(),
+      titulo: z.string(),
+      detalhe: z.string().nullish(),
+      status: z.string().nullish(),
+      quando: z.string().nullish(),
+    })
+    .nullish()
+    .catch(null),
   // botão de chamada em destaque no fim do slide, ex.: "Quero conversar"
   botao: z.string().nullish(),
   // ajustes finos (capa e foto): tamanho do botão, altura do bloco de texto, escala do texto
@@ -144,6 +195,14 @@ export const designSchema = z.object({
     .nullish()
     .catch(null),
   legendaPost: z.string().nullish(), // texto sugerido para a legenda do Instagram
+  // "painel": visual de dashboard moderno (vidro, profundidade, cena desfocada ao fundo,
+  // widgets e gráficos). "classico" (padrão) mantém o desenho original.
+  estilo: z.enum(["classico", "painel"]).default("classico").catch("classico"),
+  // campanha fixa no topo de todos os slides no estilo painel (ex.: "Black IAplicada")
+  campanha: z.string().nullish(),
+  campanhaDetalhe: z.string().nullish(), // ex.: "15% até 30/11"
+  // foto (id de cria_fotos) desfocada no fundo dos slides sem foto; padrão: a foto da capa
+  cenario: z.string().nullish(),
   slides: z.array(slideSchema).default([]),
 });
 export type Design = z.infer<typeof designSchema>;

@@ -1060,6 +1060,18 @@ function EditorCriativo() {
                       />
                       Numeração e @ no rodapé
                     </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={design.estilo === "painel"}
+                        onCheckedChange={(v) =>
+                          mudar((d) => {
+                            d.estilo = v ? "painel" : "classico";
+                            return d;
+                          })
+                        }
+                      />
+                      Visual painel moderno (cena ao fundo, linhas e valores sobre a foto)
+                    </label>
                     {/* Logo e parede da IAplicada: só na conta da IAplicada (outras empresas não usam a marca dela). */}
                     {podePublicar && (
                       <>

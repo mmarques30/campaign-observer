@@ -6,6 +6,7 @@ import { Bookmark, Send, UserPlus } from "lucide-react";
 import { FORMATOS, type Design, type Formato, type Slide } from "@/criativos/design";
 import type { FotoComUrl } from "@/lib/criativos";
 import { BotaoSlide, VisualSlide } from "./Visuais";
+import { LAYOUTS_PAINEL, SlidePainel } from "./SlidePainel";
 
 type Props = {
   slide: Slide;
@@ -111,6 +112,19 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   { slide: s, design, formato, fotos, indice, total },
   ref,
 ) {
+  // Estilo painel (dashboard moderno): mesmos layouts e conteúdo, outro desenho.
+  if (design.estilo === "painel" && (LAYOUTS_PAINEL as readonly string[]).includes(s.layout))
+    return (
+      <SlidePainel
+        ref={ref}
+        slide={s}
+        design={design}
+        formato={formato}
+        fotos={fotos}
+        indice={indice}
+        total={total}
+      />
+    );
   const [W, H] = FORMATOS[formato];
   // Stories/Reels (9:16): a interface do Instagram cobre o topo e a base, e o feed corta o 9:16
   // para 4:5 pelo centro. Tudo que importa fica entre 290px do topo e 340px da base.
