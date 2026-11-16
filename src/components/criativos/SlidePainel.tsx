@@ -1232,7 +1232,7 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
               <ChevronLeft size={30} color="rgba(255,255,255,.7)" />
             </span>
           )}
-          {!organico && (
+          {!organico && !ehCapa && (
             <span style={{ fontSize: 28, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
               {String(indice + 1).padStart(2, "0")}
               <span style={{ color: "rgba(255,255,255,.4)", fontWeight: 600 }}>
