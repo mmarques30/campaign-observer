@@ -138,6 +138,9 @@ export const slideSchema = z.object({
     )
     .nullish()
     .catch(null),
+  // tópico (painel): largura da foto/print (0.4 a 1). Menor que 1 abre espaço ao lado para as
+  // marcas saírem da imagem até os rótulos (use lx > 100 nas marcas).
+  fotoLargura: z.number().min(0.4).max(1).nullish().catch(null),
   // tela: interface desenhada (janela de navegador/app) no lugar da foto, para tutorial passo a
   // passo. Cada bloco é opcional e entra na ordem: busca, resultados, opções, campos, chat,
   // métricas, aviso e botão. O cursor aponta o que a pessoa clica.

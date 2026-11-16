@@ -79,7 +79,17 @@ function Icone({ nome, cor, tam }: { nome?: string | null; cor: string; tam: num
 type Marca = NonNullable<Slide["marcas"]>[number];
 
 /** Anotações saindo da imagem: ponto aceso sobre a foto, linha fina e o valor na ponta. */
-function Marcas({ marcas, cor, k }: { marcas: Marca[]; cor: string; k: number }) {
+function Marcas({
+  marcas,
+  cor,
+  k,
+  limite = 100,
+}: {
+  marcas: Marca[];
+  cor: string;
+  k: number;
+  limite?: number;
+}) {
   const sombra = "0 2px 16px rgba(0,0,0,.95), 0 0 3px rgba(0,0,0,.9)";
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 3 }}>
@@ -162,7 +172,8 @@ function Marcas({ marcas, cor, k }: { marcas: Marca[]; cor: string; k: number })
                 alignItems: dir ? "flex-start" : "flex-end",
                 textAlign: dir ? "left" : "right",
                 gap: 4 * k,
-                whiteSpace: "nowrap",
+                whiteSpace: m.lx > 100 ? "normal" : "nowrap",
+                width: m.lx > 100 ? `${Math.max(15, limite - m.lx - 3)}%` : undefined,
               }}
             >
               <span
@@ -1123,6 +1134,30 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
             </>
           )}
         </div>
+      ) : design.assinatura !== "marca" ? (
+        // orgânico: assinatura discreta da autora no lugar da pílula de campanha
+        <div
+          style={{
+            ...vidro(true, 999),
+            height: 64,
+            padding: "0 24px 0 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          {url(design.autor.foto) && (
+            <img
+              src={url(design.autor.foto)}
+              crossOrigin="anonymous"
+              style={{ width: 48, height: 48, borderRadius: 99, objectFit: "cover" }}
+            />
+          )}
+          <span style={{ fontSize: 22, fontWeight: 800 }}>{design.autor.nome}</span>
+          <span style={{ fontSize: 20, fontWeight: 600, color: "rgba(255,255,255,.55)" }}>
+            @{design.autor.arroba}
+          </span>
+        </div>
       ) : (
         <span />
       )}
@@ -1139,83 +1174,92 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
   );
 
   // ── rodapé: progresso em segmentos + paginação com botões redondos ────────
-  const rodape = (
-    <div
-      style={{
-        position: "absolute",
-        left: 64,
-        right: 64,
-        bottom: segBase + 52,
-        height: 72,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        zIndex: 6,
-      }}
-    >
-      {ehCapa ? (
-        <span
-          style={{ fontSize: 24, fontWeight: 800, letterSpacing: 5, color: "rgba(255,255,255,.8)" }}
-        >
-          DESLIZE PARA VER
-        </span>
-      ) : (
-        <div style={{ display: "flex", gap: 8 }}>
-          {Array.from({ length: total }).map((_, i) => (
+  const organico = !design.mostrarNumeracao;
+  const rodape =
+    organico && !ehCapa ? null : (
+      <div
+        style={{
+          position: "absolute",
+          left: 64,
+          right: 64,
+          bottom: segBase + 52,
+          height: 72,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          zIndex: 6,
+        }}
+      >
+        {ehCapa ? (
+          <span
+            style={{
+              fontSize: 24,
+              fontWeight: 800,
+              letterSpacing: 5,
+              color: "rgba(255,255,255,.8)",
+            }}
+          >
+            DESLIZE PARA VER
+          </span>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            {Array.from({ length: total }).map((_, i) => (
+              <span
+                key={i}
+                style={{
+                  width: i === indice ? 64 : 30,
+                  height: 8,
+                  borderRadius: 99,
+                  background: i <= indice ? hi : "rgba(255,255,255,.18)",
+                  boxShadow: i === indice ? `0 0 14px ${hi}` : undefined,
+                }}
+              />
+            ))}
+          </div>
+        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          {!ehCapa && (
             <span
-              key={i}
               style={{
-                width: i === indice ? 64 : 30,
-                height: 8,
-                borderRadius: 99,
-                background: i <= indice ? hi : "rgba(255,255,255,.18)",
-                boxShadow: i === indice ? `0 0 14px ${hi}` : undefined,
+                ...vidro(true, 99),
+                width: 64,
+                height: 64,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
-            />
-          ))}
+            >
+              <ChevronLeft size={30} color="rgba(255,255,255,.7)" />
+            </span>
+          )}
+          {!organico && (
+            <span style={{ fontSize: 28, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+              {String(indice + 1).padStart(2, "0")}
+              <span style={{ color: "rgba(255,255,255,.4)", fontWeight: 600 }}>
+                {" "}
+                / {String(total).padStart(2, "0")}
+              </span>
+            </span>
+          )}
+          {!ultimo && (
+            <span
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 99,
+                background: hi,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: `0 0 30px ${hi}99`,
+              }}
+            >
+              <ChevronRight size={32} color="#0B0B0F" strokeWidth={3} />
+            </span>
+          )}
         </div>
-      )}
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {!ehCapa && (
-          <span
-            style={{
-              ...vidro(true, 99),
-              width: 64,
-              height: 64,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <ChevronLeft size={30} color="rgba(255,255,255,.7)" />
-          </span>
-        )}
-        <span style={{ fontSize: 28, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-          {String(indice + 1).padStart(2, "0")}
-          <span style={{ color: "rgba(255,255,255,.4)", fontWeight: 600 }}>
-            {" "}
-            / {String(total).padStart(2, "0")}
-          </span>
-        </span>
-        {!ultimo && (
-          <span
-            style={{
-              width: 64,
-              height: 64,
-              borderRadius: 99,
-              background: hi,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: `0 0 30px ${hi}99`,
-            }}
-          >
-            <ChevronRight size={32} color="#0B0B0F" strokeWidth={3} />
-          </span>
-        )}
       </div>
-    </div>
-  );
+    );
 
   const eyebrow = (texto: string, icone?: ReactNode) => (
     <div
@@ -1443,7 +1487,13 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
           )}
           {!s.tela && (s.fotos?.length ?? 0) > 0 && (
             <div
-              style={{ position: "relative", flex: 1, minHeight: 0, marginBottom: a ? 70 * k : 0 }}
+              style={{
+                position: "relative",
+                flex: 1,
+                minHeight: 0,
+                marginBottom: a ? 70 * k : 0,
+                width: s.fotoLargura ? `${s.fotoLargura * 100}%` : undefined,
+              }}
             >
               <div
                 style={{
@@ -1455,7 +1505,21 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
                   boxShadow: `0 50px 100px rgba(0,0,0,.6), 0 0 0 8px rgba(255,255,255,.03), 0 0 80px ${hi}1F`,
                 }}
               >
-                <Img url={foto(0)} foco={s.foco} style={{ width: "100%", height: "100%" }} />
+                <Img
+                  url={foto(0)}
+                  foco={s.foco}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    // zoom num trecho do print: amplia em torno do ponto de foco
+                    ...(Number(s.zoom) > 1
+                      ? {
+                          transform: `scale(${Number(s.zoom)})`,
+                          transformOrigin: s.foco ?? "50% 30%",
+                        }
+                      : {}),
+                  }}
+                />
                 <div
                   style={{
                     position: "absolute",
@@ -1463,8 +1527,11 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
                     background: "linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(0,0,0,.55) 100%)",
                   }}
                 />
-                {(s.marcas?.length ?? 0) > 0 && <Marcas marcas={s.marcas!} cor={hi} k={k} />}
               </div>
+              {/* fora do recorte da foto: as linhas podem sair da imagem até os rótulos ao lado */}
+              {(s.marcas?.length ?? 0) > 0 && (
+                <Marcas marcas={s.marcas!} cor={hi} k={k} limite={100 / (s.fotoLargura ?? 1)} />
+              )}
               {a && (
                 <div
                   style={{
@@ -1934,7 +2001,7 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
                     flexShrink: 0,
                   }}
                 >
-                  {!quadrado && <Queda i={i} cor={PERDA} w={150 * k} h={52 * k} />}
+                  {!quadrado && it.tag && <Queda i={i} cor={PERDA} w={150 * k} h={52 * k} />}
                   {it.tag && (
                     <span
                       style={{
