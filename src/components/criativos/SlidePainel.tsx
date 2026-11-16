@@ -1203,7 +1203,42 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
     const chips = s.chips ?? [];
     corpo = (
       <>
-        {ambiente(true)}
+        {ambiente(true, !!foto(0))}
+        {/* foto orgânica da autora fundida ao fundo: largura inteira (sem bordas laterais),
+            topo sob a barra e a base se dissolvendo no fundo, tingido do mesmo verde da foto */}
+        {foto(0) && (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: "#050706",
+              }}
+            />
+            <Img
+              url={foto(0)}
+              foco={s.foco ?? (quadrado ? "50% 0%" : "50% 12%")}
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: "100%",
+                height: Math.round(H * (quadrado ? 0.7 : story ? 0.62 : 0.66)),
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                height: Math.round(H * (quadrado ? 0.7 : story ? 0.62 : 0.66)) + 2,
+                background:
+                  "linear-gradient(180deg, rgba(5,7,6,.55) 0%, rgba(5,7,6,0) 16%, rgba(5,7,6,0) 46%, rgba(5,7,6,.55) 66%, rgba(5,7,6,.92) 86%, #050706 100%), radial-gradient(120% 70% at 50% 35%, rgba(0,0,0,0) 55%, rgba(5,7,6,.55) 100%)",
+              }}
+            />
+          </>
+        )}
         <div
           style={{
             position: "absolute",
@@ -1213,31 +1248,11 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
             bottom: base,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
+            justifyContent: foto(0) ? "flex-end" : "center",
             alignItems: "center",
             gap: 26 * k,
           }}
         >
-          {/* foto orgânica da autora num quadro, com borda acesa e profundidade */}
-          {foto(0) && (
-            <div
-              style={{
-                width: Math.round(Math.min(560, util * 0.46)),
-                height: Math.round(Math.min(560, util * 0.46)),
-                flexShrink: 0,
-                borderRadius: 44,
-                overflow: "hidden",
-                border: `2px solid ${hi}88`,
-                boxShadow: `0 50px 100px rgba(0,0,0,.65), 0 0 0 10px rgba(255,255,255,.04), 0 0 80px ${hi}33`,
-              }}
-            >
-              <Img
-                url={foto(0)}
-                foco={s.foco ?? "50% 22%"}
-                style={{ width: "100%", height: "100%" }}
-              />
-            </div>
-          )}
           <div
             style={{
               ...(foto(0) ? {} : vidro(true, 48)),
