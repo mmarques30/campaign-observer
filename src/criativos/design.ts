@@ -78,6 +78,8 @@ export const slideSchema = z.object({
   layout: z.enum(LAYOUTS).catch("texto"),
   // pequeno rótulo acima do título: "/upscale", "Repo #1", "PASSO 2"
   rotulo: z.string().nullish(),
+  // etiqueta discreta no topo do slide, no canto oposto ao da logo (ex.: "Black IAplicada")
+  etiqueta: z.string().nullish(),
   titulo: z.string().nullish(),
   subtitulo: z.string().nullish(),
   // corpo; **palavra** vira destaque

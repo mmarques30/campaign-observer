@@ -71,6 +71,8 @@ function Icone({ nome, cor, tam }: { nome?: string | null; cor: string; tam: num
 
 function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
   const itens = v.itens.slice(0, 4);
+  // Com 4 cards a coluna fica estreita: tudo encolhe um pouco para o título não vazar.
+  const quatro = itens.length > 3;
   return (
     <div style={{ display: "grid", gridTemplateColumns: `repeat(${itens.length}, 1fr)`, gap: 22 }}>
       {itens.map((it, i) => (
@@ -78,17 +80,17 @@ function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
           key={i}
           style={{
             ...vidro(c),
-            padding: "30px 26px",
+            padding: quatro ? "26px 18px" : "30px 26px",
             display: "flex",
             flexDirection: "column",
-            gap: 16,
-            minHeight: 360,
+            gap: quatro ? 14 : 16,
+            minHeight: quatro ? 330 : 360,
           }}
         >
           <div
             style={{
-              width: 96,
-              height: 96,
+              width: quatro ? 80 : 96,
+              height: quatro ? 80 : 96,
               borderRadius: 24,
               background: c.hi,
               display: "flex",
@@ -96,11 +98,15 @@ function Cards({ v, c }: { v: Extract<Visual, { tipo: "cards" }>; c: Cores }) {
               justifyContent: "center",
             }}
           >
-            <Icone nome={it.icone} cor={c.bg} tam={52} />
+            <Icone nome={it.icone} cor={c.bg} tam={quatro ? 44 : 52} />
           </div>
-          <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1.1 }}>{it.titulo}</div>
+          <div style={{ fontSize: quatro ? 32 : 40, fontWeight: 800, lineHeight: 1.1 }}>
+            {it.titulo}
+          </div>
           {it.detalhe && (
-            <div style={{ fontSize: 29, lineHeight: 1.3, color: c.sub }}>{it.detalhe}</div>
+            <div style={{ fontSize: quatro ? 25 : 29, lineHeight: 1.3, color: c.sub }}>
+              {it.detalhe}
+            </div>
           )}
           {it.tag && (
             <div

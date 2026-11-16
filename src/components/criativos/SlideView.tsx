@@ -1003,6 +1003,30 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
     />
   ) : null;
 
+  // Etiqueta de campanha no topo, discreta, do lado oposto ao da logo.
+  const etiqueta = s.etiqueta?.trim() ? (
+    <div
+      style={{
+        position: "absolute",
+        top: 64 + (story ? 230 : 0),
+        [comLogo && lg!.lado !== "direita" ? "right" : "left"]: 72,
+        zIndex: 5,
+        fontSize: 24,
+        fontWeight: 800,
+        letterSpacing: 5,
+        textTransform: "uppercase",
+        color: "#fff",
+        background: "rgba(0,0,0,.45)",
+        border: `2px solid ${t.destaque}`,
+        borderRadius: 999,
+        padding: "10px 22px",
+        lineHeight: 1,
+      }}
+    >
+      {s.etiqueta.trim()}
+    </div>
+  ) : null;
+
   // Layouts que não posicionam o botão no próprio corpo: ele entra embaixo, acima do rodapé.
   const botaoSolto =
     s.botao && ["capa", "tweet", "comando"].includes(s.layout) ? (
@@ -1024,6 +1048,7 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
       {corpo}
       {botaoSolto}
       {logo}
+      {etiqueta}
       {s.layout !== "capa" && s.layout !== "cortes" && rodape}
     </div>
   );

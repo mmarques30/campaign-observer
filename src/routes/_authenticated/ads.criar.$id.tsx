@@ -730,6 +730,7 @@ function EditorCriativo() {
 
                   {(
                     [
+                      ["etiqueta", "Etiqueta no topo (ex.: Black IAplicada)", 1],
                       ["rotulo", "Rótulo (ex.: /upscale, Ferramenta #1)", 1],
                       ["titulo", "Título", 2],
                       ["subtitulo", "Subtítulo", 2],
