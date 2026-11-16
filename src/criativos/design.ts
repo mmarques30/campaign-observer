@@ -138,6 +138,43 @@ export const slideSchema = z.object({
     )
     .nullish()
     .catch(null),
+  // tela: interface desenhada (janela de navegador/app) no lugar da foto, para tutorial passo a
+  // passo. Cada bloco é opcional e entra na ordem: busca, resultados, opções, campos, chat,
+  // métricas, aviso e botão. O cursor aponta o que a pessoa clica.
+  tela: z
+    .object({
+      url: z.string().nullish(),
+      titulo: z.string().nullish(),
+      busca: z.string().nullish(),
+      resultados: z
+        .array(
+          z.object({ nome: z.string(), detalhe: z.string().nullish(), acao: z.string().nullish() }),
+        )
+        .nullish(),
+      opcoes: z
+        .array(
+          z.object({
+            icone: z.string().nullish(),
+            rotulo: z.string(),
+            detalhe: z.string().nullish(),
+            marcado: z.boolean().nullish(),
+          }),
+        )
+        .nullish(),
+      campos: z
+        .array(
+          z.object({ rotulo: z.string(), valor: z.string().nullish(), ok: z.boolean().nullish() }),
+        )
+        .nullish(),
+      chat: z.array(z.object({ de: z.enum(["pessoa", "ia"]), texto: z.string() })).nullish(),
+      metricas: z
+        .array(z.object({ rotulo: z.string(), pontos: z.array(z.number()).min(2) }))
+        .nullish(),
+      aviso: z.string().nullish(),
+      botao: z.string().nullish(),
+    })
+    .nullish()
+    .catch(null),
   // alerta: cartão de notificação do sistema flutuando sobre a foto do tópico
   alerta: z
     .object({

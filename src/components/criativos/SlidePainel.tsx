@@ -6,6 +6,12 @@
 import { forwardRef, type CSSProperties, type ReactNode } from "react";
 import {
   Activity,
+  AlertTriangle,
+  Globe,
+  Lock,
+  Mail,
+  Phone,
+  Search,
   ArrowRight,
   CalendarDays,
   Check,
@@ -215,6 +221,452 @@ function Marcas({ marcas, cor, k }: { marcas: Marca[]; cor: string; k: number })
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type Tela = NonNullable<Slide["tela"]>;
+
+const ICONES_TELA: Record<string, typeof Phone> = {
+  telefone: Phone,
+  email: Mail,
+  site: Globe,
+  dominio: Globe,
+};
+
+function Cursor({ tam, style }: { tam: number; style?: CSSProperties }) {
+  return (
+    <svg
+      width={tam}
+      height={tam}
+      viewBox="0 0 24 24"
+      style={{
+        position: "absolute",
+        filter: "drop-shadow(0 6px 10px rgba(0,0,0,.6))",
+        zIndex: 4,
+        ...style,
+      }}
+    >
+      <path
+        d="M4 2l15 11.2-6.5.9 3.7 7.3-2.9 1.4-3.7-7.4L4 20z"
+        fill="#fff"
+        stroke="#0B0B0F"
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Interface desenhada (janela de app) para tutorial: mostra o passo na tela, sem foto de IA. */
+function TelaApp({ tela, cor, k }: { tela: Tela; cor: string; k: number }) {
+  const f = (n: number) => n * k * 1.18;
+  const escolha = (tela.opcoes ?? []).some((o) => o.marcado);
+  const cursorNoBotao = !!tela.botao;
+  const linha: CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: f(18),
+    padding: `${f(18)}px ${f(20)}px`,
+    borderRadius: 22,
+    background: "rgba(255,255,255,.05)",
+    border: "1.5px solid rgba(255,255,255,.1)",
+  };
+  return (
+    <div
+      style={{
+        ...vidro(true, 36),
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        boxShadow: `0 50px 100px rgba(0,0,0,.6), 0 0 0 8px rgba(255,255,255,.03), 0 0 80px ${cor}1F`,
+      }}
+    >
+      {/* barra da janela */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: `${f(18)}px ${f(22)}px`,
+          borderBottom: "1.5px solid rgba(255,255,255,.08)",
+          background: "rgba(255,255,255,.03)",
+        }}
+      >
+        {["#ff5f57", "#febc2e", "#28c840"].map((c) => (
+          <span
+            key={c}
+            style={{ width: f(16), height: f(16), borderRadius: 99, background: c, opacity: 0.8 }}
+          />
+        ))}
+        {tela.url && (
+          <span
+            style={{
+              flex: 1,
+              marginLeft: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: `${f(10)}px ${f(18)}px`,
+              borderRadius: 99,
+              background: "rgba(255,255,255,.07)",
+              fontSize: f(22),
+              color: "rgba(255,255,255,.75)",
+              fontWeight: 600,
+            }}
+          >
+            <Lock size={f(18)} color="rgba(255,255,255,.55)" />
+            {tela.url}
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          padding: `${f(28)}px ${f(30)}px`,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: f(18),
+          position: "relative",
+        }}
+      >
+        {tela.titulo && (
+          <div style={{ fontSize: f(32), fontWeight: 800, letterSpacing: -1 }}>{tela.titulo}</div>
+        )}
+        {tela.busca && (
+          <div
+            style={{
+              ...linha,
+              borderRadius: 99,
+              border: `1.5px solid ${cor}88`,
+              boxShadow: `0 0 30px ${cor}22`,
+            }}
+          >
+            <Search size={f(28)} color={cor} />
+            <span style={{ fontSize: f(28), fontWeight: 600 }}>{tela.busca}</span>
+            <span
+              style={{ width: 3, height: f(32), background: cor, borderRadius: 2, marginLeft: -10 }}
+            />
+          </div>
+        )}
+        {tela.resultados?.map((r, i) => (
+          <div
+            key={i}
+            style={{
+              ...linha,
+              position: "relative",
+              ...(i === 0
+                ? { border: `1.5px solid ${cor}99`, background: `${cor}12` }
+                : { opacity: 0.6 }),
+            }}
+          >
+            <span
+              style={{
+                width: f(64),
+                height: f(64),
+                borderRadius: 18,
+                background: i === 0 ? cor : "rgba(255,255,255,.12)",
+                color: "#0B0B0F",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: f(30),
+                fontWeight: 900,
+                flexShrink: 0,
+              }}
+            >
+              {r.nome.slice(0, 1).toUpperCase()}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: f(27), fontWeight: 800 }}>{r.nome}</div>
+              {r.detalhe && (
+                <div style={{ fontSize: f(21), color: "rgba(255,255,255,.55)", marginTop: 2 }}>
+                  {r.detalhe}
+                </div>
+              )}
+            </div>
+            {r.acao && (
+              <span
+                style={{
+                  position: "relative",
+                  padding: `${f(12)}px ${f(22)}px`,
+                  borderRadius: 99,
+                  fontSize: f(21),
+                  fontWeight: 800,
+                  whiteSpace: "nowrap",
+                  color: i === 0 ? "#0B0B0F" : "#fff",
+                  background: i === 0 ? cor : "transparent",
+                  border: i === 0 ? "none" : "1.5px solid rgba(255,255,255,.3)",
+                  boxShadow: i === 0 ? `0 0 30px ${cor}99` : undefined,
+                }}
+              >
+                {r.acao}
+                {i === 0 && !cursorNoBotao && (
+                  <Cursor tam={f(52)} style={{ right: f(-18), bottom: f(-34) }} />
+                )}
+              </span>
+            )}
+          </div>
+        ))}
+        {tela.opcoes?.map((o, i) => {
+          const I =
+            ICONES_TELA[(o.icone ?? "").toLowerCase()] ??
+            ICONES_VISUAL[(o.icone ?? "").toLowerCase()] ??
+            Sparkles;
+          return (
+            <div
+              key={i}
+              style={{
+                ...linha,
+                ...(o.marcado
+                  ? {
+                      border: `1.5px solid ${cor}`,
+                      background: `${cor}14`,
+                      boxShadow: `0 0 30px ${cor}26`,
+                    }
+                  : {}),
+              }}
+            >
+              <span
+                style={{
+                  width: f(60),
+                  height: f(60),
+                  borderRadius: 99,
+                  background: o.marcado ? `${cor}26` : "rgba(255,255,255,.08)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <I size={f(28)} color={o.marcado ? cor : "rgba(255,255,255,.8)"} />
+              </span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: f(27), fontWeight: 800 }}>{o.rotulo}</div>
+                {o.detalhe && (
+                  <div style={{ fontSize: f(21), color: "rgba(255,255,255,.55)", marginTop: 2 }}>
+                    {o.detalhe}
+                  </div>
+                )}
+              </div>
+              {escolha && (
+                <span
+                  style={{
+                    width: f(34),
+                    height: f(34),
+                    borderRadius: 99,
+                    border: `2.5px solid ${o.marcado ? cor : "rgba(255,255,255,.3)"}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {o.marcado && (
+                    <span
+                      style={{
+                        width: f(16),
+                        height: f(16),
+                        borderRadius: 99,
+                        background: cor,
+                        boxShadow: `0 0 12px ${cor}`,
+                      }}
+                    />
+                  )}
+                </span>
+              )}
+            </div>
+          );
+        })}
+        {tela.campos?.map((c, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span
+              style={{
+                fontSize: f(19),
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,.5)",
+              }}
+            >
+              {c.rotulo}
+            </span>
+            <div
+              style={{
+                ...linha,
+                padding: `${f(14)}px ${f(20)}px`,
+                ...(c.ok ? { border: `1.5px solid ${cor}88` } : {}),
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: f(25),
+                  fontWeight: 600,
+                  color: c.valor ? "#fff" : "rgba(255,255,255,.35)",
+                }}
+              >
+                {c.valor || "—"}
+              </span>
+              {c.ok && (
+                <span
+                  style={{
+                    width: f(34),
+                    height: f(34),
+                    borderRadius: 99,
+                    background: cor,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 0 16px ${cor}88`,
+                  }}
+                >
+                  <Check size={f(20)} color="#0B0B0F" strokeWidth={3.5} />
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+        {tela.chat?.map((m, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              justifyContent: m.de === "pessoa" ? "flex-end" : "flex-start",
+              gap: 12,
+            }}
+          >
+            {m.de === "ia" && (
+              <span
+                style={{
+                  width: f(48),
+                  height: f(48),
+                  borderRadius: 99,
+                  background: `${cor}26`,
+                  border: `1.5px solid ${cor}88`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <Sparkles size={f(24)} color={cor} />
+              </span>
+            )}
+            <div
+              style={{
+                maxWidth: "82%",
+                padding: `${f(16)}px ${f(22)}px`,
+                borderRadius: 26,
+                fontSize: f(25),
+                lineHeight: 1.35,
+                fontWeight: 500,
+                background: m.de === "pessoa" ? "rgba(255,255,255,.12)" : "transparent",
+                border: m.de === "ia" ? "1.5px solid rgba(255,255,255,.1)" : "none",
+                color: m.de === "pessoa" ? "#fff" : "rgba(255,255,255,.85)",
+              }}
+            >
+              <Rico t={m.texto} cor={cor} peso={800} />
+            </div>
+          </div>
+        ))}
+        {(tela.metricas?.length ?? 0) > 0 && (
+          <div style={{ display: "flex", gap: f(18) }}>
+            {tela.metricas!.map((m, i) => {
+              const w = 380 * k;
+              const h = 150 * k;
+              const max = Math.max(...m.pontos);
+              const min = Math.min(...m.pontos);
+              const pts = m.pontos.map((v, j) => [
+                (j / (m.pontos.length - 1)) * w,
+                10 + (1 - (v - min) / (max - min || 1)) * (h - 20),
+              ]);
+              const d = pts
+                .map(([x, y], j) => `${j ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`)
+                .join(" ");
+              const id = `met${i}`;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    ...linha,
+                    flex: 1,
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    padding: `${f(20)}px`,
+                  }}
+                >
+                  <span
+                    style={{ fontSize: f(22), fontWeight: 800, color: "rgba(255,255,255,.75)" }}
+                  >
+                    {m.rotulo}
+                  </span>
+                  <svg
+                    width="100%"
+                    height={h}
+                    viewBox={`0 0 ${w} ${h}`}
+                    preserveAspectRatio="none"
+                    style={{ overflow: "visible" }}
+                  >
+                    <defs>
+                      <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor={cor} stopOpacity=".45" />
+                        <stop offset="1" stopColor={cor} stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <path d={`${d} L${w},${h} L0,${h} Z`} fill={`url(#${id})`} />
+                    <path
+                      d={d}
+                      fill="none"
+                      stroke={cor}
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <circle
+                      cx={pts[pts.length - 1][0]}
+                      cy={pts[pts.length - 1][1]}
+                      r={8}
+                      fill={cor}
+                    />
+                  </svg>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {tela.aviso && (
+          <div style={{ ...linha, border: `1.5px solid ${PERDA}77`, background: `${PERDA}14` }}>
+            <AlertTriangle size={f(28)} color={PERDA} style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: f(23), fontWeight: 700, lineHeight: 1.3 }}>
+              <Rico t={tela.aviso} cor={PERDA} peso={900} />
+            </span>
+          </div>
+        )}
+        {tela.botao && (
+          <div style={{ position: "relative", alignSelf: "flex-start" }}>
+            <div
+              style={{
+                padding: `${f(20)}px ${f(40)}px`,
+                borderRadius: 99,
+                background: cor,
+                color: "#0B0B0F",
+                fontSize: f(26),
+                fontWeight: 900,
+                boxShadow: `0 0 0 8px ${cor}22, 0 0 50px ${cor}99`,
+              }}
+            >
+              {tela.botao}
+            </div>
+            <Cursor tam={f(56)} style={{ right: f(-24), bottom: f(-36) }} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -984,7 +1436,12 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
         >
           {s.rotulo && eyebrow(s.rotulo)}
           {titulo(s.titulo ?? "", 92, 60, 22)}
-          {(s.fotos?.length ?? 0) > 0 && (
+          {s.tela && (
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              <TelaApp tela={s.tela} cor={hi} k={k} />
+            </div>
+          )}
+          {!s.tela && (s.fotos?.length ?? 0) > 0 && (
             <div
               style={{ position: "relative", flex: 1, minHeight: 0, marginBottom: a ? 70 * k : 0 }}
             >
