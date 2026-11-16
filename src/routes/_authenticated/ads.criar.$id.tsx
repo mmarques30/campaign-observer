@@ -245,13 +245,20 @@ function EditorCriativo() {
     setExportandoTodos(true);
     try {
       const formatos = Object.keys(FORMATOS) as Formato[];
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 200; i++) {
         const prontos = formatos.every(
           (f) => (nosPorFormato.current[f] ?? []).filter(Boolean).length >= slides.length,
         );
         if (prontos) break;
         await new Promise((ok) => setTimeout(ok, 50));
       }
+      // Pacote "todos os formatos" só sai completo: antes, um formato que não terminou de
+      // desenhar a tempo era deixado de fora sem aviso.
+      const faltando = formatos.filter(
+        (f) => (nosPorFormato.current[f] ?? []).filter(Boolean).length < slides.length,
+      );
+      if (faltando.length)
+        throw new Error(`os cards em ${faltando.join(", ")} não ficaram prontos. Tente de novo.`);
       const porFormato: Partial<Record<Formato, string[]>> = {};
       for (const f of formatos)
         porFormato[f] = await exportarPngs(

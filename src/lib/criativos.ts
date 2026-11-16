@@ -233,9 +233,42 @@ export async function exportarPngs(nos: HTMLElement[], formato: Formato) {
   const [w, h] = FORMATOS[formato];
   const fontEmbedCSS = await fontesEmbutidas();
   const pngs: string[] = [];
-  for (const n of nos)
-    pngs.push(await toPng(n, { width: w, height: h, pixelRatio: 1, fontEmbedCSS }));
+  // Card com pedaço transparente = algo (foto, gráfico) não chegou a tempo na captura. Na Meta
+  // isso vira fundo branco. Confere cada PNG e tenta de novo; se não resolver, avisa em vez de
+  // entregar um arquivo quebrado.
+  for (const [i, n] of nos.entries()) {
+    let png = "";
+    let opaco = 0;
+    for (let t = 0; t < 4; t++) {
+      if (t) await new Promise((ok) => setTimeout(ok, 400 * t));
+      png = await toPng(n, { width: w, height: h, pixelRatio: 1, fontEmbedCSS, cacheBust: t > 0 });
+      opaco = await fracaoOpaca(png);
+      if (opaco >= 0.995) break;
+    }
+    if (opaco < 0.995)
+      throw new Error(
+        `o card ${i + 1} (${formato}) saiu incompleto (${Math.round(opaco * 100)}% preenchido). Tente exportar de novo.`,
+      );
+    pngs.push(png);
+  }
   return pngs;
+}
+
+/** Fração dos pixels sem transparência (amostrada numa versão reduzida da imagem). */
+async function fracaoOpaca(dataUrl: string) {
+  const img = new Image();
+  img.src = dataUrl;
+  await img.decode();
+  const c = document.createElement("canvas");
+  c.width = 108;
+  c.height = Math.max(1, Math.round((108 * img.height) / img.width));
+  const ctx = c.getContext("2d");
+  if (!ctx) return 1;
+  ctx.drawImage(img, 0, 0, c.width, c.height);
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let opacos = 0;
+  for (let k = 3; k < d.length; k += 4) if (d[k] > 250) opacos++;
+  return opacos / (d.length / 4);
 }
 
 const nomeBase = (nome: string) =>
