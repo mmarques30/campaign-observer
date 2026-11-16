@@ -1203,63 +1203,7 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
     const chips = s.chips ?? [];
     corpo = (
       <>
-        {ambiente(true, !!foto(0))}
-        {/* a foto orgânica da autora vira a cena: retrato nítido no alto, laterais e base se
-            dissolvendo no fundo, e os chips flutuando ao lado dela como widgets */}
-        {foto(0) && (
-          <>
-            <div
-              style={{
-                position: "absolute",
-                left: (W - 940) / 2,
-                top: hudTopo - 40,
-                width: 940,
-                height: 1150 * k,
-              }}
-            >
-              <Img
-                url={foto(0)}
-                foco={s.foco ?? "50% 20%"}
-                style={{ width: "100%", height: "100%" }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  background:
-                    "linear-gradient(90deg, #050706 0%, rgba(5,7,6,0) 22%, rgba(5,7,6,0) 78%, #050706 100%), linear-gradient(180deg, #050706 0%, rgba(5,7,6,0) 20%, rgba(5,7,6,0) 50%, rgba(5,7,6,.8) 70%, #050706 86%)",
-                }}
-              />
-            </div>
-            {!quadrado &&
-              chips.slice(0, 2).map((c, i) => (
-                <span
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    top: topo + (i ? 330 : 200) * k,
-                    [i ? "right" : "left"]: 56,
-                    ...vidro(true, 99),
-                    padding: `${14 * k}px ${24 * k}px`,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    fontSize: 24 * k,
-                    fontWeight: 800,
-                    boxShadow: `0 24px 60px rgba(0,0,0,.6), 0 0 0 1px ${hi}44, 0 0 40px ${hi}22`,
-                    zIndex: 4,
-                  }}
-                >
-                  {i === 0 ? (
-                    <CalendarDays size={26 * k} color={hi} />
-                  ) : (
-                    <Zap size={24 * k} color={hi} fill={hi} />
-                  )}
-                  {c}
-                </span>
-              ))}
-          </>
-        )}
+        {ambiente(true)}
         <div
           style={{
             position: "absolute",
@@ -1269,10 +1213,31 @@ export const SlidePainel = forwardRef<HTMLDivElement, Props>(function SlidePaine
             bottom: base,
             display: "flex",
             flexDirection: "column",
-            justifyContent: foto(0) ? "flex-end" : "center",
+            justifyContent: "center",
+            alignItems: "center",
             gap: 26 * k,
           }}
         >
+          {/* foto orgânica da autora num quadro, com borda acesa e profundidade */}
+          {foto(0) && (
+            <div
+              style={{
+                width: Math.round(Math.min(560, util * 0.46)),
+                height: Math.round(Math.min(560, util * 0.46)),
+                flexShrink: 0,
+                borderRadius: 44,
+                overflow: "hidden",
+                border: `2px solid ${hi}88`,
+                boxShadow: `0 50px 100px rgba(0,0,0,.65), 0 0 0 10px rgba(255,255,255,.04), 0 0 80px ${hi}33`,
+              }}
+            >
+              <Img
+                url={foto(0)}
+                foco={s.foco ?? "50% 22%"}
+                style={{ width: "100%", height: "100%" }}
+              />
+            </div>
+          )}
           <div
             style={{
               ...(foto(0) ? {} : vidro(true, 48)),
