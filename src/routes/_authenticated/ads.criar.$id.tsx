@@ -36,6 +36,7 @@ import {
 import { SlideEscalado, SlideView } from "@/components/criativos/SlideView";
 import { EscolherFoto } from "@/components/criativos/EscolherFoto";
 import { PublicarCriativo } from "@/components/criativos/PublicarCriativo";
+import { AutomacaoDoProjeto } from "@/components/publicacoes/AutomacaoDoProjeto";
 import { usePermissoes } from "@/lib/permissoes";
 import { AplicarModelo, SalvarModelo } from "@/components/criativos/Modelos";
 import { BotaoVoz } from "@/components/BotaoVoz";
@@ -406,6 +407,7 @@ function EditorCriativo() {
               <Send className="h-4 w-4 mr-1.5" /> Publicar
             </Button>
           )}
+          <AutomacaoDoProjeto origem="criativo" refId={p.id} />
         </div>
       </div>
 

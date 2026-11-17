@@ -56,6 +56,7 @@ type Pub = {
   meta_ad_id: string | null;
   metricas: Record<string, number> | null;
   metricas_em: string | null;
+  outros?: Pub[]; // mesmo anúncio em outros conjuntos (agrupado na lista)
 };
 type AdMet = {
   meta_ad_id: string;
@@ -112,6 +113,9 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [filtro, setFiltro] = useState("todos");
+  // Situação: por padrão só o que está no ar (post publicado/agendado, anúncio ativo de verdade:
+  // anúncio, conjunto e campanha ativos na Meta).
+  const [situacao, setSituacao] = useState<"ativos" | "pausados" | "todos">("ativos");
   const [ordem, setOrdem] = useState<"data" | "engajamento" | "alcance">("data");
   const [atualizando, setAtualizando] = useState(false);
   const [reaproveitando, setReaproveitando] = useState<string | null>(null);
@@ -168,8 +172,78 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
     },
   });
 
+  // Situação real dos anúncios na Meta (sincronizada): anúncio, conjunto e campanha.
+  const situacaoAds = useQuery({
+    queryKey: ["publicacoes", "situacao-ads", idsAd.join(",")],
+    enabled: idsAd.length > 0,
+    queryFn: async () => {
+      const { data: as } = await supabase
+        .from("mads_ads" as any)
+        .select("meta_ad_id, status, ad_set_id")
+        .in("meta_ad_id", idsAd);
+      const anuncios = (as ?? []) as unknown as {
+        meta_ad_id: string;
+        status: string;
+        ad_set_id: string;
+      }[];
+      const idsSet = [...new Set(anuncios.map((a) => a.ad_set_id).filter(Boolean))];
+      const { data: ss } = idsSet.length
+        ? await supabase
+            .from("mads_ad_sets" as any)
+            .select("id, status, nome, campanha_id")
+            .in("id", idsSet)
+        : { data: [] };
+      const sets = new Map(
+        (
+          (ss ?? []) as unknown as {
+            id: string;
+            status: string;
+            nome: string;
+            campanha_id: string;
+          }[]
+        ).map((x) => [x.id, x]),
+      );
+      const idsCamp = [...new Set([...sets.values()].map((x) => x.campanha_id).filter(Boolean))];
+      const { data: cs } = idsCamp.length
+        ? await supabase
+            .from("mads_campaigns" as any)
+            .select("id, status")
+            .in("id", idsCamp)
+        : { data: [] };
+      const camps = new Map(
+        ((cs ?? []) as unknown as { id: string; status: string }[]).map((x) => [x.id, x.status]),
+      );
+      return new Map(
+        anuncios.map((a) => {
+          const set = sets.get(a.ad_set_id);
+          const ativo =
+            a.status === "ativa" &&
+            set?.status === "ativa" &&
+            camps.get(set?.campanha_id ?? "") === "ativa";
+          return [a.meta_ad_id, { ativo, conjunto: set?.nome ?? null }] as const;
+        }),
+      );
+    },
+  });
+  const noAr = (p: Pub) =>
+    p.destino === "anuncio"
+      ? !!(p.meta_ad_id && situacaoAds.data?.get(p.meta_ad_id)?.ativo)
+      : ["publicado", "agendado", "preparando", "publicando"].includes(p.status);
+
   const lista = useMemo(() => {
     let l = pubs.data ?? [];
+    if (situacao === "ativos") l = l.filter(noAr);
+    if (situacao === "pausados") l = l.filter((p) => !noAr(p));
+    // O mesmo anúncio subido em vários conjuntos vira um card só (o que está no ar na frente).
+    const grupos = new Map<string, Pub[]>();
+    for (const p of l) {
+      const k = p.destino === "anuncio" ? `ad|${p.ref_id}|${p.nome ?? ""}` : p.id;
+      grupos.set(k, [...(grupos.get(k) ?? []), p]);
+    }
+    l = [...grupos.values()].map((g) => {
+      const ordenado = [...g].sort((a, b) => Number(noAr(b)) - Number(noAr(a)));
+      return { ...ordenado[0], outros: ordenado.slice(1) };
+    });
     if (filtro === "instagram") l = l.filter((p) => p.destino === "instagram");
     if (filtro === "anuncio") l = l.filter((p) => p.destino === "anuncio");
     if (filtro === "agendados")
@@ -180,7 +254,7 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
     if (ordem === "alcance")
       l = [...l].sort((a, b) => (b.metricas?.reach ?? -1) - (a.metricas?.reach ?? -1));
     return l;
-  }, [pubs.data, filtro, ordem]);
+  }, [pubs.data, filtro, ordem, situacao, situacaoAds.data]);
 
   const todos = pubs.data ?? [];
   const publicados = todos.filter((p) => p.status === "publicado" && p.destino === "instagram");
@@ -366,6 +440,16 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
             <TabsTrigger value="erros">Com erro</TabsTrigger>
           </TabsList>
         </Tabs>
+        <Select value={situacao} onValueChange={(v) => setSituacao(v as typeof situacao)}>
+          <SelectTrigger className="h-9 w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ativos">Só os ativos</SelectItem>
+            <SelectItem value="pausados">Pausados e encerrados</SelectItem>
+            <SelectItem value="todos">Todos</SelectItem>
+          </SelectContent>
+        </Select>
         <Select value={ordem} onValueChange={(v) => setOrdem(v as typeof ordem)}>
           <SelectTrigger className="h-9 w-44">
             <SelectValue />
@@ -424,13 +508,14 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
       ) : !lista.length ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            Nada por aqui ainda. Use o botão Publicar dentro de um{" "}
-            {origem === "criativo" ? "criativo" : "vídeo"} para postar, agendar ou virar anúncio.
+            {(pubs.data ?? []).length
+              ? "Nada nesta situação. Troque o filtro (Só os ativos / Pausados e encerrados / Todos)."
+              : `Nada por aqui ainda. Use o botão Publicar dentro de um ${origem === "criativo" ? "criativo" : "vídeo"} para postar, agendar ou virar anúncio.`}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-2">
-          {lista.map((p) => {
+          {lista.map((p: Pub) => {
             const st = STATUS[p.status];
             const m = p.metricas ?? {};
             const ad = p.meta_ad_id ? ads.data?.get(p.meta_ad_id) : undefined;
@@ -472,7 +557,9 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
                         )}
                         {p.destino === "anuncio" && p.status === "publicado"
-                          ? `Criado${ad?.ad_status ? ` · ${ad.ad_status}` : " · pausado"}`
+                          ? noAr(p)
+                            ? "Anúncio ativo"
+                            : "Anúncio pausado"
                           : st.rotulo}
                       </Badge>
                       <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -486,6 +573,19 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
                     </div>
                     {p.status === "erro" && p.erro && (
                       <p className="text-xs text-red-600">{p.erro}</p>
+                    )}
+                    {p.destino === "anuncio" && (p.outros?.length ?? 0) > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Mesmo anúncio em {(p.outros?.length ?? 0) + 1} conjuntos:{" "}
+                        {[p, ...(p.outros ?? [])]
+                          .map((x) => {
+                            const s = x.meta_ad_id
+                              ? situacaoAds.data?.get(x.meta_ad_id)
+                              : undefined;
+                            return `${s?.conjunto ?? "conjunto"}${s?.ativo ? " (ativo)" : ""}`;
+                          })
+                          .join(" · ")}
+                      </p>
                     )}
                     {p.destino === "instagram" && p.status === "publicado" && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">

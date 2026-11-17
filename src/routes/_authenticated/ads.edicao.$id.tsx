@@ -38,6 +38,7 @@ import { medirLuz } from "@/lib/luz";
 import { ReferenciaRapida } from "@/components/edicao/ReferenciaRapida";
 import { Painel } from "@/components/edicao/Painel";
 import { Publicar } from "@/components/edicao/Publicar";
+import { AutomacaoDoProjeto } from "@/components/publicacoes/AutomacaoDoProjeto";
 import { callEdgeFunction } from "@/lib/ads-mutations";
 import {
   assinar,
@@ -852,6 +853,7 @@ function Editor() {
               <Send className="h-4 w-4 mr-2" />
               Publicar
             </Button>
+            <AutomacaoDoProjeto origem="video" refId={proj.id} />
             {proj.render_path && renderDesatualizado(proj) && proj.status !== "renderizando" && (
               <span className="text-[11px] text-amber-700 dark:text-amber-400">
                 MP4 desatualizado: renderize de novo
