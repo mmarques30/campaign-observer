@@ -57,6 +57,11 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
     ...(hex(pr.cor_destaque) ? { destaque: hex(pr.cor_destaque) } : {}),
   };
   const usaMarca = !!marcaEmpresa && Object.keys(marcaEmpresa).length > 0;
+  const fontesDaReferencia = {
+    ...(daReferencia.fonteTitulo ? { fonteTitulo: daReferencia.fonteTitulo } : {}),
+    ...(daReferencia.fonteLegenda ? { fonteLegenda: daReferencia.fonteLegenda } : {}),
+  };
+  const ritmoRef = a.ritmo?.estimulo_medio_s;
   const novo = {
     ...tl,
     // Começa limpo: os grafismos e sons do estilo anterior saem (não empilha estilos).
@@ -81,9 +86,11 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
       ...(look ? { look } : {}),
       ...(transicao ? { transicao } : {}),
     },
-    // Tipografia e cores continuam as da marca: da referência vem a forma (layout, ritmo,
-    // legenda, look), não a identidade visual de outra empresa.
-    marca: usaMarca ? { ...tl.marca, ...marcaEmpresa } : { ...tl.marca, ...daReferencia },
+    // Da marca entram só as CORES; tipografia, layout, ritmo e legenda são os da referência.
+    // Sem marca cadastrada, a cor de destaque também vem da referência.
+    marca: usaMarca
+      ? { ...tl.marca, ...marcaEmpresa, ...fontesDaReferencia }
+      : { ...tl.marca, ...daReferencia },
     modelo: {
       id: `ref-${r.id}`,
       nome: `Referência ${r.autor ? `@${r.autor}` : (r.titulo ?? "")}`.trim(),
@@ -112,18 +119,18 @@ ${tecnicas}
 
 ${
   usaMarca
-    ? "DESIGN: use SEMPRE as fontes e cores da MARCA (marca.fonteTitulo, marca.fonteLegenda, marca.destaque) em todos os elementos; não use as fontes nem as cores da referência (ela é de outra empresa). Da referência vem só a disposição: onde o grafismo fica, tamanho relativo, acabamento (cantos, borda, sombra) e as entradas."
-    : `DESIGN: esta empresa não tem marca cadastrada, então a tipografia e a cor de destaque são as da REFERÊNCIA (já gravadas em marca: ${JSON.stringify(daReferencia)}). Siga também o acabamento dela (${a.estilo?.tipografia ?? "tipografia da referência"}): disposição, tamanhos, caixa, espaçamento, cantos e entradas.`
+    ? `DESIGN: da MARCA entram só as CORES (marca.destaque, marca.primaria, marca.texto, marca.fundo): troque cada cor da referência pela equivalente da marca. Todo o resto é da REFERÊNCIA, ao pé da letra: fontes (já gravadas em marca.fonteTitulo/fonteLegenda: ${JSON.stringify(fontesDaReferencia)}), caixa, peso, tamanho, posição, cantos, borda, sombra e entradas de cada grafismo (${a.estilo?.tipografia ?? "tipografia da referência"}).`
+    : `DESIGN: esta empresa não tem marca cadastrada, então a tipografia e a cor de destaque são as da REFERÊNCIA (já gravadas em marca: ${JSON.stringify(daReferencia)}). Siga o acabamento dela ao pé da letra (${a.estilo?.tipografia ?? "tipografia da referência"}): disposição, tamanhos, caixa, espaçamento, cantos e entradas.`
 }
 ${
   a.layouts?.length
-    ? `LAYOUTS-CHAVE DA REFERÊNCIA (use como base de /composicao, trocando os textos entre chaves pelo conteúdo da fala deste vídeo e ajustando ao que é dito; adapte tamanho e quantidade de itens livremente):
+    ? `LAYOUTS-CHAVE DA REFERÊNCIA (são o molde EXATO de cada /composicao: mesmas posições x/y/w/h, mesmos tamanhos de letra, mesma quantidade de elementos e itens, mesma ordem e entradas; troque só os textos entre chaves pelo conteúdo da fala deste vídeo e as cores pelas da marca):
 ${JSON.stringify(a.layouts).slice(0, 6000)}`
     : ""
 }
 
 REGRAS AO SEGUIR A REFERÊNCIA:
-1. Copie só a FORMA: layout, grafismos, ritmo, transições e posição da legenda. NUNCA copie textos, marcas, nomes de produto, @, assunto, números ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo (a TRANSCRIÇÃO) e da nossa marca. NUNCA invente dados, números, depoimentos, nomes de clientes nem textos de preenchimento ("Cliente 1", "Cargo · Empresa"): se a referência tem depoimento, ranking ou número e a fala deste vídeo não tem, PULE essa técnica.
+1. Copie a ESTRUTURA ao pé da letra: layout de cada grafismo (posição, tamanho, fonte, caixa, acabamento), ritmo, transições, estilo e posição da legenda. Da marca, só as cores. NUNCA copie textos, marcas, nomes de produto, @, assunto, números ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo (a TRANSCRIÇÃO) e da nossa marca. NUNCA invente dados, números, depoimentos, nomes de clientes nem textos de preenchimento ("Cliente 1", "Cargo · Empresa"): se a referência tem depoimento, ranking ou número e a fala deste vídeo não tem, PULE essa técnica.
 2. Não encurte o vídeo. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas.
 3. Os efeitos antigos foram apagados. TODO o visual é feito com /composicao (composição livre, elemento por elemento, no desenho da referência): cards, listas, telas de app, números, ícones e imagens são ELEMENTOS da composição (caixa, texto, icone, midia, linha, brilho, pessoa). NÃO use nenhum modelo pronto: nada de cards-flutuantes, mockup, icones, broll, dividir, reagir, fundo-imagem, palavra-gigante, letreiro, colagem, rabisco ou partículas. Só /cta-final no fim, como último efeito.
 4. A pessoa NUNCA some da tela. Em /composicao use fundo "nenhum" (grafismos sobre o vídeo, no espaço livre) ou, para telas de UI com fundo sólido, inclua obrigatoriamente um elemento {"tipo":"pessoa"} num card arredondado (ex.: x 0.06, y 0.5, w 0.88, h 0.44) como na referência. Fundo sólido sem "pessoa" vira só escurecer.
@@ -132,7 +139,7 @@ REGRAS AO SEGUIR A REFERÊNCIA:
    - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 3 buscas) e use o id devolvido num elemento {"tipo":"midia","midia":"<id>"} (janela com borda e raio, como na referência, ou grande atrás dos textos);
    - print ou gravação de tela → mídia enviada deste vídeo num elemento "midia"; sem print enviado, desenhe a tela com caixas e textos dentro da composição.
    Use só ids de MÍDIAS ENVIADAS ou devolvidos por buscar_midia (id inventado é descartado). Nada de molduras vazias. Na resposta, diga em uma frase quais imagens você colocou e em que momento.
-6. Ritmo: no máximo um grafismo a cada 5–8 segundos, cada um com 2–4 s, e o vídeo respirando entre eles (você falando sem nada por cima).
+6. Ritmo: o MESMO da referência${ritmoRef ? ` (um estímulo a cada ~${ritmoRef}s)` : ""}, com grafismos da mesma duração dos dela e nos mesmos momentos relativos do vídeo.
 7. Nada em cima do rosto. O rosto está em ${rosto ? `x ${rosto.x.toFixed(2)}, y ${rosto.y.toFixed(2)}, w ${rosto.w.toFixed(2)}, h ${rosto.h.toFixed(2)}` : "no centro do quadro"} (frações do quadro): imagens e cards ficam ACIMA (y + h < ${rosto ? (rosto.y - 0.02).toFixed(2) : "0.30"}) ou ABAIXO (y > ${rosto ? (rosto.y + rosto.h + 0.02).toFixed(2) : "0.66"}) dele, e cabem nesse espaço (uma imagem acima da cabeça tem no máximo essa altura). Nada de imagem grande no meio do quadro.
 8. LUZ E COR: a cor da referência NÃO se copia (foi gravada com outra luz). A correção de imagem (visual.brilho/contraste/saturacao/temperatura/sombras) já foi dosada pela medição deste vídeo — ${dose.resumo} — e você NÃO mexe nela nem no look. Lembre que a compressão da Meta puxa vermelho e satura: nada de look quente, saturação acima de 1 ou grafismo laranja/vermelho grande perto do rosto. Cores dos grafismos: as da marca, escolhendo fundo escuro ou claro pelo que contrasta com o quadro (quadro ${luz ? (luz.lumaMedia < 0.3 ? "escuro → grafismos claros/vidro" : luz.lumaMedia > 0.65 ? "claro → grafismos escuros" : "médio") : "não medido"}).
 9. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
