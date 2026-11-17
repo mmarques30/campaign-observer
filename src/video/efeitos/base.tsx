@@ -74,6 +74,7 @@ export function Midia({
   mudo?: boolean;
 }) {
   const { fps } = useVideoConfig();
+  const frame = useCurrentFrame();
   const url = midia
     ? (ctx.midias[midia] ?? (midia.startsWith("http") ? midia : undefined))
     : undefined;
@@ -84,7 +85,17 @@ export function Midia({
     display: "block",
     ...style,
   };
-  if (url && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url)) return <Img src={url} style={s} />;
+  // Foto parada tem leve aproximação contínua, para não ficar "congelada" ao lado do vídeo.
+  if (url && /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url))
+    return (
+      <Img
+        src={url}
+        style={{
+          ...s,
+          transform: `${s.transform ? `${s.transform} ` : ""}scale(${(1.02 + (frame / fps) * 0.025).toFixed(4)})`,
+        }}
+      />
+    );
   if (url) return <OffthreadVideo src={url} muted={mudo} style={s} onError={aoErrar()} />;
   if (!ctx.fonteUrl)
     return <div style={{ ...s, background: "linear-gradient(135deg,#2a2a35,#111)" }} />;

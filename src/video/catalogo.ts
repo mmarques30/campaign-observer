@@ -713,6 +713,16 @@ export const EFEITOS: EfeitoDef[] = [
     escondeLegenda: false,
     disponivel: true,
     componente: Dividir,
+    // A pessoa vai para a outra metade (o vídeo base encolhe para lá, sempre em sincronia com os
+    // cortes): a mídia nunca cobre o rosto, e telas divididas emendadas não "pulsam" na troca.
+    cardPessoa: (p) => {
+      const lado = String(p.lado ?? "cima");
+      const prop = Math.min(0.7, Math.max(0.3, Number(p.proporcao ?? 0.5)));
+      if (lado === "baixo") return { x: 0, y: 0, w: 1, h: 1 - prop, raio: 0, fundo: "#000000" };
+      if (lado === "esquerda") return { x: prop, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };
+      if (lado === "direita") return { x: 0, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };
+      return { x: 0, y: prop, w: 1, h: 1 - prop, raio: 0, fundo: "#000000" };
+    },
   },
   {
     tipo: "reagir",

@@ -3,13 +3,29 @@ import { AbsoluteFill, interpolate, spring, useVideoConfig } from "remotion";
 import { f } from "../fontes";
 import { Marcado } from "../marcacao";
 import { Midia, u, useEntradaSaida, type EfeitoProps } from "./base";
+import { paraSaida } from "../tempo";
 
 // ─── Tela dividida: a mídia ocupa uma metade; você fica na outra ───────────
 export function Dividir({ p, ctx, dur }: EfeitoProps) {
   const { width, height } = useVideoConfig();
   const k = u(width);
-  const { entrada, saida } = useEntradaSaida(dur, { damping: 18, stiffness: 140 });
+  const es = useEntradaSaida(dur, { damping: 18, stiffness: 140 });
   const lado = String(p.lado ?? "cima"); // onde a MÍDIA entra: cima | baixo | esquerda | direita
+  // Telas divididas emendadas (uma troca de mídia a cada 2 s, como no original): o painel fica
+  // parado e só a mídia corta seco. Animação só na primeira entrada e na última saída.
+  const ini = paraSaida(ctx.trechos, ctx.deFonte);
+  const fim = ini + dur / es.fps;
+  const vizinhas = (ctx.tl.efeitos ?? []).filter(
+    (o: any) => o.tipo === "dividir" && String(o.props?.lado ?? "cima") === lado && o.de !== ctx.deFonte,
+  );
+  const colaAntes = vizinhas.some(
+    (o: any) => Math.abs(paraSaida(ctx.trechos, Number(o.ate)) - ini) < 0.35,
+  );
+  const colaDepois = vizinhas.some(
+    (o: any) => Math.abs(paraSaida(ctx.trechos, Number(o.de)) - fim) < 0.35,
+  );
+  const entrada = colaAntes ? 1 : es.entrada;
+  const saida = colaDepois ? 1 : es.saida;
   const vertical = lado === "cima" || lado === "baixo";
   const prop = Number(p.proporcao ?? 0.5);
   const avanco = interpolate(entrada, [0, 1], [0, 1]);

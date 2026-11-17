@@ -236,6 +236,8 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 7. Efeitos usam o conteúdo real do que a pessoa fala (números, nomes, listas ditas). Textos curtos: título ≤ 7 palavras, itens ≤ 4 palavras.
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
 8b. Imagens: quando a fala cita um app, canal ou ferramenta (WhatsApp, e-mail, planilha, Instagram, Google…) ou um objeto simples (dinheiro, relógio, gráfico), prefira o efeito "icones" (logos/ícones que saltam na tela, entrando na palavra exata) — não precisa buscar nada. Para FOTOS ou VÍDEOS reais da internet (cenário, pessoas, escritório), chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Uma busca por vez. Nunca invente ids. Até 3 buscas por pedido.
+8c. A imagem é a PROVA do que está sendo dito naquele segundo. Quando a fala cita um fato, nome próprio ou notícia (um desenho, um canal, um órgão, um país, uma pessoa, uma empresa, um número do dia), busque com tipo "noticia" o fato exato (ex.: fala "um episódio dos Simpsons" → consulta "Simpsons episódio apagão"; "a CNN Brasil confirmou" → "CNN Brasil apagão mundial boato"; "orientação de defesa americana" → "FEMA alerta apagão Estados Unidos"). Banco de imagens genérico (pessoa no celular, cidade escura) só para o que é genérico na fala. Cada mídia entra UMA vez no vídeo: nunca repita o mesmo id em dois trechos; se faltar imagem, deixe a fala sem mídia em vez de repetir ou pôr algo sem ligação.
+8d. Tela dividida em sequência (como nas referências de split): os "dividir" ficam EMENDADOS (o "ate" de um é o "de" do próximo, mesmo lado e proporção), trocando a mídia no corte seco. Nunca deixe buracos de 1–3 s entre eles: o painel some e volta e fica "descendo" toda hora.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
 ${
@@ -288,8 +290,9 @@ const FERRAMENTA_BUSCA = {
       },
       tipo: {
         type: "string",
-        enum: ["imagem", "video"],
-        description: "imagem para fundo/dividir/celular; video para broll e reagir.",
+        enum: ["imagem", "video", "noticia"],
+        description:
+          "imagem para fundo/dividir/celular; video para broll e reagir; noticia = foto REAL do fato citado (um programa, um canal, uma pessoa, uma marca, um acontecimento: 'Simpsons episódio apagão', 'CNN Brasil apagão mundial', 'teste alerta emergência Estados Unidos'), tirada das matérias publicadas sobre ele. Banco de imagens não tem esses fatos: para nome próprio ou notícia, use noticia.",
       },
       quantidade: { type: "integer", minimum: 1, maximum: 3 },
       orientacao: { type: "string", enum: ["vertical", "horizontal", "qualquer"] },
@@ -349,6 +352,87 @@ async function wikimedia(consulta: string, n: number) {
   return [...livres, ...sa].slice(0, n);
 }
 
+/** Telas divididas em sequência ficam emendadas: buraco de até 3 s (no vídeo final) entre dois
+ *  "dividir" do mesmo lado vira continuação, senão o painel some e volta a cada troca. */
+function emendarDivisoes(tl: any) {
+  const cortes = (Array.isArray(tl?.cortes) ? tl.cortes : []) as { de: number; ate: number }[];
+  const noFinal = (a: number, b: number) =>
+    cortes.length
+      ? cortes.reduce((s, c) => s + Math.max(0, Math.min(b, c.ate) - Math.max(a, c.de)), 0)
+      : b - a;
+  const divs = (tl?.efeitos ?? [])
+    .filter((e: any) => e?.tipo === "dividir" && typeof e.de === "number" && typeof e.ate === "number")
+    .sort((a: any, b: any) => a.de - b.de);
+  for (let i = 0; i + 1 < divs.length; i++) {
+    const a = divs[i], b = divs[i + 1];
+    if (String(a.props?.lado ?? "cima") !== String(b.props?.lado ?? "cima")) continue;
+    if (b.de > a.ate && noFinal(a.ate, b.de) <= 3) a.ate = b.de;
+    if (a.props && b.props && a.props.proporcao !== b.props.proporcao)
+      b.props.proporcao = a.props.proporcao;
+  }
+}
+
+/** Fotos reais de um fato/notícia: busca na web (ferramenta do Claude) e pega a imagem de capa
+ *  (og:image) das matérias encontradas. Serve para o que banco de imagem não tem: programa de TV,
+ *  canal, pessoa pública, marca, acontecimento do dia. */
+async function noticiaImagens(consulta: string, n: number) {
+  const chave = Deno.env.get("ANTHROPIC_API_KEY") ?? Deno.env.get("CLAUDE_API_KEY");
+  if (!chave) return [];
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": chave,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: Deno.env.get("VEDIT_MODELO_BUSCA") || "claude-haiku-5-5",
+      max_tokens: 600,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 2 }],
+      messages: [
+        {
+          role: "user",
+          content: `Busque matérias e páginas sobre: ${consulta}. Só a busca; responda "ok".`,
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(40000),
+  });
+  const j = await r.json().catch(() => ({}));
+  const paginas: { url: string; titulo: string }[] = [];
+  for (const b of j?.content ?? [])
+    if (b.type === "web_search_tool_result" && Array.isArray(b.content))
+      for (const x of b.content)
+        if (x?.url && !paginas.some((p) => p.url === x.url))
+          paginas.push({ url: x.url, titulo: String(x.title ?? "") });
+  const ruim = /logo|default|placeholder|avatar|icon|favicon|sprite|share-image|og-default/i;
+  const achadas = await Promise.all(
+    paginas.slice(0, 10).map(async (p) => {
+      try {
+        const h = await fetch(p.url, {
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; IAplicada-editor/1.0)" },
+          signal: AbortSignal.timeout(7000),
+        });
+        const html = (await h.text()).slice(0, 300000);
+        const m =
+          html.match(/<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i) ??
+          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
+          html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
+        const img = m?.[1]?.replace(/&amp;/g, "&");
+        if (!img || ruim.test(img)) return null;
+        return { url: new URL(img, p.url).href, credito: `${p.titulo} (${new URL(p.url).hostname})` };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const vistas = new Set<string>();
+  return achadas
+    .filter((x): x is { url: string; credito: string } => !!x)
+    .filter((x) => (vistas.has(x.url) ? false : (vistas.add(x.url), true)))
+    .slice(0, n);
+}
+
 /** Busca no Pexels/Unsplash (com chave) ou Wikimedia Commons (sem chave) e salva no bucket do projeto. */
 async function buscarMidia(sb: any, projetoId: string, args: any) {
   const pexels = Deno.env.get("PEXELS_API_KEY");
@@ -368,7 +452,16 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     duracao?: number;
   }[] = [];
   try {
-    if (args.tipo === "video" && pexels) {
+    if (args.tipo === "noticia") {
+      for (const x of await noticiaImagens(args.consulta, n))
+        achados.push({
+          url: x.url,
+          nome: `noticia-${Date.now()}-${achados.length}.jpg`,
+          credito: x.credito,
+          tipo: "imagem",
+        });
+      if (!achados.length) return { erro: "Não achei imagem de matéria sobre isso. Tente outro termo (nome do programa, canal ou fato)." };
+    } else if (args.tipo === "video" && pexels) {
       const r = await fetch(
         `https://api.pexels.com/videos/search?query=${encodeURIComponent(args.consulta)}&per_page=${n}${orient ? `&orientation=${orient}` : ""}&size=medium`,
         { headers: { Authorization: pexels }, signal: AbortSignal.timeout(10000) },
@@ -403,7 +496,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     }
     // Pixabay (chave grátis): fotos e vídeos.
     const chavePixabay = Deno.env.get("PIXABAY_API_KEY");
-    if (achados.length < n && chavePixabay) {
+    if (achados.length < n && chavePixabay && args.tipo !== "noticia") {
       const video = args.tipo === "video";
       const qs = new URLSearchParams({
         key: chavePixabay,
@@ -447,7 +540,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
         /* segue para as outras fontes */
       }
     }
-    if (achados.length < n && unsplash && args.tipo !== "video") {
+    if (achados.length < n && unsplash && args.tipo === "imagem") {
       const r = await fetch(
         `https://api.unsplash.com/search/photos?query=${encodeURIComponent(args.consulta)}&per_page=${n - achados.length}${orient ? `&orientation=${orient === "portrait" ? "portrait" : "landscape"}` : ""}`,
         { headers: { Authorization: `Client-ID ${unsplash}` }, signal: AbortSignal.timeout(10000) },
@@ -462,7 +555,7 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
         });
     }
     // Sem chave (ou nada achado): Wikimedia Commons, rápido e liberado (só imagens).
-    if (achados.length < n && args.tipo !== "video") {
+    if (achados.length < n && args.tipo === "imagem") {
       const extra = await wikimedia(args.consulta, n - achados.length).catch(() => []);
       for (const w of extra)
         achados.push({
@@ -999,7 +1092,7 @@ Deno.serve(async (req) => {
   // referência com muito b-roll/tela dividida, precisa de mais mídias (até 8 buscas, em paralelo).
   const seguindoRef =
     typeof proj.timeline?.modelo?.id === "string" && proj.timeline.modelo.id.startsWith("ref-");
-  const maxBuscas = seguindoRef ? 8 : 3;
+  const maxBuscas = seguindoRef ? 14 : 3;
   const conversa: any[] = msgs;
   let resp: any = null;
   let uso: any = {};
@@ -1139,6 +1232,7 @@ Deno.serve(async (req) => {
         }
         return ok(pr.midia) || typeof pr.tempo === "number";
       });
+    emendarDivisoes(tl);
     // Seguindo referência: a identidade visual e os textos dela não podem vazar para o nosso vídeo.
     if (typeof tl.modelo?.id === "string" && tl.modelo.id.startsWith("ref-"))
       await limparReferencia(
