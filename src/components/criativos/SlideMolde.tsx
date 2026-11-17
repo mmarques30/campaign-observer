@@ -218,12 +218,16 @@ export const SlideMolde = forwardRef<HTMLDivElement, Props>(function SlideMolde(
           >
             <div
               style={{
-                fontFamily: `"${e.fonte ?? t.fonteTitulo}", sans-serif`,
+                fontFamily: `"${(e.fonte ?? t.fonteTitulo).replace(/\s*\(.*$/, "").trim()}", sans-serif`,
                 fontWeight: e.peso ?? 700,
                 fontStyle: e.italico ? "italic" : "normal",
                 fontSize: px(e.tamanho),
                 lineHeight: e.entrelinha ?? 1.1,
-                letterSpacing: e.espacamento != null ? `${e.espacamento}em` : undefined,
+                // em (ex.: -0.02); valores grandes vieram em px e viram em
+                letterSpacing:
+                  e.espacamento != null
+                    ? `${Math.max(-0.08, Math.min(0.4, Math.abs(e.espacamento) > 0.4 ? e.espacamento / 100 : e.espacamento))}em`
+                    : undefined,
                 textTransform: CAIXA[e.caixa ?? "normal"],
                 textAlign: ALINHA[e.alinhar ?? "esquerda"],
                 color: c(e.cor, t.texto),
