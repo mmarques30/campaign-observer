@@ -5,10 +5,18 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, type MouseEvent } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, FileText, Loader2, Play, Search } from "lucide-react";
+import { Loader2, Play, Plus, Search } from "lucide-react";
 import { db } from "@/lib/vedit";
 import {
   IDIOMAS_ROTEIRO,
@@ -29,7 +37,13 @@ export const Route = createFileRoute("/_authenticated/ads/edicao/roteiros")({
   component: RoteirosPage,
 });
 
-type RefPronta = { id: string; autor: string | null; titulo: string | null; metricas: any };
+type RefPronta = {
+  id: string;
+  autor: string | null;
+  titulo: string | null;
+  metricas: any;
+  created_at: string;
+};
 
 function RoteirosPage() {
   const busca = Route.useSearch();
@@ -65,13 +79,27 @@ function RoteirosPage() {
       ((
         await db()
           .from("vedit_referencias")
-          .select("id, autor, titulo, metricas")
+          .select("id, autor, titulo, metricas, created_at")
           .eq("status", "pronta")
           .not("palavras", "is", null)
           .order("created_at", { ascending: false })
-          .limit(30)
+          .limit(200)
       ).data ?? []) as RefPronta[],
   });
+  const [escolher, setEscolher] = useState(false);
+  const [termo, setTermo] = useState("");
+  const [ordemRef, setOrdemRef] = useState<"engajamento" | "recentes">("engajamento");
+  const refsVisiveis = (refs.data ?? [])
+    .filter((r) => {
+      const t = termo.trim().toLowerCase();
+      return !t || `${r.autor ?? ""} ${r.titulo ?? ""}`.toLowerCase().includes(t);
+    })
+    .sort((a, b) =>
+      ordemRef === "recentes"
+        ? b.created_at.localeCompare(a.created_at)
+        : Number(b.metricas?.indice ?? 0) - Number(a.metricas?.indice ?? 0) ||
+          b.created_at.localeCompare(a.created_at),
+    );
   const abrir = (id: string | null) => {
     setAberto(id);
     void navigate({ search: id ? { id } : {}, replace: true });
@@ -81,63 +109,101 @@ function RoteirosPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Roteiros</h1>
-        <p className="text-sm text-muted-foreground max-w-2xl">
-          Roteiros no esqueleto de um vídeo que performou bem: mesmo gancho, mesmas viradas, mesmo
-          tamanho de fala e as mesmas pausas, com o seu assunto e no idioma que você escolher.
-          Comece por um reel da Pesquisa ou por uma referência salva, e peça os ajustes na conversa.
+        <p className="text-sm text-muted-foreground">
+          Roteiros no formato de vídeos que performaram bem, com o seu assunto.
         </p>
       </div>
 
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <BookOpen className="h-4 w-4" /> Novo roteiro a partir de uma referência salva
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setEscolher(true)}>
+          <Plus className="h-4 w-4 mr-2" /> Novo roteiro a partir de uma referência
+        </Button>
+        <Link
+          to="/ads/edicao/pesquisa"
+          className="text-xs text-muted-foreground underline inline-flex items-center gap-1"
+        >
+          <Search className="h-3 w-3" /> ou comece por um reel da Pesquisa
+        </Link>
+      </div>
+
+      <Dialog open={escolher} onOpenChange={setEscolher}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Escolha a referência</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              placeholder="Buscar por perfil ou título"
+              value={termo}
+              onChange={(e) => setTermo(e.target.value)}
+              className="flex-1 min-w-[180px]"
+            />
+            <Select value={ordemRef} onValueChange={(v) => setOrdemRef(v as typeof ordemRef)}>
+              <SelectTrigger className="w-[190px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="engajamento">Mais engajamento</SelectItem>
+                <SelectItem value="recentes">Mais recentes</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          {refs.isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : !refs.data?.length ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma referência com fala transcrita ainda. Na{" "}
-              <Link to="/ads/edicao/pesquisa" className="underline">
-                Pesquisa
-              </Link>
-              , abra um reel e clique em "Salvar como referência".
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {refs.data.map((r) => (
-                <div key={r.id} className="inline-flex items-center rounded-md border">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-r-none"
-                    onClick={() => setNova(r)}
+          <div className="max-h-[60vh] overflow-y-auto divide-y rounded-md border">
+            {refs.isLoading ? (
+              <div className="p-4">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : !refsVisiveis.length ? (
+              <p className="p-4 text-sm text-muted-foreground">
+                Nenhuma referência com fala transcrita. Na{" "}
+                <Link to="/ads/edicao/pesquisa" className="underline">
+                  Pesquisa
+                </Link>
+                , abra um reel e clique em "Salvar como referência".
+              </p>
+            ) : (
+              refsVisiveis.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 p-2 hover:bg-muted">
+                  <button
+                    type="button"
+                    className="flex-1 text-left text-sm min-w-0"
+                    onClick={() => {
+                      setEscolher(false);
+                      setNova(r);
+                    }}
                   >
-                    <FileText className="h-4 w-4 mr-2" />
-                    {r.autor ? `@${r.autor}` : (r.titulo ?? "Referência")}
-                    {r.metricas?.indice ? ` · ${Number(r.metricas.indice).toFixed(1)}×` : ""}
-                  </Button>
+                    <div className="font-medium truncate">
+                      {r.autor ? `@${r.autor}` : (r.titulo ?? "Referência")}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {[
+                        r.metricas?.indice
+                          ? `${Number(r.metricas.indice).toFixed(1)}× o engajamento do perfil`
+                          : null,
+                        r.autor && r.titulo ? r.titulo : null,
+                        formatDistanceToNow(new Date(r.created_at), {
+                          locale: ptBR,
+                          addSuffix: true,
+                        }),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </button>
                   <Link
                     to="/ads/edicao/referencias"
                     search={{ id: r.id }}
                     title="Ver o vídeo e a análise"
-                    className="px-2 h-8 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   >
                     <Play className="h-3.5 w-3.5" />
                   </Link>
                 </div>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Também dá para criar direto de um reel em{" "}
-            <Link to="/ads/edicao/pesquisa" className="underline inline-flex items-center gap-1">
-              <Search className="h-3 w-3" /> Pesquisa
-            </Link>{" "}
-            (botão "Criar roteiro com esta estrutura").
-          </p>
-        </CardContent>
-      </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {(lista.data?.length ?? 0) > 0 && (
         <Tabs value={filtro} onValueChange={(v) => setFiltro(v as typeof filtro)}>
