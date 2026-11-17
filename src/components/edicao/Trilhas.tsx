@@ -68,6 +68,21 @@ export function Trilhas({
   const blocos = useMemo(() => montarBlocos(palavras, tl, trechos, fps), [palavras, tl, trechos]);
   const pos = (s: number) => `${(s / total) * 100}%`;
   const trilha = useRef<HTMLDivElement>(null);
+  // A linha do tempo é mais larga que a tela: a roda do mouse (para cima/baixo) rola para os lados,
+  // senão não dá para ver o vídeo inteiro sem trackpad.
+  const rolagem = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rolagem.current;
+    if (!el) return;
+    const roda = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", roda, { passive: false });
+    return () => el.removeEventListener("wheel", roda);
+  }, []);
   const [arraste, setArraste] = useState<{
     i: number;
     borda: "de" | "ate";
@@ -162,7 +177,10 @@ export function Trilhas({
           onFechar={() => setMusicaSel(false)}
         />
       )}
-      <div className="overflow-x-auto">
+      <div
+        ref={rolagem}
+        className="overflow-x-auto pb-1 [scrollbar-width:auto] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/40"
+      >
         <div
           style={{ width: largura + 80, minWidth: "100%" }}
           className="space-y-1 py-2 select-none"
