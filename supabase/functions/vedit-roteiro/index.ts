@@ -422,6 +422,12 @@ AJUSTES: leia o pedido da Mariana pelo que ela QUER, não ao pé da letra das pa
 
 async function gerar(sb: any, id: string) {
   const { data: r } = await sb.from("vedit_roteiros").select("*").eq("id", id).single();
+  // Refazer: os pedidos da conversa (tema trocado, críticas) entram na nova versão e o histórico fica.
+  const anteriores = (r.mensagens ?? []) as any[];
+  const pedidos = anteriores
+    .filter((m: any) => m.papel === "usuario")
+    .map((m: any) => `- ${m.texto}`)
+    .join("\n");
   try {
     const est = r.estrutura ?? (await montarEstrutura(sb, r.reel_id, r.referencia_id));
     const j = await claude(
@@ -434,7 +440,7 @@ async function gerar(sb: any, id: string) {
         messages: [
           {
             role: "user",
-            content: `${textoEstrutura(est)}\n\n${await edicaoDaReferencia(sb, est.fonte?.referencia_id ?? r.referencia_id)}\n\nASSUNTO DO NOSSO VÍDEO: ${r.tema}${r.notas ? `\nOBSERVAÇÕES DA MARIANA: ${r.notas}` : ""}\n\nEscreva o roteiro e chame salvar_roteiro.`,
+            content: `${textoEstrutura(est)}\n\n${await edicaoDaReferencia(sb, est.fonte?.referencia_id ?? r.referencia_id)}\n\nASSUNTO DO NOSSO VÍDEO: ${r.tema}${r.notas ? `\nOBSERVAÇÕES DA MARIANA: ${r.notas}` : ""}${pedidos ? `\n\nREFAZENDO: este roteiro já existia e a Mariana pediu estas mudanças na conversa (o tema e as escolhas dela aqui valem mais que o assunto acima; a crítica dela diz o que não pode se repetir):\n${pedidos}` : ""}\n\nEscreva o roteiro do zero, seguindo todas as regras, e chame salvar_roteiro.`,
           },
         ],
       },
@@ -448,12 +454,18 @@ async function gerar(sb: any, id: string) {
         estrutura: est,
         referencia_id: est.fonte?.referencia_id ?? r.referencia_id,
         roteiro: out.roteiro,
-        versao: 1,
+        versao: (r.versao ?? 0) + 1,
         status: "pronto",
         erro: null,
         updated_at: new Date().toISOString(),
         mensagens: [
-          { papel: "claude", texto: out.resposta, em: new Date().toISOString(), versao: 1 },
+          ...anteriores,
+          {
+            papel: "claude",
+            texto: out.resposta,
+            em: new Date().toISOString(),
+            versao: (r.versao ?? 0) + 1,
+          },
         ],
       })
       .eq("id", id);

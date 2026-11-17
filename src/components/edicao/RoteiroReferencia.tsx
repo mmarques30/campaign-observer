@@ -619,7 +619,7 @@ export function PainelRoteiro({
                 variant="ghost"
                 disabled={enviando || gerando}
                 onClick={() => {
-                  if (confirm("Refazer do zero? A conversa e as versões atuais são substituídas."))
+                  if (confirm("Refazer o roteiro do zero com as regras atuais? Seus pedidos da conversa entram na nova versão."))
                     void acao({ acao: "refazer" });
                 }}
               >
