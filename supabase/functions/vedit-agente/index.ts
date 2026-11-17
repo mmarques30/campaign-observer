@@ -237,7 +237,7 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
 8b. Imagens: quando a fala cita um app, canal ou ferramenta (WhatsApp, e-mail, planilha, Instagram, Google…) ou um objeto simples (dinheiro, relógio, gráfico), prefira o efeito "icones" (logos/ícones que saltam na tela, entrando na palavra exata) — não precisa buscar nada. Para FOTOS ou VÍDEOS reais da internet (cenário, pessoas, escritório), chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Uma busca por vez. Nunca invente ids. Até 3 buscas por pedido.
 8c. A imagem é a PROVA do que está sendo dito naquele segundo. Quando a fala cita um fato, nome próprio ou notícia (um desenho, um canal, um órgão, um país, uma pessoa, uma empresa, um número do dia), busque com tipo "noticia" o fato exato (ex.: fala "um episódio dos Simpsons" → consulta "Simpsons episódio apagão"; "a CNN Brasil confirmou" → "CNN Brasil apagão mundial boato"; "orientação de defesa americana" → "FEMA alerta apagão Estados Unidos"). Banco de imagens genérico (pessoa no celular, cidade escura) só para o que é genérico na fala. Cada mídia entra UMA vez no vídeo: nunca repita o mesmo id em dois trechos; se faltar imagem, deixe a fala sem mídia em vez de repetir ou pôr algo sem ligação. Teste de cada mídia antes de usar: "quem assiste entende, só pela imagem, do que a frase fala?" Se não, não entra. Nunca use imagem decorativa (paisagem, pessoa genérica, textura, cidade qualquer) para uma fala que cita um fato concreto. Na resposta, liste cada mídia com a frase em que ela entra.
-8e. Quando a pessoa se apresenta ou fala da própria trajetória/empresa (ex.: "eu fui executiva...", "hoje eu construo...", "na IAplicada..."), a imagem é sobre ELA: busque com tipo "noticia" o que ela cita (as empresas onde trabalhou, a IAplicada) e nunca ponha imagem de outro assunto (obra, escritório genérico) nesse trecho. Imagem de um caso (ex.: construtora) só no trecho em que o caso é contado.
+8e. Quando a pessoa se apresenta ou fala da própria trajetória/empresa (ex.: "eu fui executiva...", "hoje eu construo...", "na IAplicada..."), a imagem é sobre ELA: use foto dela ou da IAplicada se houver em MÍDIAS ENVIADAS; senão, esse trecho fica sem imagem (só fala). Nunca mostre UMA empresa de uma lista que ela cita (ex.: fala de várias empresas onde trabalhou e aparece só a Suzano) nem imagem de outro assunto (obra, escritório genérico) nesse trecho. Imagem de um caso (ex.: construtora) só no trecho em que o caso é contado.
 8d. Tela dividida em sequência (como nas referências de split): os "dividir" ficam EMENDADOS (o "ate" de um é o "de" do próximo, mesmo lado e proporção), trocando a mídia no corte seco. Nunca deixe buracos de 1–3 s entre eles: o painel some e volta e fica "descendo" toda hora. Em todo /dividir e /broll passe "frase": as 2–4 palavras EXATAS da transcrição em que a imagem entra (a que ela prova); o sistema ancora a entrada nessa palavra. Use a descrição "MOSTRA:" de cada mídia para escolher: a imagem tem que mostrar o que a frase diz.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
@@ -1009,7 +1009,7 @@ async function casarMidiasComFala(sb: any, tl: any, proj: any) {
         messages: [
           {
             role: "user",
-            content: `Trechos de um vídeo (fala de cada trecho, em ordem):\n${lista}\n\nImagens disponíveis (id: o que a imagem MOSTRA / de onde veio):\n${midias}\n\nPara cada trecho escolha a imagem que PROVA o que está sendo dito naquele trecho (quem vê entende do que a frase fala). Nunca mostre algo antes de ser citado (ex.: foto dos Simpsons só no trecho que fala dos Simpsons ou depois). Não repita imagem. Se nenhuma imagem combina com o trecho, use null. Responda só JSON: {"T0":"<id ou null>", ...}`,
+            content: `Trechos de um vídeo (fala de cada trecho, em ordem):\n${lista}\n\nImagens disponíveis (id: o que a imagem MOSTRA / de onde veio):\n${midias}\n\nPara cada trecho escolha a imagem que PROVA o que está sendo dito naquele trecho (quem vê entende do que a frase fala). Nunca mostre algo antes de ser citado (ex.: foto dos Simpsons só no trecho que fala dos Simpsons ou depois). Se o trecho cita uma lista (várias empresas, várias coisas), não mostre só uma delas: use null. Se a pessoa está se apresentando (trajetória dela), só foto dela ou da empresa dela; senão null. Não repita imagem. Se nenhuma imagem combina com o trecho, use null. Responda só JSON: {"T0":"<id ou null>", ...}`,
           },
         ],
       }),
@@ -1103,6 +1103,36 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
         const n = nossos[k] ?? (r.tipo === "texto" && textoNosso ? { texto: textoNosso } : {});
         return { ...r, ...(n.texto != null ? { texto: n.texto } : {}), ...(n.midia ? { midia: n.midia } : {}) };
       });
+      // Gancho em caixa + texto: na tela dela é título de notícia — cada linha com fundo branco justo
+      // (marca-texto) e a barrinha de cor à esquerda, largo e legível, não uma caixa com letra miúda.
+      const cx = e.props.elementos.find((x: any) => x?.tipo === "caixa" && Number(x?.w ?? 0) >= 0.2);
+      const tx = e.props.elementos.find((x: any) => x?.tipo === "texto");
+      if (ehGancho && cx && tx) {
+        const linhas = Math.max(2, Math.ceil(String(tx.texto ?? "").length / 34));
+        const y = Number(cx.y ?? 0.34);
+        const barra = (gancho?.elementos ?? []).find(
+          (x: any) => x?.tipo === "linha" || (x?.tipo === "caixa" && Number(x?.w ?? 1) < 0.03),
+        );
+        e.props.elementos = [
+          ...(barra
+            ? [{ tipo: "caixa", x: 0.025, y, w: 0.012, h: +(linhas * 0.036).toFixed(3), fundo: barra.fundo ?? barra.cor, raio: 0, entrada: "nenhuma" }]
+            : []),
+          {
+            tipo: "texto",
+            x: 0.045,
+            y,
+            w: 0.9,
+            texto: tx.texto,
+            fonte: tx.fonte,
+            peso: 500,
+            tamanho: 50,
+            cor: tx.cor ?? "#111111",
+            fundoLinha: cx.fundo ?? "#FFFFFF",
+            alinhar: "esquerda",
+            entrada: "nenhuma",
+          },
+        ];
+      }
       // Enquanto a caixa de texto (gancho) está na tela, a legenda some, como na referência.
       if (alvo.some((r: any) => r.tipo === "caixa")) e.props.escondeLegenda = true;
       void tiposNossos;

@@ -52,6 +52,7 @@ export function desviarDoRosto(c: Caixa, rosto?: Caixa | null): Caixa {
 
 type Elemento = {
   tipo?: "texto" | "caixa" | "icone" | "midia" | "brilho" | "linha" | "pessoa";
+  fundoLinha?: string; // texto marca-texto: fundo justo em cada linha
   x?: number;
   y?: number;
   w?: number;
@@ -335,7 +336,7 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
                 fontFamily: f(el.fonte ?? m.fonteTitulo),
                 fontWeight: el.peso ?? 800,
                 fontSize: (el.tamanho ?? (tipo === "caixa" ? 36 : 64)) * k,
-                lineHeight: 1.08,
+                lineHeight: el.fundoLinha ? 1.42 : 1.08,
                 letterSpacing: (el.espacamento ?? 0) * k,
                 color: el.cor ?? m.texto,
                 textAlign:
@@ -351,11 +352,30 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
                 whiteSpace: "pre-line",
               }}
             >
-              <Marcado
-                texto={txt.slice(0, n)}
-                destaque={{ color: el.destaque ?? m.destaque }}
-                escala={k}
-              />
+              {el.fundoLinha ? (
+                // Marca-texto: cada linha com o próprio fundo justo (como títulos de notícia nos Reels).
+                <span
+                  style={{
+                    background: el.fundoLinha,
+                    boxDecorationBreak: "clone",
+                    WebkitBoxDecorationBreak: "clone",
+                    padding: `${3 * k}px ${12 * k}px`,
+                    lineHeight: 1.42,
+                  }}
+                >
+                  <Marcado
+                    texto={txt.slice(0, n)}
+                    destaque={{ color: el.destaque ?? m.destaque }}
+                    escala={k}
+                  />
+                </span>
+              ) : (
+                <Marcado
+                  texto={txt.slice(0, n)}
+                  destaque={{ color: el.destaque ?? m.destaque }}
+                  escala={k}
+                />
+              )}
             </div>
           </div>
         );
