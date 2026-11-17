@@ -256,6 +256,23 @@ async function liberarPendentes(sb: any, refId: string) {
 const FONTES_TXT =
   "Anton, Archivo Black, Archivo (500/900), Bebas Neue, Bricolage Grotesque (600/800), Caveat, DM Mono, DM Serif Display, Fraunces (itálico), Instrument Serif, Inter (400/600/800/900), Manrope (500/800), Montserrat (800/900), Oswald (600), Outfit (500/800), Playfair Display (itálico), Plus Jakarta Sans (500/800), Poppins (500/700/900), Sora (600/800), Space Grotesk (500/700), Syne (700/800), Unbounded (600/900)";
 
+const MOLDE_OBJ = `   {
+    "fundo": "#hex da cor de fundo (atrás de tudo)",
+    "foto_de_fundo": "descrição da foto que ocupa o slide inteiro, se houver: cena, cenário, quem aparece, onde a pessoa está no quadro (ex.: sentada à direita, do joelho para cima, olhando para a esquerda), luz e lente; null se não houver",
+    "foco": "object-position da foto de fundo, ex.: '60% 40%'",
+    "rosto": {"x": 66, "y": 52}  (centro do rosto da pessoa principal, em % do slide; null se não houver pessoa),
+    "pessoa_altura": 55  (quanto da ALTURA do slide a pessoa ocupa, do topo da cabeça até onde o corte termina; null se não houver),
+    "area_livre": "onde o fundo fica vazio para o texto (ex.: 'terço de cima inteiro')",
+    "elementos": [ na ordem de baixo para cima (o último fica por cima). Tudo em % do slide: x e w em % da LARGURA, y e h em % da ALTURA, "tamanho" (corpo da letra) em % da LARGURA do slide.
+      {"tipo":"gradiente","lado":"topo|base|esquerda|direita|tudo","alcance":40,"forca":0.5,"cor":"#000000"}  (escurecimento atrás do texto, se houver),
+      {"tipo":"texto","papel":"titulo|subtitulo|corpo|rotulo|assinatura|numeracao|botao|outro","texto":"o texto exato, com \\n onde a linha quebra e **palavra** no trecho em outra cor","x":8,"y":14,"w":84,"ancora":"topo","alinhar":"esquerda|centro|direita","fonte":"só o nome da mais parecida desta lista, sem o peso: ${FONTES_TXT}","peso":700,"italico":false,"caixa":"normal|alta|baixa","tamanho":7.5,"entrelinha":1.0,"espacamento":0 (em, ex.: -0.02),"cor":"#hex","corDestaque":"#hex","fundoDestaque":"#hex ou null","fundo":"#hex da caixa atrás do texto (pílula/etiqueta) ou null","raio":2,"sombra":false},
+      {"tipo":"foto","descricao":"o que a foto mostra","x":5,"y":40,"w":90,"h":50,"raio":3,"borda":null}  (foto que NÃO ocupa o slide inteiro),
+      {"tipo":"forma","x":0,"y":0,"w":100,"h":12,"cor":"#hex","raio":0,"opacidade":1,"borda":null}  (caixas, faixas, cartões, círculos),
+      {"tipo":"linha","x1":10,"y1":50,"x2":90,"y2":50,"cor":"#hex","esp":4}
+    ]
+   }`;
+const MOLDE_REGRA = `Nos "moldes" a medida é o que importa: posição, largura, tamanho de letra, quantas linhas, alinhamento, caixa e peso do jeito que estão na imagem. Inclua TODO elemento visível (títulos, etiquetas, @, numeração, setas, caixas, linhas); não invente elemento que não existe.`;
+
 async function analisarReferencia(sb: any, id: string) {
   const { data: ref } = await sb.from("cria_referencias").select("*").eq("id", id).single();
   if (!ref) throw new Error("referência não encontrada");
@@ -265,10 +282,39 @@ async function analisarReferencia(sb: any, id: string) {
       await Promise.all((ref.imagens ?? []).slice(0, 15).map((p: string) => imagemBloco(sb, p)))
     ).filter(Boolean);
     if (!imgs.length) throw new Error("sem imagens para analisar");
+    // Medição de cada slide em paralelo (uma chamada curta por imagem): carrossel longo numa
+    // chamada só passava do limite de tempo do servidor e a análise morria no meio.
+    const moldesP = Promise.all(
+      imgs.map((img: any, n: number) =>
+        claude(
+          sb,
+          {
+            max_tokens: 3500,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  img,
+                  {
+                    type: "text",
+                    text: `Slide ${n + 1} de ${imgs.length} de um post do Instagram salvo como referência. Meça este slide com precisão e responda só com JSON neste formato:
+${MOLDE_OBJ}
+${MOLDE_REGRA}`,
+                  },
+                ],
+              },
+            ],
+          },
+          "cria-referencia",
+        )
+          .then((r: any) => jsonDe(textoDe(r)))
+          .catch(() => null),
+      ),
+    );
     const j = await claude(
       sb,
       {
-        max_tokens: 16000,
+        max_tokens: 8000,
         messages: [
           {
             role: "user",
@@ -290,26 +336,8 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
  "gancho": "como a capa prende",
  "dicas": ["detalhes de acabamento que fazem parecer profissional", ...],
  "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da marca",
- "slides_total": ${imgs.length},
- "moldes": [ um por slide, na ordem, medindo a imagem com precisão:
-   {
-    "fundo": "#hex da cor de fundo (atrás de tudo)",
-    "foto_de_fundo": "descrição da foto que ocupa o slide inteiro, se houver: cena, cenário, quem aparece, onde a pessoa está no quadro (ex.: sentada à direita, do joelho para cima, olhando para a esquerda), luz e lente; null se não houver",
-    "foco": "object-position da foto de fundo, ex.: '60% 40%'",
-    "rosto": {"x": 66, "y": 52}  (centro do rosto da pessoa principal, em % do slide; null se não houver pessoa),
-    "pessoa_altura": 55  (quanto da ALTURA do slide a pessoa ocupa, do topo da cabeça até onde o corte termina; null se não houver),
-    "area_livre": "onde o fundo fica vazio para o texto (ex.: 'terço de cima inteiro')",
-    "elementos": [ na ordem de baixo para cima (o último fica por cima). Tudo em % do slide: x e w em % da LARGURA, y e h em % da ALTURA, "tamanho" (corpo da letra) em % da LARGURA do slide.
-      {"tipo":"gradiente","lado":"topo|base|esquerda|direita|tudo","alcance":40,"forca":0.5,"cor":"#000000"}  (escurecimento atrás do texto, se houver),
-      {"tipo":"texto","papel":"titulo|subtitulo|corpo|rotulo|assinatura|numeracao|botao|outro","texto":"o texto exato, com \\n onde a linha quebra e **palavra** no trecho em outra cor","x":8,"y":14,"w":84,"ancora":"topo","alinhar":"esquerda|centro|direita","fonte":"só o nome da mais parecida desta lista, sem o peso: ${FONTES_TXT}","peso":700,"italico":false,"caixa":"normal|alta|baixa","tamanho":7.5,"entrelinha":1.0,"espacamento":0 (em, ex.: -0.02),"cor":"#hex","corDestaque":"#hex","fundoDestaque":"#hex ou null","fundo":"#hex da caixa atrás do texto (pílula/etiqueta) ou null","raio":2,"sombra":false},
-      {"tipo":"foto","descricao":"o que a foto mostra","x":5,"y":40,"w":90,"h":50,"raio":3,"borda":null}  (foto que NÃO ocupa o slide inteiro),
-      {"tipo":"forma","x":0,"y":0,"w":100,"h":12,"cor":"#hex","raio":0,"opacidade":1,"borda":null}  (caixas, faixas, cartões, círculos),
-      {"tipo":"linha","x1":10,"y1":50,"x2":90,"y2":50,"cor":"#hex","esp":4}
-    ]
-   }
- ]
-}
-Nos "moldes" a medida é o que importa: posição, largura, tamanho de letra, quantas linhas, alinhamento, caixa e peso do jeito que estão na imagem. Inclua TODO elemento visível (títulos, etiquetas, @, numeração, setas, caixas, linhas); não invente elemento que não existe.`,
+ "slides_total": ${imgs.length}
+}`,
               },
             ],
           },
@@ -319,6 +347,8 @@ Nos "moldes" a medida é o que importa: posição, largura, tamanho de letra, qu
     );
     const analise = jsonDe(textoDe(j));
     if (!analise) throw new Error("a análise não veio em JSON");
+    const moldes = await moldesP;
+    if (moldes.some(Boolean)) analise.moldes = moldes.map((m: any) => m ?? null);
     await sb.from("cria_referencias").update({ status: "pronta", analise }).eq("id", id);
   } catch (e) {
     // Reanálise que falha não estraga a referência: a análise anterior continua valendo.
@@ -447,6 +477,7 @@ Regras de qualidade:
 - Varie layouts com ritmo, mas mantenha a mesma identidade (cores e fontes) do começo ao fim.
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
 - Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos REAIS dela (marcadas "foto real" na biblioteca; nunca use uma foto "gerada por IA" como base, porque IA em cima de IA fica artificial e a ferramenta recusa). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. Cenário de evento, palco, entrevista ou escritório da IAplicada: passe com_marca: true (o fundo vem com a logo repetida e as cores da marca; não descreva outra marca nem outro backdrop no prompt). No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com enquadramento FECHADO: cabeça e ombros preenchendo a altura do quadro (o rosto ocupa pelo menos 40% da altura), pessoa centralizada, topo da cabeça perto da borda de cima (a fala entra embaixo do queixo). Enquadramento aberto deixa o rosto pequeno e sem nitidez depois do recorte. Nunca use uma foto solta da biblioteca que destoe dos outros frames.
+- Foto gerada tem que parecer ORGÂNICA, frame de bastidor real e não ensaio: pessoa no meio de uma fala, sem pose, olhando para fora da câmera; pele com textura real, sem filtro de beleza nem pele lisa de plástico; luz de ambiente; lente 35mm, leve grão. No prompt, sempre: "candid documentary behind-the-scenes frame, natural skin texture, no retouching, no beauty filter, not posing". Material de trabalho no cenário (métodos, números, processos) aparece em telas e painéis digitais modernos com dashboards, gráficos e fluxos (cores da marca), nunca em papéis impressos colados na parede.
 - Para conferir uma foto antes de usar, chame ver_fotos.
 - Fontes disponíveis: ${FONTES_TXT}.
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
