@@ -222,7 +222,7 @@ function RoteirosPage() {
           abrir(id);
         }}
       />
-      <PainelRoteiro id={aberto} onFechar={() => abrir(null)} />
+      <PainelRoteiro id={aberto} onFechar={() => abrir(null)} onAbrir={abrir} />
     </div>
   );
 }

@@ -393,8 +393,17 @@ export function NovoRoteiro({
 const fmtS = (s?: number) => (s == null ? "" : `${s.toFixed(1)}s`);
 
 /** Painel do roteiro: blocos com tempos e pausas + conversa de ajustes. */
-export function PainelRoteiro({ id, onFechar }: { id: string | null; onFechar: () => void }) {
+export function PainelRoteiro({
+  id,
+  onFechar,
+  onAbrir,
+}: {
+  id: string | null;
+  onFechar: () => void;
+  onAbrir?: (id: string) => void;
+}) {
   const qc = useQueryClient();
+  const [novo, setNovo] = useState(false);
   const [pedido, setPedido] = useState("");
   const [enviando, setEnviando] = useState(false);
   const fimChat = useRef<HTMLDivElement>(null);
@@ -486,7 +495,25 @@ export function PainelRoteiro({ id, onFechar }: { id: string | null; onFechar: (
               </>
             )}
           </SheetDescription>
+          {r?.referencia_id && (
+            <div>
+              <Button size="sm" variant="outline" onClick={() => setNovo(true)}>
+                <FileText className="h-4 w-4 mr-1.5" /> Novo roteiro com esta referência
+              </Button>
+            </div>
+          )}
         </SheetHeader>
+        <NovoRoteiro
+          aberto={novo}
+          onFechar={() => setNovo(false)}
+          referenciaId={r?.referencia_id ?? null}
+          origem={fonte?.autor ? `@${fonte.autor}` : "esta referência"}
+          comTempos={!!fonte?.com_tempos}
+          onCriado={(nid) => {
+            void qc.invalidateQueries({ queryKey: ["vedit", "roteiros"] });
+            if (onAbrir) onAbrir(nid);
+          }}
+        />
 
         {!r ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
