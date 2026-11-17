@@ -940,6 +940,8 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
         const n = nossos[k] ?? {};
         return { ...r, ...(n.texto != null ? { texto: n.texto } : {}), ...(n.midia ? { midia: n.midia } : {}) };
       });
+      // Enquanto a caixa de texto (gancho) está na tela, a legenda some, como na referência.
+      if (alvo.some((r: any) => r.tipo === "caixa")) e.props.escondeLegenda = true;
       void tiposNossos;
     }
   // Cores da referência: paleta + todo hex que aparece nos layouts e no preset.

@@ -740,7 +740,8 @@ export function Reel(bruto: ReelProps) {
 
       {camada(false)}
       {!efeitos.some((e) => {
-        if (!EFEITO_POR_TIPO[e.tipo].escondeLegenda) return false;
+        // Efeito pode pedir para esconder a legenda só nele (ex.: caixa do gancho, como na referência).
+        if (!EFEITO_POR_TIPO[e.tipo].escondeLegenda && e.props?.escondeLegenda !== true) return false;
         if (e.tipo === "nota-de-voz" && e.props?.visual === false) return false;
         const [ini, dur] = janelaFrames(
           trechos,
