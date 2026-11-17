@@ -1148,7 +1148,15 @@ Deno.serve(async (req) => {
         marcaRow?.marca ?? tl.marca ?? {},
         proj,
       );
-    versao += 1;
+    // A versão sempre sobe a partir da atual do banco: enquanto o Claude trabalhava, a tela pode
+    // ter salvo outras (v5…v11). Gravar "a de antes + 1" deixava a versão menor que a da tela, que
+    // então ignorava a edição nova e seguia mostrando só cortes e legenda.
+    const { data: atualDb } = await sb
+      .from("vedit_projetos")
+      .select("versao")
+      .eq("id", projeto_id)
+      .single();
+    versao = Math.max(versao, Number(atualDb?.versao ?? 0)) + 1;
     upd.timeline = tl;
     upd.versao = versao;
     if (!uso.aguardando_aprovacao) upd.storyboard = null;
