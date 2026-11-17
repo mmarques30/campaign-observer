@@ -647,7 +647,8 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       if (hashes.has(hash)) continue;
       hashes.add(hash);
       // Foto de matéria: o que ela MOSTRA de fato (visto na imagem), para o editor pôr na frase certa.
-      if (args.tipo === "noticia")
+      // Toda foto é olhada (banco de imagem também: "obra" já veio como obra de arte).
+      if (a.tipo === "imagem")
         a.credito = `${await descreverImagem(
           bytes,
           bytes[0] === 0x89
