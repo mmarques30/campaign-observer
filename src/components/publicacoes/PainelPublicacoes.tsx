@@ -134,18 +134,23 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
         .limit(200);
       if (error) throw new Error(error.message);
       const lista = (data ?? []) as Pub[];
-      // Miniatura: a do Instagram quando existe; senão a primeira imagem que subimos.
-      const semThumb = lista
-        .filter((p) => !p.thumb && p.midias?.[0] && /\.(jpe?g|png|webp)$/i.test(p.midias[0]))
-        .map((p) => p.midias[0]);
-      const { data: urls } = semThumb.length
-        ? await supabase.storage.from(BUCKET).createSignedUrls(semThumb, 60 * 60 * 6)
+      // Miniatura: a capa guardada no bucket (thumb sem http); senão a primeira imagem que subimos.
+      // Link da Meta (http…) expira em dias: a função publicar-agendados troca pelo arquivo guardado.
+      const caminho = (p: Pub) =>
+        p.thumb && !/^https?:/i.test(p.thumb)
+          ? p.thumb
+          : !p.thumb && p.midias?.[0] && /\.(jpe?g|png|webp)$/i.test(p.midias[0])
+            ? p.midias[0]
+            : null;
+      const paths = lista.map(caminho).filter((x): x is string => !!x);
+      const { data: urls } = paths.length
+        ? await supabase.storage.from(BUCKET).createSignedUrls(paths, 60 * 60 * 6)
         : { data: [] as { path: string | null; signedUrl: string }[] };
       const porPath = new Map((urls ?? []).map((u) => [u.path, u.signedUrl]));
-      return lista.map((p) => ({
-        ...p,
-        thumb: p.thumb ?? (p.midias?.[0] ? (porPath.get(p.midias[0]) ?? null) : null),
-      }));
+      return lista.map((p) => {
+        const c = caminho(p);
+        return { ...p, thumb: c ? (porPath.get(c) ?? null) : p.thumb };
+      });
     },
   });
   const idsAd = (pubs.data ?? []).map((p) => p.meta_ad_id).filter(Boolean) as string[];
@@ -434,7 +439,13 @@ export function PainelPublicacoes({ origem }: { origem: Origem }) {
                 <CardContent className="p-3 flex gap-3 items-start">
                   <div className="h-24 w-20 shrink-0 rounded-md overflow-hidden border bg-muted">
                     {p.thumb && (
-                      <img src={p.thumb} className="h-full w-full object-cover" loading="lazy" />
+                      <img
+                        src={p.thumb}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        onError={(e) => (e.currentTarget.style.display = "none")}
+                      />
                     )}
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
@@ -664,7 +675,14 @@ function PostsSemVinculo({
           {posts.map((p) => (
             <div key={p.ig_media_id} className="py-2 flex gap-3 items-start">
               <div className="h-16 w-12 shrink-0 rounded-lg overflow-hidden border bg-muted">
-                {p.thumb && <img src={p.thumb} className="h-full w-full object-cover" />}
+                {p.thumb && (
+                  <img
+                    src={p.thumb}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={(e) => (e.currentTarget.style.display = "none")}
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="text-xs text-muted-foreground">

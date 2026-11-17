@@ -260,6 +260,59 @@ async function medirUma(sb: any, token: string, p: any) {
   return m;
 }
 
+// ---------- capas ----------
+// O link de imagem que a Meta devolve (fbcdn/cdninstagram) expira em poucos dias e a miniatura
+// quebra na tela. Cada capa é baixada uma vez com um link novo e guardada no nosso bucket; a
+// coluna thumb passa a ter o caminho no bucket (a tela gera o link assinado).
+async function linkNovoDaCapa(token: string, p: any): Promise<string | null> {
+  try {
+    if (p.ig_media_id) {
+      const j = await graph("GET", p.ig_media_id, token, { fields: "thumbnail_url,media_url,media_type" });
+      return j.thumbnail_url ?? (j.media_type === "VIDEO" ? null : j.media_url) ?? null;
+    }
+    if (p.meta_ad_id) {
+      const j = await graph("GET", p.meta_ad_id, token, {
+        fields: "creative{thumbnail_url,image_url}",
+        thumbnail_width: "600",
+        thumbnail_height: "600",
+      });
+      return j.creative?.image_url ?? j.creative?.thumbnail_url ?? null;
+    }
+  } catch (_) {
+    /* sem link novo: tenta o que já estava salvo */
+  }
+  return null;
+}
+async function guardarCapas(sb: any, token: string, limite = 25, ids?: string[]) {
+  let q = sb
+    .from("publicacoes")
+    .select("id, ig_media_id, meta_ad_id, thumb")
+    .like("thumb", "http%")
+    .limit(limite);
+  if (ids?.length) q = q.in("id", ids);
+  const { data } = await q;
+  let n = 0;
+  for (const p of data ?? []) {
+    try {
+      const url = (await linkNovoDaCapa(token, p)) ?? p.thumb;
+      const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+      if (!r.ok) continue;
+      const tipo = r.headers.get("content-type") ?? "image/jpeg";
+      if (!tipo.startsWith("image/")) continue;
+      const path = `publicacoes/capas/${p.id}.jpg`;
+      const up = await sb.storage
+        .from(BUCKET)
+        .upload(path, await r.arrayBuffer(), { contentType: tipo, upsert: true });
+      if (up.error) continue;
+      await sb.from("publicacoes").update({ thumb: path }).eq("id", p.id);
+      n++;
+    } catch (_) {
+      /* fica para a próxima rodada */
+    }
+  }
+  return n;
+}
+
 /** Atualiza as métricas do Instagram das publicações (as pedidas, ou as mais desatualizadas). */
 async function atualizarMetricas(sb: any, ids?: string[]) {
   const token = await tokenMeta(sb);
@@ -349,6 +402,9 @@ Deno.serve(async (req) => {
       const resultados = await processar(sb);
       // Métricas: a cada rodada, as mais desatualizadas (cada uma é revista a cada ~3 h).
       const medidas = await atualizarMetricas(sb).catch(() => 0);
+      const capas = await tokenMeta(sb)
+        .then((tk) => guardarCapas(sb, tk, 10))
+        .catch(() => 0);
       // Uma vez por hora: liga anúncios publicados direto na Meta ao vídeo/criativo de origem.
       // e posts publicados direto no Instagram ao vídeo/criativo de origem.
       let vinculos: unknown = null;
@@ -361,7 +417,7 @@ Deno.serve(async (req) => {
             .catch((e) => ({ erro: String(e) })),
         };
       }
-      return json({ ok: true, resultados, medidas, vinculos });
+      return json({ ok: true, resultados, medidas, capas, vinculos });
     }
     const b = await req.json().catch(() => ({}));
     if (b.acao === "conta") {
@@ -420,11 +476,13 @@ Deno.serve(async (req) => {
         link: a.on_platform_audio_preview_link ?? null,
       });
     }
-    if (b.acao === "metricas")
-      return json({
-        ok: true,
-        medidas: await atualizarMetricas(sb, Array.isArray(b.ids) ? b.ids : undefined),
-      });
+    if (b.acao === "metricas") {
+      const medidas = await atualizarMetricas(sb, Array.isArray(b.ids) ? b.ids : undefined);
+      const capas = await guardarCapas(sb, await tokenMeta(sb), 40).catch(() => 0);
+      return json({ ok: true, medidas, capas });
+    }
+    if (b.acao === "capas")
+      return json({ ok: true, capas: await guardarCapas(sb, await tokenMeta(sb), 60) });
     if (b.acao === "vincular") {
       const tk = await tokenMeta(sb);
       const anuncios = await vincularAnuncios(sb, graphMeta(tk), 45, !!b.simular);
