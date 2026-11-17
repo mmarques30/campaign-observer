@@ -237,7 +237,7 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
 8b. Imagens: quando a fala cita um app, canal ou ferramenta (WhatsApp, e-mail, planilha, Instagram, Google…) ou um objeto simples (dinheiro, relógio, gráfico), prefira o efeito "icones" (logos/ícones que saltam na tela, entrando na palavra exata) — não precisa buscar nada. Para FOTOS ou VÍDEOS reais da internet (cenário, pessoas, escritório), chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Uma busca por vez. Nunca invente ids. Até 3 buscas por pedido.
 8c. A imagem é a PROVA do que está sendo dito naquele segundo. Quando a fala cita um fato, nome próprio ou notícia (um desenho, um canal, um órgão, um país, uma pessoa, uma empresa, um número do dia), busque com tipo "noticia" o fato exato (ex.: fala "um episódio dos Simpsons" → consulta "Simpsons episódio apagão"; "a CNN Brasil confirmou" → "CNN Brasil apagão mundial boato"; "orientação de defesa americana" → "FEMA alerta apagão Estados Unidos"). Banco de imagens genérico (pessoa no celular, cidade escura) só para o que é genérico na fala. Cada mídia entra UMA vez no vídeo: nunca repita o mesmo id em dois trechos; se faltar imagem, deixe a fala sem mídia em vez de repetir ou pôr algo sem ligação. Teste de cada mídia antes de usar: "quem assiste entende, só pela imagem, do que a frase fala?" Se não, não entra. Nunca use imagem decorativa (paisagem, pessoa genérica, textura, cidade qualquer) para uma fala que cita um fato concreto. Na resposta, liste cada mídia com a frase em que ela entra.
-8d. Tela dividida em sequência (como nas referências de split): os "dividir" ficam EMENDADOS (o "ate" de um é o "de" do próximo, mesmo lado e proporção), trocando a mídia no corte seco. Nunca deixe buracos de 1–3 s entre eles: o painel some e volta e fica "descendo" toda hora.
+8d. Tela dividida em sequência (como nas referências de split): os "dividir" ficam EMENDADOS (o "ate" de um é o "de" do próximo, mesmo lado e proporção), trocando a mídia no corte seco. Nunca deixe buracos de 1–3 s entre eles: o painel some e volta e fica "descendo" toda hora. Em todo /dividir e /broll passe "frase": as 2–4 palavras EXATAS da transcrição em que a imagem entra (a que ela prova); o sistema ancora a entrada nessa palavra. Use a descrição "MOSTRA:" de cada mídia para escolher: a imagem tem que mostrar o que a frase diz.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
 ${
@@ -369,6 +369,37 @@ function emendarDivisoes(tl: any) {
     if (b.de > a.ate && noFinal(a.ate, b.de) <= 3) a.ate = b.de;
     if (a.props && b.props && a.props.proporcao !== b.props.proporcao)
       b.props.proporcao = a.props.proporcao;
+  }
+}
+
+/** Olha a foto e diz em poucas palavras o que ela mostra (o título da matéria nem sempre bate). */
+async function descreverImagem(url: string) {
+  const chave = Deno.env.get("ANTHROPIC_API_KEY") ?? Deno.env.get("CLAUDE_API_KEY");
+  if (!chave) return "foto de matéria";
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("VEDIT_MODELO_BUSCA") || "claude-haiku-5-5",
+        max_tokens: 80,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "image", source: { type: "url", url } },
+              { type: "text", text: "Descreva em até 12 palavras, em português, o que esta imagem mostra de fato (pessoas, logos, telas, texto legível). Só a descrição." },
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    const j = await r.json();
+    const t = (j?.content ?? []).find((c: any) => c.type === "text")?.text?.trim();
+    return t ? `MOSTRA: ${t}` : "foto de matéria";
+  } catch {
+    return "foto de matéria";
   }
 }
 
@@ -577,6 +608,16 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
     };
   const salvas: { id: string; nome: string; tipo: string; duracao?: number; credito: string }[] =
     [];
+  // Mesma imagem vinda de matérias diferentes (ou já usada no projeto) não entra duas vezes.
+  const { data: jaNoProjeto } = await sb
+    .from("vedit_midias")
+    .select("descricao")
+    .eq("projeto_id", projetoId);
+  const hashes = new Set<string>(
+    (jaNoProjeto ?? [])
+      .map((m: any) => String(m.descricao ?? "").match(/\[h:([0-9a-f]{16})\]/)?.[1])
+      .filter(Boolean),
+  );
   for (const a of achados) {
     try {
       const dl = await fetch(a.url, {
@@ -585,6 +626,16 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       });
       if (!dl.ok) continue;
       const blob = await dl.blob();
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
+        .slice(0, 8)
+        .map((x) => x.toString(16).padStart(2, "0"))
+        .join("");
+      if (hashes.has(hash)) continue;
+      hashes.add(hash);
+      // Foto de matéria: o que ela MOSTRA de fato (visto na imagem), para o editor pôr na frase certa.
+      if (args.tipo === "noticia") a.credito = `${await descreverImagem(a.url)} — fonte: ${a.credito}`;
+      a.credito = `${a.credito} [h:${hash}]`;
       const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
       const up = await sb.storage.from("video-edicao").upload(path, blob, {
         contentType: blob.type || (a.tipo === "video" ? "video/mp4" : "image/jpeg"),
@@ -784,6 +835,26 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
       return b?.layout === "texto-cheio" || (b?.sobreposicoes ?? []).length > 0;
     return true;
   });
+  // Cada imagem entra na frase que ela prova: "frase" (palavras exatas da fala) ancora o início.
+  const nrm = (x: string) =>
+    String(x ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const ws = palavras.map((w: any) => ({ ...w, n: nrm(w.p) }));
+  const dentro = (t: number) => cortes.some((c) => t >= c.de && t <= c.ate);
+  for (const e of tl.efeitos as any[]) {
+    const fr = String(e.props?.frase ?? "").split(/\s+/).map(nrm).filter(Boolean).slice(0, 4);
+    if (!fr.length) continue;
+    let melhor: number | null = null;
+    for (let i = 0; i + fr.length <= ws.length; i++) {
+      if (!fr.every((f, k) => ws[i + k].n === f) || !dentro(ws[i].i)) continue;
+      // fala repetida: fica a ocorrência mais perto de onde o Claude pôs
+      if (melhor == null || Math.abs(ws[i].i - e.de) < Math.abs(melhor - e.de)) melhor = ws[i].i;
+    }
+    if (melhor != null) {
+      const dur = Number(e.ate) - Number(e.de);
+      e.de = +melhor.toFixed(2);
+      e.ate = +(melhor + Math.max(1, dur)).toFixed(2);
+    }
+  }
   // Tela dividida contínua dentro de cada bloco "dividida": do começo ao fim do bloco, trocando a mídia.
   for (const b of blocos.filter((x) => x.layout === "dividida")) {
     const divs = (tl.efeitos as any[])

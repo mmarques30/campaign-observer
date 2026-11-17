@@ -418,7 +418,12 @@ export function Reel(bruto: ReelProps) {
           .join(" ") || undefined,
     },
   };
-  const efeitos = tl.efeitos.filter((e) => EFEITO_POR_TIPO[e.tipo]?.componente);
+  // Formatos de tela (mídia dividida) ficam por baixo: caixa de gancho, textos e CTA vão por cima.
+  const efeitos = tl.efeitos
+    .filter((e) => EFEITO_POR_TIPO[e.tipo]?.componente)
+    .map((e, i) => ({ e, i }))
+    .sort((x, y) => (x.e.tipo === "dividir" ? 0 : 1) - (y.e.tipo === "dividir" ? 0 : 1) || x.i - y.i)
+    .map(({ e }) => e);
   const camada = (cheia: boolean) =>
     efeitos
       .filter((e) => !!EFEITO_POR_TIPO[e.tipo].telaCheia === cheia)
