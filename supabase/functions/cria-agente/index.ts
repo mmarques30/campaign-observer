@@ -321,9 +321,14 @@ Nos "moldes" a medida é o que importa: posição, largura, tamanho de letra, qu
     if (!analise) throw new Error("a análise não veio em JSON");
     await sb.from("cria_referencias").update({ status: "pronta", analise }).eq("id", id);
   } catch (e) {
+    // Reanálise que falha não estraga a referência: a análise anterior continua valendo.
     await sb
       .from("cria_referencias")
-      .update({ status: "erro", erro: String((e as Error).message).slice(0, 500) })
+      .update(
+        ref.analise
+          ? { status: "pronta" }
+          : { status: "erro", erro: String((e as Error).message).slice(0, 500) },
+      )
       .eq("id", id);
   }
   await liberarPendentes(sb, id);
