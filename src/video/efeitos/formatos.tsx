@@ -28,6 +28,7 @@ export function Dividir({ p, ctx, dur }: EfeitoProps) {
   const saida = colaDepois ? 1 : es.saida;
   const vertical = lado === "cima" || lado === "baixo";
   const prop = Number(p.proporcao ?? 0.5);
+  const degrade = p.emenda === "degrade";
   const avanco = interpolate(entrada, [0, 1], [0, 1]);
   const caixa: React.CSSProperties = vertical
     ? {
@@ -59,7 +60,21 @@ export function Dividir({ p, ctx, dur }: EfeitoProps) {
       };
   return (
     <AbsoluteFill style={{ opacity: saida }}>
-      <div style={{ position: "absolute", overflow: "hidden", background: "#000", ...caixa }}>
+      <div
+        style={{
+          position: "absolute",
+          overflow: "hidden",
+          background: degrade ? "transparent" : "#000",
+          ...caixa,
+          // Emenda em degradê (como nos vídeos de comentário): a mídia se dissolve na pessoa, sem linha.
+          ...(degrade
+            ? {
+                WebkitMaskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 82%, transparent 100%)`,
+                maskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 82%, transparent 100%)`,
+              }
+            : {}),
+        }}
+      >
         <div
           style={{
             position: "absolute",
@@ -89,7 +104,9 @@ export function Dividir({ p, ctx, dur }: EfeitoProps) {
           </div>
         )}
       </div>
-      <div style={{ position: "absolute", background: ctx.tl.marca.destaque, ...linha }} />
+      {p.emenda === "linha" && (
+        <div style={{ position: "absolute", background: ctx.tl.marca.destaque, ...linha }} />
+      )}
     </AbsoluteFill>
   );
 }

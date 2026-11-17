@@ -40,7 +40,28 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
   const pr = a.preset_estilo ?? {};
   // Paleta fechada ao seguir referência: o visual vem da composição livre, não dos modelos prontos.
   const textoRef = JSON.stringify([a.estilo, a.tecnicas, a.layouts, a.preset_estilo]);
-  const formatosRef = FORMATOS_DE_TELA.filter(([re]) => re.test(textoRef)).map(([, t]) => t);
+  const dec = (a as { decupagem?: any }).decupagem as
+    | { trechos?: any[]; legenda?: any; nao_usa?: string[]; resumo_estrutura?: string; pessoa_na_dividida?: any }
+    | undefined;
+  const layoutsDec = new Set((dec?.trechos ?? []).map((t: any) => t.layout));
+  const formatosRef = dec?.trechos?.length
+    ? [
+        ...(layoutsDec.has("dividida") ? ["dividir"] : []),
+        ...(layoutsDec.has("midia-cheia") ? ["broll"] : []),
+      ]
+    : FORMATOS_DE_TELA.filter(([re]) => re.test(textoRef)).map(([, t]) => t);
+  const mapaEstrutura = dec?.trechos?.length
+    ? `DECUPAGEM DA REFERÊNCIA (${Number(r.duracao ?? 0).toFixed(0)}s) — a ESTRUTURA obrigatória. Cada bloco cai no mesmo momento RELATIVO deste vídeo (ex.: 0–13s de 90s = primeiros 14% daqui), ajustado ao fim da frase. Dentro de um bloco "dividida" a tela fica dividida o bloco inteiro e só a mídia troca (no ritmo indicado); em "so-fala" não entra nenhuma mídia nem grafismo, só você e a legenda. Depois de você, o sistema força essa estrutura: o que estiver fora dela é descartado.
+${dec.trechos
+  .map(
+    (t: any) =>
+      `- ${t.de}s–${t.ate}s: ${t.layout}${t.layout === "dividida" ? ` (mídia ${t.lado_midia ?? "cima"} ocupando ${t.midia_ocupa ?? "?"} da altura, emenda ${t.emenda ?? "?"}, troca a cada ~${t.troca_midia_s ?? 2}s)` : ""}${t.midia_tipo ? `; mídias: ${t.midia_tipo}` : ""}${t.sobreposicoes?.length ? `; sobre a tela: ${t.sobreposicoes.join("; ")}` : ""}`,
+  )
+  .join("\n")}
+Estrutura em resumo: ${dec.resumo_estrutura ?? ""}
+Legenda: ${JSON.stringify(dec.legenda ?? {})}
+A referência NÃO usa: ${(dec.nao_usa ?? []).join(", ") || "(nada listado)"} — então isso não entra.`
+    : "";
   const efeitos = [...PALETA_REFERENCIA, ...formatosRef].filter(
     (t) => EFEITO_POR_TIPO[t]?.disponivel,
   );
@@ -158,14 +179,16 @@ ${JSON.stringify(a.layouts).slice(0, 6000)}`
     : ""
 }
 
+${mapaEstrutura}
+
 ${planoRoteiro}
 
 REGRAS AO SEGUIR A REFERÊNCIA:
 1. Copie a ESTRUTURA ao pé da letra: layout de cada grafismo (posição, tamanho, fonte, caixa, acabamento), ritmo, transições, estilo e posição da legenda. Da marca, só as cores. NUNCA copie textos, marcas, nomes de produto, @, assunto, números ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo (a TRANSCRIÇÃO) e da nossa marca. NUNCA invente dados, números, depoimentos, nomes de clientes nem textos de preenchimento ("Cliente 1", "Cargo · Empresa"): se a referência tem depoimento, ranking ou número e a fala deste vídeo não tem, PULE essa técnica.
 2. Não encurte o vídeo. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas.
-3. Os efeitos antigos foram apagados. FORMATO DE TELA igual ao da referência: ${formatosRef.length ? `ela usa ${formatosRef.map((t) => "/" + t).join(", ")} — use os mesmos, nos mesmos momentos relativos, com a mesma proporção e lado (ex.: tela dividida com mídia em cima ocupando ~38% e você embaixo; b-roll em tela cheia de 1,5–2 s cortando na palavra concreta)` : "ela não divide a tela nem corta para outra mídia"}. Grafismos, cards, listas, telas de app, números e ícones são ELEMENTOS da /composicao no desenho da referência. Não use modelos prontos que ela não usa (cards-flutuantes, mockup, icones, palavra-gigante, letreiro, colagem, rabisco, partículas). /cta-final no fim, como último efeito.
+3. Os efeitos antigos foram apagados. FORMATO DE TELA igual ao da referência: ${formatosRef.length ? `ela usa ${formatosRef.map((t) => "/" + t).join(", ")} — use os mesmos, nos mesmos momentos relativos, com a mesma proporção, lado e emenda medidos na DECUPAGEM (em /dividir passe "proporcao" e "emenda" exatamente como lá)` : "ela não divide a tela nem corta para outra mídia"}. Grafismos, cards, listas, telas de app, números e ícones são ELEMENTOS da /composicao no desenho da referência. Não use modelos prontos que ela não usa (cards-flutuantes, mockup, icones, palavra-gigante, letreiro, colagem, rabisco, partículas). /cta-final no fim, como último efeito.
 4. A pessoa só sai da tela onde a referência também tira (b-roll em tela cheia curto); no resto ela fica visível. Em /composicao com fundo sólido, inclua um elemento {"tipo":"pessoa"} como na referência.
-5. IMAGENS E VÍDEOS DA REFERÊNCIA (obrigatório): para CADA técnica de categoria "midia" ou "formato" acima (vídeos, fotos, prints, b-roll, janelinhas, tela dividida), coloque a equivalente com o assunto DESTE vídeo, no mesmo momento relativo e no mesmo formato de tela (/dividir, /broll ou elemento da /composicao, como ela fez), com o mesmo acabamento (tamanho, posição, cantos, borda, sombra, entrada). Prefira VÍDEO quando ela usou vídeo:
+5. IMAGENS E VÍDEOS DA REFERÊNCIA (obrigatório; o TIPO de mídia é o mesmo dela: se ela mostra fotos/vídeos reais do fato citado, aqui também são fotos reais do fato que você cita, via buscar_midia tipo "noticia"; nada de ícone ou desenho onde ela usou foto): para CADA técnica de categoria "midia" ou "formato" acima (vídeos, fotos, prints, b-roll, janelinhas, tela dividida), coloque a equivalente com o assunto DESTE vídeo, no mesmo momento relativo e no mesmo formato de tela (/dividir, /broll ou elemento da /composicao, como ela fez), com o mesmo acabamento (tamanho, posição, cantos, borda, sombra, entrada). Prefira VÍDEO quando ela usou vídeo:
    - ilustração, objeto, app ou logo → elemento {"tipo":"icone"} (ex.: planilha, whatsapp, dinheiro) entrando na palavra exata;
    - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 8 buscas, peça várias de uma vez na mesma resposta, tipo "video" quando ela usou vídeo) e use o id devolvido num elemento {"tipo":"midia","midia":"<id>"} (janela com borda e raio, como na referência, ou grande atrás dos textos);
    - print ou gravação de tela → mídia enviada deste vídeo num elemento "midia"; sem print enviado, desenhe a tela com caixas e textos dentro da composição.

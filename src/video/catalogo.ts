@@ -707,7 +707,7 @@ export const EFEITOS: EfeitoDef[] = [
       "Uma mídia ocupa metade da tela (cima, baixo, esquerda ou direita); você fica na outra metade.",
     quandoUsar: "Comparar, mostrar o que está sendo comentado, demonstração ao lado da fala.",
     params:
-      "midia (id) | tempo?, lado: 'cima'|'baixo'|'esquerda'|'direita', proporcao?: 0.3–0.7, legenda?, som?: boolean",
+      "midia (id) | tempo?, lado: 'cima'|'baixo'|'esquerda'|'direita', proporcao?: 0.3–0.7, emenda?: 'degrade'|'linha'|'seca' (como a mídia encontra a pessoa), legenda?, som?: boolean",
     duracaoPadrao: 4,
     somPadrao: "swipe",
     escondeLegenda: false,
@@ -717,7 +717,9 @@ export const EFEITOS: EfeitoDef[] = [
     // cortes): a mídia nunca cobre o rosto, e telas divididas emendadas não "pulsam" na troca.
     cardPessoa: (p) => {
       const lado = String(p.lado ?? "cima");
-      const prop = Math.min(0.7, Math.max(0.3, Number(p.proporcao ?? 0.5)));
+      // Em degradê a mídia se dissolve sobre a pessoa: o quadro dela começa um pouco antes da emenda.
+      const prop =
+        Math.min(0.7, Math.max(0.3, Number(p.proporcao ?? 0.5))) - (p.emenda === "degrade" ? 0.06 : 0);
       if (lado === "baixo") return { x: 0, y: 0, w: 1, h: 1 - prop, raio: 0, fundo: "#000000" };
       if (lado === "esquerda") return { x: prop, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };
       if (lado === "direita") return { x: 0, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };

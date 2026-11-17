@@ -354,6 +354,127 @@ const FERRAMENTA = {
   },
 };
 
+/** Decupagem: a ESTRUTURA medida da referência, trecho a trecho (layout de tela, quanto a mídia
+ *  ocupa, como as metades se encontram, ritmo de troca, legenda). É o mapa que a edição copia ao
+ *  pé da letra; a análise de técnicas fica como apoio. */
+const DECUPAGEM_SCHEMA = {
+  type: "object",
+  properties: {
+    trechos: {
+      type: "array",
+      description:
+        "A linha do tempo inteira, sem buracos, do 0 ao fim. Um trecho novo sempre que o LAYOUT muda (não a cada troca de imagem).",
+      items: {
+        type: "object",
+        properties: {
+          de: { type: "number" },
+          ate: { type: "number" },
+          layout: {
+            type: "string",
+            enum: ["dividida", "so-fala", "midia-cheia", "texto-cheio"],
+            description:
+              "dividida = mídia numa parte e a pessoa falando na outra; so-fala = só a pessoa em tela cheia; midia-cheia = só imagem/vídeo de apoio; texto-cheio = tela de texto/grafismo.",
+          },
+          lado_midia: { type: ["string", "null"], enum: ["cima", "baixo", "esquerda", "direita", null] },
+          midia_ocupa: {
+            type: ["number", "null"],
+            description: "Fração da ALTURA (ou largura) que a mídia ocupa, medida nos quadros (ex.: 0.55).",
+          },
+          emenda: {
+            type: ["string", "null"],
+            enum: ["degrade", "linha", "seca", null],
+            description: "Como a mídia encontra a pessoa: degradê suave, linha/borda, ou corte reto.",
+          },
+          troca_midia_s: {
+            type: ["number", "null"],
+            description: "De quantos em quantos segundos a imagem de apoio troca dentro do trecho.",
+          },
+          midia_tipo: {
+            type: ["string", "null"],
+            description:
+              "O que as mídias mostram em relação à fala (ex.: 'foto/vídeo real do fato citado', 'produto citado', 'banco de imagem genérico').",
+          },
+          sobreposicoes: {
+            type: "array",
+            items: { type: "string" },
+            description: "Grafismos que existem de fato neste trecho (ex.: 'caixa branca com o gancho em 3 linhas no canto inferior esquerdo da mídia'). Vazio se não há.",
+          },
+        },
+        required: ["de", "ate", "layout"],
+      },
+    },
+    pessoa_na_dividida: {
+      type: "object",
+      properties: {
+        rosto_y: { type: "number", description: "Altura do centro do rosto no quadro quando a tela está dividida (0–1)." },
+        tamanho_relativo: {
+          type: "number",
+          description: "Tamanho da pessoa na dividida em relação à tela cheia (1 = igual, 0.75 = menor).",
+        },
+      },
+    },
+    legenda: {
+      type: "object",
+      properties: {
+        palavras_por_bloco: { type: "integer" },
+        y: { type: "number", description: "Altura do centro da legenda (0–1)." },
+        tamanho: { type: "string", enum: ["pequena", "media", "grande"] },
+        cor: { type: "string" },
+        caixa_alta: { type: "boolean" },
+        estilo: { type: "string", description: "Ex.: 'palavra solta branca sem fundo, fonte regular'." },
+      },
+    },
+    nao_usa: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Recursos que a referência NÃO usa e que não podem aparecer na cópia (ex.: música, efeitos sonoros, cards, palavra gigante, zoom, ícones, barra de progresso).",
+    },
+    resumo_estrutura: {
+      type: "string",
+      description: "Em 2–3 frases, a estrutura: como os blocos se alternam e em que proporção do vídeo.",
+    },
+  },
+  required: ["trechos", "legenda", "nao_usa", "resumo_estrutura"],
+};
+
+async function decupar(key: string, imagens: any[], duracao: number, fala: string) {
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODELO,
+      max_tokens: 6000,
+      system:
+        "Você é montador de vídeo fazendo a DECUPAGEM de um Reel: mede a estrutura visual quadro a quadro para ela ser copiada exatamente. Só registre o que está nos quadros; nunca sugira melhorias nem recursos que o vídeo não tem. Meça proporções olhando onde as bordas ficam no quadro. Português do Brasil.",
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...imagens,
+            {
+              type: "text",
+              text: `Duração: ${duracao.toFixed(1)}s. As imagens são folhas de quadros em ordem (3 colunas × 4 linhas, esquerda→direita, cima→baixo), com o tempo no canto de cada quadro.\n\nFALA:\n${fala.slice(0, 4000)}\n\nResponda SOMENTE com JSON válido neste schema:\n${JSON.stringify(DECUPAGEM_SCHEMA)}`,
+            },
+          ],
+        },
+      ],
+    }),
+  });
+  const j = await r.json().catch(() => null);
+  const txt = (j?.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
+  try {
+    const d = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
+    if (!Array.isArray(d?.trechos) || !d.trechos.length) return { decupagem: null, usage: j?.usage };
+    d.trechos = d.trechos
+      .filter((t: any) => typeof t.de === "number" && typeof t.ate === "number" && t.ate > t.de)
+      .sort((a: any, b: any) => a.de - b.de);
+    return { decupagem: d, usage: j?.usage };
+  } catch {
+    return { decupagem: null, usage: j?.usage };
+  }
+}
+
 async function analisar(sb: any, id: string, catalogo: string) {
   const { data: ref } = await sb.from("vedit_referencias").select("*").eq("id", id).single();
   if (!ref) return json({ error: "referência não encontrada" }, 404);
@@ -396,6 +517,10 @@ ${JSON.stringify(FERRAMENTA.input_schema)}`;
     Array.isArray(a.tecnicas) &&
     typeof a.prompt_para_editor === "string" &&
     !/<parameter name=/.test(JSON.stringify(a));
+  const pDecupagem = decupar(key, imagens, Number(ref.duracao ?? 0), fala).catch(() => ({
+    decupagem: null,
+    usage: null,
+  }));
   let analise: any = null;
   for (let tentativa = 0; tentativa < 2 && !valida(analise); tentativa++) {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -408,7 +533,7 @@ ${JSON.stringify(FERRAMENTA.input_schema)}`;
       body: JSON.stringify({
         model: MODELO,
         max_tokens: 16000,
-        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Seja enxuto: no máximo 12 técnicas (agrupe as repetidas), descricao e como_reproduzir com até 30 palavras cada. Capte o DESIGN com precisão: tipografia (escolha a fonte nossa mais parecida), cores exatas, onde cada grafismo fica no quadro e como entra; em layouts, redesenhe as telas-chave como composição (é isso que permite reproduzir o visual em outro vídeo). Nunca ponha grafismo em cima do rosto da pessoa. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
+        system: `Você é diretor de edição da IAplicada analisando Reels de referência para extrair técnicas reproduzíveis. Seja concreto e técnico: nomeie cada técnica, diga em que segundos acontece, o que está na tela e como reproduzir (camadas, movimento, duração, fonte, cor). Compare com o nosso catálogo e marque cada técnica como temos / adaptar / criar, citando o tipo do efeito nosso quando houver. Liste SÓ o que a referência faz de verdade: nunca proponha recurso que ela não usa (se ela não tem cards, palavra gigante, música ou zoom, eles não entram nem como "adaptar"); "adaptar" é só para algo que ela faz e o nosso efeito reproduz com ajuste. Meça proporções nos quadros (ex.: onde fica a borda da tela dividida), não chute. Seja enxuto: no máximo 12 técnicas (agrupe as repetidas), descricao e como_reproduzir com até 30 palavras cada. Capte o DESIGN com precisão: tipografia (escolha a fonte nossa mais parecida), cores exatas, onde cada grafismo fica no quadro e como entra; em layouts, redesenhe as telas-chave como composição (é isso que permite reproduzir o visual em outro vídeo). Nunca ponha grafismo em cima do rosto da pessoa. Escreva em português do Brasil, sem emojis. O prompt_para_editor deve ser um pedido natural que a pessoa cola no chat do editor (ex.: "Edita no estilo estúdio branco: /titulo com a palavra-chave em vermelho nos 3 primeiros segundos, /letreiro em 'resolve', zoom de soco a cada frase, legenda karaoke 1 palavra por bloco, /cta no final com 'EDIT IA'").`,
         messages: [{ role: "user", content: [...imagens, { type: "text", text: texto }] }],
       }),
     });
@@ -447,6 +572,9 @@ ${JSON.stringify(FERRAMENTA.input_schema)}`;
       .eq("id", id);
     return json({ error: "análise incompleta" }, 502);
   }
+  const dec = await pDecupagem;
+  if (dec.usage) await logUso(sb, "vedit-referencia", dec.usage, id);
+  if (dec.decupagem) analise.decupagem = dec.decupagem;
   await sb.from("vedit_referencias").update({ analise, status: "pronta", erro: null }).eq("id", id);
   return json({ ok: true, analise });
 }

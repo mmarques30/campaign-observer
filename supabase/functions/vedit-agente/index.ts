@@ -705,6 +705,115 @@ const luma = (hex: string) => {
   if (Number.isNaN(n)) return 0.5;
   return (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
 };
+/** Impõe a DECUPAGEM da referência na edição: os blocos de layout dela (tela dividida, só fala,
+ *  mídia cheia) caem nos mesmos momentos relativos do nosso vídeo (ajustados ao fim da frase), a
+ *  tela dividida fica contínua dentro de cada bloco, sai tudo que ela não usa e a legenda vai para
+ *  a mesma posição e tamanho. O Claude escolhe as mídias; a estrutura não fica a critério dele. */
+function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number; f: number }[]) {
+  const trechosRef = (dec?.trechos ?? []) as any[];
+  if (!trechosRef.length || !(durRef > 0)) return;
+  const cortes = ((Array.isArray(tl.cortes) && tl.cortes.length ? tl.cortes : null) ?? [
+    { de: 0, ate: Number(tl.duracaoFonte ?? palavras.at(-1)?.f ?? 0) },
+  ]) as { de: number; ate: number }[];
+  const D = cortes.reduce((s, c) => s + (c.ate - c.de), 0);
+  if (!(D > 1)) return;
+  // fonte → saída e saída → fonte, na ordem dos cortes
+  const paraSaida = (t: number) => {
+    let acc = 0;
+    for (const c of cortes) {
+      if (t >= c.de && t <= c.ate) return acc + (t - c.de);
+      acc += c.ate - c.de;
+    }
+    let a2 = 0;
+    for (const c of cortes) {
+      if (c.de > t) return a2;
+      a2 += c.ate - c.de;
+    }
+    return D;
+  };
+  const paraFonte = (o: number) => {
+    let acc = 0;
+    for (const c of cortes) {
+      const d = c.ate - c.de;
+      if (o <= acc + d) return c.de + (o - acc);
+      acc += d;
+    }
+    return cortes.at(-1)!.ate;
+  };
+  // fins de palavra (na saída) para encaixar as fronteiras no fim de uma fala
+  const fins = palavras.map((w) => paraSaida(w.f)).sort((a, b) => a - b);
+  const encaixa = (o: number) => {
+    let melhor = o;
+    let dist = 1.6;
+    for (const f of fins) {
+      const d = Math.abs(f - o);
+      if (d < dist) {
+        dist = d;
+        melhor = f;
+      }
+    }
+    return melhor;
+  };
+  const blocos = trechosRef.map((t, i) => ({
+    ...t,
+    o0: i === 0 ? 0 : encaixa((t.de / durRef) * D),
+    o1: i === trechosRef.length - 1 ? D : encaixa((t.ate / durRef) * D),
+  }));
+  const blocoEm = (o: number) => blocos.find((b) => o >= b.o0 && o < b.o1) ?? blocos.at(-1);
+  const layouts = new Set(blocos.map((b) => b.layout));
+  const comSobrepos = blocos.filter((b) => (b.sobreposicoes ?? []).length);
+  const permitido = new Set<string>(["cta-final"]);
+  if (layouts.has("dividida")) permitido.add("dividir");
+  if (layouts.has("midia-cheia")) permitido.add("broll");
+  if (layouts.has("texto-cheio") || comSobrepos.length) permitido.add("composicao");
+  const efeitos = (tl.efeitos ?? []) as any[];
+  const meio = (e: any) => paraSaida((Number(e.de) + Number(e.ate ?? e.de)) / 2);
+  tl.efeitos = efeitos.filter((e) => {
+    if (!permitido.has(e.tipo)) return false;
+    if (e.tipo === "cta-final") return true;
+    const b = blocoEm(meio(e));
+    if (e.tipo === "dividir") return b?.layout === "dividida";
+    if (e.tipo === "broll") return b?.layout === "midia-cheia" || b?.layout === "dividida";
+    if (e.tipo === "composicao")
+      return b?.layout === "texto-cheio" || (b?.sobreposicoes ?? []).length > 0;
+    return true;
+  });
+  // Tela dividida contínua dentro de cada bloco "dividida": do começo ao fim do bloco, trocando a mídia.
+  for (const b of blocos.filter((x) => x.layout === "dividida")) {
+    const divs = (tl.efeitos as any[])
+      .filter((e) => e.tipo === "dividir" && meio(e) >= b.o0 && meio(e) < b.o1)
+      .sort((x, y) => paraSaida(x.de) - paraSaida(y.de));
+    if (!divs.length) continue;
+    const lado = b.lado_midia ?? "cima";
+    const prop = typeof b.midia_ocupa === "number" ? Math.min(0.7, Math.max(0.3, b.midia_ocupa)) : null;
+    divs.forEach((e, i) => {
+      e.props = {
+        ...(e.props ?? {}),
+        lado,
+        ...(prop ? { proporcao: +prop.toFixed(2) } : {}),
+        ...(b.emenda ? { emenda: b.emenda } : {}),
+      };
+      if (i === 0) e.de = +paraFonte(b.o0 + 0.01).toFixed(2);
+      e.ate = +(i + 1 < divs.length ? divs[i + 1].de : paraFonte(Math.max(0, b.o1 - 0.01))).toFixed(2);
+    });
+  }
+  // Legenda na mesma posição/tamanho/caixa da referência.
+  const lg = dec.legenda ?? {};
+  tl.legenda = {
+    ...(tl.legenda ?? {}),
+    ativa: true,
+    ...(typeof lg.y === "number" ? { altura: +Math.min(0.85, Math.max(0.15, lg.y)).toFixed(2) } : {}),
+    ...(lg.palavras_por_bloco ? { palavrasPorBloco: Math.min(8, Math.max(1, lg.palavras_por_bloco)) } : {}),
+    ...(lg.tamanho ? { tamanho: lg.tamanho === "pequena" ? 0.72 : lg.tamanho === "grande" ? 1.25 : 1 } : {}),
+    ...(typeof lg.caixa_alta === "boolean" ? { caixaAlta: lg.caixa_alta } : {}),
+  };
+  // O que ela não usa, não entra.
+  const nao = JSON.stringify(dec.nao_usa ?? []).toLowerCase();
+  if (/m[uú]sica|trilha/.test(nao)) tl.musica = { ...(tl.musica ?? {}), midia: null };
+  if (/efeito.? sonor|sfx|som/.test(nao)) tl.sfx = [];
+  if (/zoom/.test(nao) && tl.zoom) tl.zoom = { ...tl.zoom, eventos: [], alternar: false };
+}
+
 async function limparReferencia(sb: any, tl: any, refId: string, marca: any, proj: any) {
   const { data: ref } = await sb
     .from("vedit_referencias")
@@ -713,6 +822,10 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
     .maybeSingle();
   const a = ref?.analise;
   if (!a) return;
+  if (a.decupagem) {
+    const { data: refDur } = await sb.from("vedit_referencias").select("duracao").eq("id", refId).maybeSingle();
+    imporEstrutura(tl, a.decupagem, Number(refDur?.duracao ?? 0), (proj.palavras ?? []) as any[]);
+  }
   // Cores da referência: paleta + todo hex que aparece nos layouts e no preset.
   const hexes = new Set<string>();
   const coletar = (o: unknown) =>
