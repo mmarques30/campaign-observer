@@ -453,6 +453,7 @@ Layouts (use só estes):
   {"tipo":"forma","x":0,"y":0,"w":100,"h":12,"cor":"marca","raio":0,"opacidade":1,"borda":null}
   {"tipo":"linha","x1":10,"y1":50,"x2":90,"y2":50,"cor":"destaque","esp":4,"tracejada":false}
   Cores: use o NOME da cor do tema ("fundo", "texto", "destaque", "marca", "claro", "textoClaro") para que o slide saia nas cores da marca; hex só para preto/branco de sombra e escurecimento.
+  JSON ENXUTO no molde (carrossel longo estoura o limite de resposta): omita todo campo que for o padrão ou vazio (ancora "topo", alinhar "esquerda", italico false, caixa "normal", espacamento 0, raio 0, pad, sombra false, opacidade 1, fundo/fundoDestaque/borda null, zoom 1, rot) e não escreva "papel" nem "descricao".
 
 Visual que explica a fala (campo "visual", nos layouts texto e lista; na lista ele substitui os itens numerados e o texto vem antes dele). Use quando o slide fala de processo, números ou antes/depois e uma imagem ajudaria a entender:
 - {"tipo":"cards","itens":[{"icone":"lancamento","titulo":"Lançamento","detalhe":"nota por nota, digitado à mão","tag":"máquina faz"}]} (até 4 cards).
@@ -691,7 +692,7 @@ async function rodar(
     for (let volta = 0; volta < 8; volta++) {
       const j = await claude(
         sb,
-        { max_tokens: 12000, system: GUIA + regrasDaConta(conta), tools: FERRAMENTAS, messages },
+        { max_tokens: 20000, system: GUIA + regrasDaConta(conta), tools: FERRAMENTAS, messages },
         "cria-agente",
       );
       messages.push({ role: "assistant", content: j.content });
