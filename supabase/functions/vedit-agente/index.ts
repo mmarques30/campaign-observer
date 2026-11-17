@@ -754,8 +754,14 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
     }
     return melhor;
   };
+  // Legenda não é grafismo: "palavra solta" e afins não liberam composição no bloco.
+  const grafismos = (t: any) =>
+    ((t.sobreposicoes ?? []) as string[]).filter(
+      (x) => !/palavra solta|legenda|karaok|uma palavra|cta|aspas/i.test(String(x)),
+    );
   const blocos = trechosRef.map((t, i) => ({
     ...t,
+    sobreposicoes: grafismos(t),
     o0: i === 0 ? 0 : encaixa((t.de / durRef) * D),
     o1: i === trechosRef.length - 1 ? D : encaixa((t.ate / durRef) * D),
   }));
