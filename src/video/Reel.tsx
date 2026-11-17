@@ -432,7 +432,14 @@ export function Reel(bruto: ReelProps) {
           fps,
         );
         return (
-          <Sequence key={e.id} from={ini} durationInFrames={dur} name={`${def.nome}`}>
+          <Sequence
+            key={e.id}
+            from={ini}
+            durationInFrames={dur}
+            name={`${def.nome}`}
+            // Carrega a mídia 2 s antes de aparecer: sem isso o vídeo de apoio entra preto.
+            premountFor={fps * 2}
+          >
             <SemQuebrar nome={def.nome}>
               <Comp p={e.props ?? {}} dur={dur} ctx={{ ...ctxBase, deFonte: e.de }} />
             </SemQuebrar>
