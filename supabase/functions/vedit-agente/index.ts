@@ -879,6 +879,18 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
   if (layouts.has("dividida")) permitido.add("dividir");
   if (layouts.has("midia-cheia")) permitido.add("broll");
   if (layouts.has("texto-cheio") || comSobrepos.length) permitido.add("composicao");
+  // Mesma mídia em dois trechos: fica só a primeira vez.
+  const vistas = new Set<string>();
+  tl.efeitos = ((tl.efeitos ?? []) as any[])
+    .slice()
+    .sort((x, y) => Number(x.de) - Number(y.de))
+    .filter((e) => {
+      const m = e.props?.midia;
+      if (!m || (e.tipo !== "dividir" && e.tipo !== "broll")) return true;
+      if (vistas.has(m)) return false;
+      vistas.add(m);
+      return true;
+    });
   const efeitos = (tl.efeitos ?? []) as any[];
   const meio = (e: any) => paraSaida((Number(e.de) + Number(e.ate ?? e.de)) / 2);
   tl.efeitos = efeitos.filter((e) => {
