@@ -97,7 +97,12 @@ export function Midia({
       />
     );
   if (url) return <OffthreadVideo src={url} muted={mudo} style={s} onError={aoErrar()} />;
-  if (!ctx.fonteUrl)
+  // Mídia pedida mas ainda sem arquivo carregado: fundo neutro, nunca o próprio vídeo da pessoa
+  // (ficava ela em cima e embaixo na tela dividida).
+  if (midia) return <div style={{ ...s, background: "linear-gradient(135deg,#2a2a35,#111)" }} />;
+  // Mídia pedida que ainda não carregou (ou sumiu): fundo neutro, nunca o próprio vídeo da pessoa
+  // no lugar (parecia "tela dividida comigo mesma").
+  if (!ctx.fonteUrl || midia)
     return <div style={{ ...s, background: "linear-gradient(135deg,#2a2a35,#111)" }} />;
   const t = tempo ?? ctx.deFonte;
   return (

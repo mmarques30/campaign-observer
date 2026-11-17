@@ -246,6 +246,17 @@ function Editor() {
       ((await db().from("vedit_midias").select("*").eq("projeto_id", id).order("created_at"))
         .data ?? []) as Midia[],
   });
+  // A edição passou a usar uma mídia que esta tela ainda não carregou (entrou pelo editor IA ou por
+  // outra aba): busca a lista de novo, senão o trecho aparece sem a mídia.
+  const faltaMidia = (() => {
+    const tem = new Set((midiasQ.data ?? []).map((m) => m.id));
+    const efs = (((proj?.timeline as any)?.efeitos ?? []) as any[]).map((e) => e?.props?.midia);
+    return efs.filter((m) => typeof m === "string" && /^[0-9a-f-]{36}$/.test(m) && !tem.has(m)).join(",");
+  })();
+  useEffect(() => {
+    if (faltaMidia) void midiasQ.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faltaMidia]);
   const importQ = useQuery({
     queryKey: ["vedit", "importar", id],
     enabled: !!proj && !proj.fonte_path,
