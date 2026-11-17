@@ -690,243 +690,283 @@ function EditorCriativo() {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Fundo</Label>
-                      <Select
-                        value={slide.fundo ?? (slide.layout === "tweet" ? "claro" : "escuro")}
-                        onValueChange={(v) => mudarSlide({ fundo: v as Slide["fundo"] })}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {FUNDOS.map((f) => (
-                            <SelectItem key={f} value={f}>
-                              {NOME_FUNDO[f]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  {slide.layout === "molde" ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Slide na estrutura da referência. Edite os textos aqui; para mudar posição,
+                        tamanho ou foto, peça no chat.
+                      </p>
+                      {(slide.molde?.elementos ?? []).map((e, i) =>
+                        e.tipo === "texto" ? (
+                          <div key={i} className="space-y-1">
+                            <Label className="text-xs">Texto {i + 1}</Label>
+                            <Textarea
+                              rows={2}
+                              value={e.texto}
+                              onChange={(ev) =>
+                                mudarSlide({
+                                  molde: {
+                                    ...slide.molde!,
+                                    elementos: slide.molde!.elementos.map((x, j) =>
+                                      j === i && x.tipo === "texto"
+                                        ? { ...x, texto: ev.target.value }
+                                        : x,
+                                    ),
+                                  },
+                                })
+                              }
+                            />
+                          </div>
+                        ) : null,
+                      )}
                     </div>
-                    {slide.layout === "capa" && (
-                      <div className="space-y-1">
-                        <Label className="text-xs">Estilo do título</Label>
-                        <Select
-                          value={slide.variante ?? "impacto"}
-                          onValueChange={(v) => mudarSlide({ variante: v as Slide["variante"] })}
-                        >
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="impacto">Impacto (caixa alta)</SelectItem>
-                            <SelectItem value="elegante">Elegante (centralizado)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </div>
-
-                  {(
-                    [
-                      ["etiqueta", "Etiqueta no topo (ex.: Black IAplicada)", 1],
-                      ["rotulo", "Rótulo (ex.: /upscale, Ferramenta #1)", 1],
-                      ["titulo", "Título", 2],
-                      ["subtitulo", "Subtítulo", 2],
-                      ["texto", "Texto (**palavra** destaca)", 5],
-                    ] as const
-                  ).map(([campo, rot, linhas]) => (
-                    <div key={campo} className="space-y-1">
-                      <Label className="text-xs">{rot}</Label>
-                      <Textarea
-                        rows={linhas}
-                        className="min-h-0 text-sm"
-                        value={(slide[campo] as string | null | undefined) ?? ""}
-                        onChange={(e) => mudarSlide({ [campo]: e.target.value || null })}
-                      />
-                    </div>
-                  ))}
-                  {slide.layout === "cortes" && (
+                  ) : (
                     <>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Falas (uma por frame, na ordem das fotos)</Label>
-                        <Textarea
-                          rows={4}
-                          className="text-sm"
-                          value={(slide.falas ?? []).join("\n")}
-                          onChange={(e) => mudarSlide({ falas: e.target.value.split("\n") })}
-                        />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Fundo</Label>
+                          <Select
+                            value={slide.fundo ?? (slide.layout === "tweet" ? "claro" : "escuro")}
+                            onValueChange={(v) => mudarSlide({ fundo: v as Slide["fundo"] })}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FUNDOS.map((f) => (
+                                <SelectItem key={f} value={f}>
+                                  {NOME_FUNDO[f]}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {slide.layout === "capa" && (
+                          <div className="space-y-1">
+                            <Label className="text-xs">Estilo do título</Label>
+                            <Select
+                              value={slide.variante ?? "impacto"}
+                              onValueChange={(v) =>
+                                mudarSlide({ variante: v as Slide["variante"] })
+                              }
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="impacto">Impacto (caixa alta)</SelectItem>
+                                <SelectItem value="elegante">Elegante (centralizado)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">
-                          Zoom por frame (ex.: 1|1.3|1.1) e enquadramento (ex.: 50% 0%|50% 10%)
-                        </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            className="h-8 text-sm"
-                            placeholder="1|1.3|1.1"
-                            value={slide.zoom ?? ""}
-                            onChange={(e) => mudarSlide({ zoom: e.target.value || null })}
-                          />
-                          <Input
-                            className="h-8 text-sm"
-                            placeholder="50% 0%|50% 10%|50% 0%"
-                            value={slide.foco ?? ""}
-                            onChange={(e) => mudarSlide({ foco: e.target.value || null })}
+
+                      {(
+                        [
+                          ["etiqueta", "Etiqueta no topo (ex.: Black IAplicada)", 1],
+                          ["rotulo", "Rótulo (ex.: /upscale, Ferramenta #1)", 1],
+                          ["titulo", "Título", 2],
+                          ["subtitulo", "Subtítulo", 2],
+                          ["texto", "Texto (**palavra** destaca)", 5],
+                        ] as const
+                      ).map(([campo, rot, linhas]) => (
+                        <div key={campo} className="space-y-1">
+                          <Label className="text-xs">{rot}</Label>
+                          <Textarea
+                            rows={linhas}
+                            className="min-h-0 text-sm"
+                            value={(slide[campo] as string | null | undefined) ?? ""}
+                            onChange={(e) => mudarSlide({ [campo]: e.target.value || null })}
                           />
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Fundo "Marca" desenha a parede da IAplicada atrás de uma foto real com o
-                          fundo removido: a pele fica a da foto, sem IA.
-                        </p>
-                      </div>
-                    </>
-                  )}
-                  {slide.layout === "lista" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Itens (um por linha)</Label>
-                      <Textarea
-                        rows={5}
-                        className="text-sm"
-                        value={(slide.itens ?? []).join("\n")}
-                        onChange={(e) => mudarSlide({ itens: e.target.value.split("\n") })}
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">
-                      {slide.layout === "comando"
-                        ? "Fotos (2 = antes e depois)"
-                        : slide.layout === "cortes"
-                          ? "Frames (de cima para baixo)"
-                          : "Foto"}
-                    </Label>
-                    <div className="flex gap-3 flex-wrap">
-                      {(slide.layout === "comando"
-                        ? [0, 1]
-                        : slide.layout === "cortes"
-                          ? [0, 1, 2, 3].slice(
-                              0,
-                              Math.min(4, Math.max(2, (slide.fotos?.length ?? 0) + 1)),
-                            )
-                          : [0]
-                      ).map((i) => (
-                        <EscolherFoto
-                          key={i}
-                          rotulo={
-                            slide.layout === "comando"
-                              ? i
-                                ? "Depois"
-                                : "Antes"
-                              : slide.layout === "cortes"
-                                ? `Frame ${i + 1}`
-                                : "Foto do slide"
-                          }
-                          valor={slide.fotos?.[i]}
-                          onEscolher={(fid) => {
-                            const l = [...(slide.fotos ?? [])];
-                            if (fid) l[i] = fid;
-                            else l.splice(i, 1);
-                            mudarSlide({ fotos: l.filter(Boolean) });
-                          }}
-                        />
                       ))}
-                    </div>
-                  </div>
-                  {!!slide.fotos?.length && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Enquadramento vertical da foto</Label>
-                      <Slider
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={[Number(/\s(\d+)%/.exec(slide.foco ?? "")?.[1] ?? 30)]}
-                        onValueChange={([v]) => mudarSlide({ foco: `50% ${v}%` })}
-                      />
-                    </div>
-                  )}
-                  {/* Ajustes finos: o que o chat também usa para "texto maior", "subir o texto"… */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">
-                      Tamanho do texto ({Math.round((slide.escalaTexto ?? 1) * 100)}%)
-                    </Label>
-                    <Slider
-                      min={60}
-                      max={140}
-                      step={5}
-                      value={[Math.round((slide.escalaTexto ?? 1) * 100)]}
-                      onValueChange={([v]) => mudarSlide({ escalaTexto: v / 100 })}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Altura do texto</Label>
-                      <Select
-                        value={slide.alturaTexto ?? "baixo"}
-                        onValueChange={(v) =>
-                          mudarSlide({ alturaTexto: v as NonNullable<Slide["alturaTexto"]> })
-                        }
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="baixo">Embaixo</SelectItem>
-                          <SelectItem value="meio">Mais acima</SelectItem>
-                          <SelectItem value="alto">No meio</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {slide.botao && (
-                      <div className="space-y-1">
-                        <Label className="text-xs">Tamanho do botão</Label>
-                        <Select
-                          value={slide.botaoTamanho ?? "grande"}
-                          onValueChange={(v) =>
-                            mudarSlide({ botaoTamanho: v as NonNullable<Slide["botaoTamanho"]> })
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pequeno">Pequeno</SelectItem>
-                            <SelectItem value="medio">Médio</SelectItem>
-                            <SelectItem value="grande">Grande</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {slide.layout === "cortes" && (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Falas (uma por frame, na ordem das fotos)
+                            </Label>
+                            <Textarea
+                              rows={4}
+                              className="text-sm"
+                              value={(slide.falas ?? []).join("\n")}
+                              onChange={(e) => mudarSlide({ falas: e.target.value.split("\n") })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">
+                              Zoom por frame (ex.: 1|1.3|1.1) e enquadramento (ex.: 50% 0%|50% 10%)
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                className="h-8 text-sm"
+                                placeholder="1|1.3|1.1"
+                                value={slide.zoom ?? ""}
+                                onChange={(e) => mudarSlide({ zoom: e.target.value || null })}
+                              />
+                              <Input
+                                className="h-8 text-sm"
+                                placeholder="50% 0%|50% 10%|50% 0%"
+                                value={slide.foco ?? ""}
+                                onChange={(e) => mudarSlide({ foco: e.target.value || null })}
+                              />
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              Fundo "Marca" desenha a parede da IAplicada atrás de uma foto real com
+                              o fundo removido: a pele fica a da foto, sem IA.
+                            </p>
+                          </div>
+                        </>
+                      )}
+                      {slide.layout === "lista" && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Itens (um por linha)</Label>
+                          <Textarea
+                            rows={5}
+                            className="text-sm"
+                            value={(slide.itens ?? []).join("\n")}
+                            onChange={(e) => mudarSlide({ itens: e.target.value.split("\n") })}
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">
+                          {slide.layout === "comando"
+                            ? "Fotos (2 = antes e depois)"
+                            : slide.layout === "cortes"
+                              ? "Frames (de cima para baixo)"
+                              : "Foto"}
+                        </Label>
+                        <div className="flex gap-3 flex-wrap">
+                          {(slide.layout === "comando"
+                            ? [0, 1]
+                            : slide.layout === "cortes"
+                              ? [0, 1, 2, 3].slice(
+                                  0,
+                                  Math.min(4, Math.max(2, (slide.fotos?.length ?? 0) + 1)),
+                                )
+                              : [0]
+                          ).map((i) => (
+                            <EscolherFoto
+                              key={i}
+                              rotulo={
+                                slide.layout === "comando"
+                                  ? i
+                                    ? "Depois"
+                                    : "Antes"
+                                  : slide.layout === "cortes"
+                                    ? `Frame ${i + 1}`
+                                    : "Foto do slide"
+                              }
+                              valor={slide.fotos?.[i]}
+                              onEscolher={(fid) => {
+                                const l = [...(slide.fotos ?? [])];
+                                if (fid) l[i] = fid;
+                                else l.splice(i, 1);
+                                mudarSlide({ fotos: l.filter(Boolean) });
+                              }}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    )}
-                    {slide.botao && (
-                      <div className="space-y-1">
-                        <Label className="text-xs">Ênfase do botão</Label>
-                        <Select
-                          value={slide.botaoEstilo ?? "destaque"}
-                          onValueChange={(v) =>
-                            mudarSlide({ botaoEstilo: v as NonNullable<Slide["botaoEstilo"]> })
-                          }
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="destaque">Forte (com brilho)</SelectItem>
-                            <SelectItem value="suave">Suave (sem brilho)</SelectItem>
-                            <SelectItem value="contorno">Discreta (só contorno)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {!!slide.fotos?.length && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Enquadramento vertical da foto</Label>
+                          <Slider
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={[Number(/\s(\d+)%/.exec(slide.foco ?? "")?.[1] ?? 30)]}
+                            onValueChange={([v]) => mudarSlide({ foco: `50% ${v}%` })}
+                          />
+                        </div>
+                      )}
+                      {/* Ajustes finos: o que o chat também usa para "texto maior", "subir o texto"… */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">
+                          Tamanho do texto ({Math.round((slide.escalaTexto ?? 1) * 100)}%)
+                        </Label>
+                        <Slider
+                          min={60}
+                          max={140}
+                          step={5}
+                          value={[Math.round((slide.escalaTexto ?? 1) * 100)]}
+                          onValueChange={([v]) => mudarSlide({ escalaTexto: v / 100 })}
+                        />
                       </div>
-                    )}
-                  </div>
-                  {slide.layout === "capa" && slide.variante !== "elegante" && (
-                    <label className="flex items-center gap-2 text-sm">
-                      <Switch
-                        checked={!slide.semAutor}
-                        onCheckedChange={(v) => mudarSlide({ semAutor: !v })}
-                      />
-                      Nome e foto da autora na capa
-                    </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Altura do texto</Label>
+                          <Select
+                            value={slide.alturaTexto ?? "baixo"}
+                            onValueChange={(v) =>
+                              mudarSlide({ alturaTexto: v as NonNullable<Slide["alturaTexto"]> })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="baixo">Embaixo</SelectItem>
+                              <SelectItem value="meio">Mais acima</SelectItem>
+                              <SelectItem value="alto">No meio</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {slide.botao && (
+                          <div className="space-y-1">
+                            <Label className="text-xs">Tamanho do botão</Label>
+                            <Select
+                              value={slide.botaoTamanho ?? "grande"}
+                              onValueChange={(v) =>
+                                mudarSlide({
+                                  botaoTamanho: v as NonNullable<Slide["botaoTamanho"]>,
+                                })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pequeno">Pequeno</SelectItem>
+                                <SelectItem value="medio">Médio</SelectItem>
+                                <SelectItem value="grande">Grande</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        {slide.botao && (
+                          <div className="space-y-1">
+                            <Label className="text-xs">Ênfase do botão</Label>
+                            <Select
+                              value={slide.botaoEstilo ?? "destaque"}
+                              onValueChange={(v) =>
+                                mudarSlide({ botaoEstilo: v as NonNullable<Slide["botaoEstilo"]> })
+                              }
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="destaque">Forte (com brilho)</SelectItem>
+                                <SelectItem value="suave">Suave (sem brilho)</SelectItem>
+                                <SelectItem value="contorno">Discreta (só contorno)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                      {slide.layout === "capa" && slide.variante !== "elegante" && (
+                        <label className="flex items-center gap-2 text-sm">
+                          <Switch
+                            checked={!slide.semAutor}
+                            onCheckedChange={(v) => mudarSlide({ semAutor: !v })}
+                          />
+                          Nome e foto da autora na capa
+                        </label>
+                      )}
+                    </>
                   )}
                 </>
               )}

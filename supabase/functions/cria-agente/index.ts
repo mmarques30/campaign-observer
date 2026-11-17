@@ -252,6 +252,10 @@ async function liberarPendentes(sb: any, refId: string) {
   }
 }
 
+// Fontes que o editor de criativos desenha (public/vedit/fontes).
+const FONTES_TXT =
+  "Anton, Archivo Black, Archivo (500/900), Bebas Neue, Bricolage Grotesque (600/800), Caveat, DM Mono, DM Serif Display, Fraunces (itálico), Instrument Serif, Inter (400/600/800/900), Manrope (500/800), Montserrat (800/900), Oswald (600), Outfit (500/800), Playfair Display (itálico), Plus Jakarta Sans (500/800), Poppins (500/700/900), Sora (600/800), Space Grotesk (500/700), Syne (700/800), Unbounded (600/900)";
+
 async function analisarReferencia(sb: any, id: string) {
   const { data: ref } = await sb.from("cria_referencias").select("*").eq("id", id).single();
   if (!ref) throw new Error("referência não encontrada");
@@ -264,7 +268,7 @@ async function analisarReferencia(sb: any, id: string) {
     const j = await claude(
       sb,
       {
-        max_tokens: 8000,
+        max_tokens: 16000,
         messages: [
           {
             role: "user",
@@ -285,8 +289,24 @@ Analise como diretor de arte e estrategista de conteúdo. Responda só com JSON:
  "frames": 3  (só quando a imagem é de frames empilhados: quantos frames e, em "estrutura", a fala de cada frame),
  "gancho": "como a capa prende",
  "dicas": ["detalhes de acabamento que fazem parecer profissional", ...],
- "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da marca"
-}`,
+ "prompt_para_criador": "instrução direta (pt-BR) para replicar este padrão num carrossel novo com outro tema e com as fotos da marca",
+ "slides_total": ${imgs.length},
+ "moldes": [ um por slide, na ordem, medindo a imagem com precisão:
+   {
+    "fundo": "#hex da cor de fundo (atrás de tudo)",
+    "foto_de_fundo": "descrição da foto que ocupa o slide inteiro, se houver: cena, cenário, quem aparece, onde a pessoa está no quadro (ex.: sentada à direita, do joelho para cima, olhando para a esquerda), luz e lente; null se não houver",
+    "foco": "object-position da foto de fundo, ex.: '60% 40%'",
+    "elementos": [ na ordem de baixo para cima (o último fica por cima). Tudo em % do slide: x e w em % da LARGURA, y e h em % da ALTURA, "tamanho" (corpo da letra) em % da LARGURA do slide.
+      {"tipo":"gradiente","lado":"topo|base|esquerda|direita|tudo","alcance":40,"forca":0.5,"cor":"#000000"}  (escurecimento atrás do texto, se houver),
+      {"tipo":"texto","papel":"titulo|subtitulo|corpo|rotulo|assinatura|numeracao|botao|outro","texto":"o texto exato, com \\n onde a linha quebra e **palavra** no trecho em outra cor","x":8,"y":14,"w":84,"ancora":"topo","alinhar":"esquerda|centro|direita","fonte":"a mais parecida desta lista: ${FONTES_TXT}","peso":700,"italico":false,"caixa":"normal|alta|baixa","tamanho":7.5,"entrelinha":1.0,"espacamento":0,"cor":"#hex","corDestaque":"#hex","fundoDestaque":"#hex ou null","fundo":"#hex da caixa atrás do texto (pílula/etiqueta) ou null","raio":2,"sombra":false},
+      {"tipo":"foto","descricao":"o que a foto mostra","x":5,"y":40,"w":90,"h":50,"raio":3,"borda":null}  (foto que NÃO ocupa o slide inteiro),
+      {"tipo":"forma","x":0,"y":0,"w":100,"h":12,"cor":"#hex","raio":0,"opacidade":1,"borda":null}  (caixas, faixas, cartões, círculos),
+      {"tipo":"linha","x1":10,"y1":50,"x2":90,"y2":50,"cor":"#hex","esp":4}
+    ]
+   }
+ ]
+}
+Nos "moldes" a medida é o que importa: posição, largura, tamanho de letra, quantas linhas, alinhamento, caixa e peso do jeito que estão na imagem. Inclua TODO elemento visível (títulos, etiquetas, @, numeração, setas, caixas, linhas); não invente elemento que não existe.`,
               },
             ],
           },
@@ -388,6 +408,13 @@ Layouts (use só estes):
 - foto: foto inteira com título/texto curto embaixo.
 - cortes: UMA imagem com 2 a 4 frames de vídeo empilhados (fotos[0..3], de cima para baixo), cada um com a própria fala queimada embaixo (falas[0..3], uma frase curta por frame, no máximo 2 linhas). Parece um trecho de entrevista recortado. Sem título, rótulo, botão ou rodapé. É o layout certo quando a referência é um post único com frames empilhados ("3 cortes e 3 falas"). "foco" e "zoom" aceitam um valor por frame separado por "|" (ex.: foco "50% 0%|52% 0%|50% 0%", zoom "0.95|1.2|1.05"). MODO PREFERIDO (pele real, sem IA): "fundo": "marca" + a mesma foto real RECORTADA (fundo transparente, nome com "recorte" na biblioteca) nos 2-4 slots, variando zoom e foco para simular os cortes de câmera; o editor desenha a parede da IAplicada atrás. Só gere frames por IA se não houver nenhuma foto recortada na biblioteca.
 - cta: slide final com avatar grande, chamada e botões Salve/Envie/Siga automáticos.
+- molde: cópia fiel da estrutura de uma REFERÊNCIA. Não tem nada automático (sem pílula de autora, sem "deslize", sem numeração, sem logo): só o que estiver em "molde". {"layout":"molde","molde":{"fundo":"fundo","foto":"<id da foto que ocupa o slide inteiro ou null>","foco":"60% 40%","zoom":1,"elementos":[...]}}. Elementos, na ordem de baixo para cima, tudo em % do slide (x e w da largura, y e h da altura; "tamanho" da letra em % da LARGURA):
+  {"tipo":"gradiente","lado":"topo|base|esquerda|direita|tudo","alcance":40,"forca":0.5,"cor":"#000000"}
+  {"tipo":"texto","texto":"linha 1\\nlinha 2 com **destaque**","x":8,"y":14,"w":84,"ancora":"topo|centro|base","alinhar":"esquerda|centro|direita","fonte":"Poppins","peso":700,"italico":false,"caixa":"normal|alta|baixa","tamanho":7.5,"entrelinha":1.0,"espacamento":0,"cor":"texto","corDestaque":"destaque","fundoDestaque":null,"fundo":null,"raio":2,"pad":1.6,"sombra":false}
+  {"tipo":"foto","foto":"<id>","x":5,"y":40,"w":90,"h":50,"foco":"50% 30%","zoom":1,"raio":3,"borda":{"cor":"destaque","esp":4},"sombra":false}
+  {"tipo":"forma","x":0,"y":0,"w":100,"h":12,"cor":"marca","raio":0,"opacidade":1,"borda":null}
+  {"tipo":"linha","x1":10,"y1":50,"x2":90,"y2":50,"cor":"destaque","esp":4,"tracejada":false}
+  Cores: use o NOME da cor do tema ("fundo", "texto", "destaque", "marca", "claro", "textoClaro") para que o slide saia nas cores da marca; hex só para preto/branco de sombra e escurecimento.
 
 Visual que explica a fala (campo "visual", nos layouts texto e lista; na lista ele substitui os itens numerados e o texto vem antes dele). Use quando o slide fala de processo, números ou antes/depois e uma imagem ajudaria a entender:
 - {"tipo":"cards","itens":[{"icone":"lancamento","titulo":"Lançamento","detalhe":"nota por nota, digitado à mão","tag":"máquina faz"}]} (até 4 cards).
@@ -413,9 +440,15 @@ Regras de qualidade:
 - Fotos: use os ids da biblioteca. Prefira as fotos reais da Mariana na capa e no cta (rosto bem visível). "foco" ajusta o recorte (ex.: "50% 20%" sobe o enquadramento para o rosto).
 - Se faltar uma foto adequada (ex.: ela num palco, num escritório, segurando um celular), use gerar_foto partindo de 1-2 fotos REAIS dela (marcadas "foto real" na biblioteca; nunca use uma foto "gerada por IA" como base, porque IA em cima de IA fica artificial e a ferramenta recusa). Prompt em inglês, detalhado (cena, roupa, luz, lente, enquadramento). No máximo 3 fotos novas por pedido, e só quando fizer diferença real. Cenário de evento, palco, entrevista ou escritório da IAplicada: passe com_marca: true (o fundo vem com a logo repetida e as cores da marca; não descreva outra marca nem outro backdrop no prompt). No layout "cortes", gere os frames que faltam SEMPRE em formato "16:9" (frame de vídeo, horizontal), um por frame, todos com a MESMA descrição de roupa, cenário e luz, mudando só o enquadramento, com enquadramento FECHADO: cabeça e ombros preenchendo a altura do quadro (o rosto ocupa pelo menos 40% da altura), pessoa centralizada, topo da cabeça perto da borda de cima (a fala entra embaixo do queixo). Enquadramento aberto deixa o rosto pequeno e sem nitidez depois do recorte. Nunca use uma foto solta da biblioteca que destoe dos outros frames.
 - Para conferir uma foto antes de usar, chame ver_fotos.
-- Fontes disponíveis: Anton, Archivo Black, Bricolage Grotesque, Inter, Montserrat, DM Mono, Instrument Serif, Playfair Display, Fraunces, Caveat.
+- Fontes disponíveis: ${FONTES_TXT}.
 - ROTEIRO (quando houver) é o conteúdo: cada bloco dele vira um slide, na ordem (blocos separados por linha em branco, "Slide N", "---" ou numeração). Use as palavras dela: pode encurtar para caber, corrigir erros e marcar **destaques**, mas não invente assunto, não troque a ordem e não pule partes. Bloco grande demais vira dois slides seguidos. Sem capa/cta explícitos, o primeiro bloco é a capa e o cta entra no fim (a menos que o último bloco já seja a chamada). Antes de salvar, confira que tudo do roteiro está nos slides.
-- REFERÊNCIA (quando houver) é o molde, slide a slide: o slide N do criativo segue o papel, o layout e a densidade de texto do slide N da referência ("estrutura" e "layouts" da análise e as imagens dela). Se o conteúdo tiver mais slides que a referência, repita o padrão dos slides do meio; se tiver menos, mantenha capa, miolo e fechamento. Copie o acabamento (tipografia, cores, caixa alta, posição da foto, numeração), nunca o texto.
+- REFERÊNCIA (quando houver) manda na estrutura, AO PÉ DA LETRA. Da marca entram só as CORES; todo o resto é da referência. Regras:
+  1. Todo slide usa o layout "molde", copiando o slide correspondente da referência ("moldes" da análise, conferindo nas imagens dela): mesmos elementos, mesma posição (x, y, w, h), mesmo tamanho de letra, mesmo número de linhas e quebras, mesmo alinhamento, caixa (alta/normal), peso, fonte (a da lista mais parecida), entrelinha, mesmos gradientes, caixas, linhas, etiquetas, @ e numeração. Não use os layouts prontos (capa, tweet, topico…) nem acrescente nada que a referência não tem (pílula com nome, "deslize", logo, botão, numeração).
+  2. Mesmo número de slides da referência ("slides_total"). Referência de imagem única = 1 slide, mesmo que o projeto diga carrossel. Só faça mais ou menos slides se o ROTEIRO ou a Mariana pedirem; nesse caso repita o molde dos slides do meio.
+  3. Cores: troque cada cor da referência pela equivalente da marca usando os nomes do tema (texto claro → "texto"; palavra/elemento em cor de realce → "destaque"; fundo → "fundo"; caixas e faixas coloridas → "marca" ou "destaque", pelo papel). Preto e branco de sombra/escurecimento podem ficar em hex.
+  4. Texto: o conteúdo é nosso (briefing/roteiro), mas com o MESMO formato do texto dela: mesma quantidade de linhas, comprimento parecido por linha, mesmo padrão de gancho (ex.: "POV:" em destaque no começo) e as palavras em destaque no mesmo lugar. Nunca copie o texto dela.
+  5. Foto: mesma composição da foto da referência (pessoa no mesmo lado do quadro, mesmo enquadramento, cenário do mesmo tipo, mesma luz). Use uma foto da biblioteca que encaixe; se nenhuma encaixar, gere com gerar_foto descrevendo exatamente essa composição (formato do criativo). Ajuste "foco" para o rosto cair no mesmo ponto do quadro da referência.
+  6. Antes de salvar, compare mentalmente cada slide com a imagem da referência: se um elemento está em outra posição, tamanho ou cor de papel diferente, corrija.
 - Sem roteiro, escreva o conteúdo a partir do briefing (e do molde da referência, se houver).
 - Ajustes finos (capa e foto): "botaoTamanho" (botão menor/maior; padrão grande), "botaoEstilo" ("destaque" cheio com brilho, padrão; "suave" cheio sem brilho; "contorno" só a borda: use quando ela pedir botão com menos ênfase/mais discreto), "alturaTexto" (subir o bloco de texto: "meio" sobe um pouco, "alto" leva ao meio), "escalaTexto" (0.6 a 1.4; texto maior/menor no slide), "semAutor": true (tira a pílula com nome e fotinho da Mariana na capa "impacto"). No nível do design, "assinatura": "marca" troca nome + foto + selo verificado (capa, tweet, comando e slide final) pela logo da IAplicada; use quando ela pedir a logo no lugar do nome/foto. Use esses campos quando ela pedir "diminui o botão", "sobe o texto", "texto maior", "tira meu nome/foto da capa".
 - Em ajustes pelo chat, mude SÓ o que foi pedido e preserve todo o resto exatamente igual (textos, fotos, ids dos slides, "visual", "botao"). Nunca reescreva um texto que ela não pediu para mudar; se pediu "ajustar o texto" de posição ou tamanho, é posição/tamanho, não as palavras.
@@ -817,11 +850,12 @@ Deno.serve(async (req) => {
       let pedido: string;
       if (body.acao === "criar") {
         let comRef = false;
+        let nRef = 0;
         // Referência ainda baixando/analisando: o criativo espera e é disparado quando ela fica pronta.
         if (p.referencia_id) {
           const { data: ref } = await sb
             .from("cria_referencias")
-            .select("status, created_at")
+            .select("status, created_at, imagens")
             .eq("id", p.referencia_id)
             .maybeSingle();
           const recente = ref && Date.now() - new Date(ref.created_at).getTime() < 10 * 60 * 1000;
@@ -839,6 +873,7 @@ Deno.serve(async (req) => {
             return json({ ok: true, aguardando: true });
           }
           comRef = ref?.status === "pronta";
+          nRef = (ref?.imagens ?? []).length;
           if (!comRef)
             await sb.from("cria_mensagens").insert({
               projeto_id: id,
@@ -846,7 +881,10 @@ Deno.serve(async (req) => {
               conteudo: "Não consegui ler a referência; vou montar sem ela.",
             });
         }
-        pedido = p.modelo_id
+        const moldeRef = `Copie a estrutura da REFERÊNCIA ao pé da letra: ${nRef || "o mesmo número de"} slide${nRef === 1 ? "" : "s"} (o mesmo número dela${p.roteiro ? ", salvo se o ROTEIRO tiver outra quantidade de blocos" : ""}), todos no layout "molde" seguindo os "moldes" da análise e as imagens dela (posição, tamanho, linhas, alinhamento, caixa, fonte, escurecimentos, elementos). Da marca, só as cores (nomes do tema). Conteúdo ${p.roteiro ? "do ROTEIRO" : "do briefing"}, no mesmo formato de texto dela.`;
+        pedido = comRef && !p.modelo_id
+          ? moldeRef
+          : p.modelo_id
           ? `Crie o ${p.tipo === "unico" ? "post único" : "carrossel"} NO MODELO SALVO (o DESIGN ATUAL é a cópia dele). Mantenha a estrutura: a mesma quantidade de slides (só mude se o roteiro tiver mais ou menos blocos), o mesmo layout em cada posição, os mesmos tipos de visual (cards, fluxo, linhas), botões, etiquetas, tema, cores, fontes e tamanhos. Troque todo o conteúdo (textos, itens dos visuais, fotos) pelo ${p.roteiro ? "do ROTEIRO, distribuído slide a slide" : "do briefing"}. Não pode sobrar nenhum texto do criativo original do modelo.`
           : p.tipo === "unico"
             ? `Crie o post único a partir ${p.roteiro ? "do ROTEIRO" : "do briefing"}${comRef ? ", no modelo da REFERÊNCIA" : ""}.`

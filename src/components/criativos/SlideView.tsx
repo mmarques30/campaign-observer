@@ -7,6 +7,7 @@ import { FORMATOS, type Design, type Formato, type Slide } from "@/criativos/des
 import type { FotoComUrl } from "@/lib/criativos";
 import { BotaoSlide, VisualSlide } from "./Visuais";
 import { LAYOUTS_PAINEL, SlidePainel } from "./SlidePainel";
+import { SlideMolde } from "./SlideMolde";
 
 type Props = {
   slide: Slide;
@@ -112,6 +113,9 @@ export const SlideView = forwardRef<HTMLDivElement, Props>(function SlideView(
   { slide: s, design, formato, fotos, indice, total },
   ref,
 ) {
+  // Molde: estrutura copiada da referência, vale em qualquer estilo.
+  if (s.layout === "molde")
+    return <SlideMolde ref={ref} slide={s} design={design} formato={formato} fotos={fotos} />;
   // Estilo painel (dashboard moderno): mesmos layouts e conteúdo, outro desenho.
   if (design.estilo === "painel" && (LAYOUTS_PAINEL as readonly string[]).includes(s.layout))
     return (

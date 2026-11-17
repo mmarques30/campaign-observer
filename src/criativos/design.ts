@@ -15,6 +15,7 @@ export const LAYOUTS = [
   "foto",
   "cortes",
   "cta",
+  "molde",
 ] as const;
 export type Layout = (typeof LAYOUTS)[number];
 
@@ -28,7 +29,103 @@ export const NOME_LAYOUT: Record<Layout, string> = {
   foto: "Foto com legenda",
   cortes: "Cortes de vídeo (frames empilhados)",
   cta: "Chamada final",
+  molde: "Igual à referência",
 };
+
+// Layout "molde": cópia fiel da estrutura de uma referência. Tudo em % do slide (x, y, w, h),
+// tamanho de letra em % da LARGURA do slide, cores em hex ou pelo nome da cor do tema
+// ("fundo", "texto", "destaque", "marca", "claro", "textoClaro"): assim a estrutura é a da
+// referência e as cores são as da marca.
+const num = z.coerce.number();
+const cor = z.string();
+export const elementoMoldeSchema = z.discriminatedUnion("tipo", [
+  z.object({
+    tipo: z.literal("texto"),
+    texto: z.string(), // **palavra** = destaque; \n = quebra de linha
+    x: num,
+    y: num,
+    w: num,
+    ancora: z.enum(["topo", "centro", "base"]).nullish(), // a que borda do texto o y se refere
+    alinhar: z.enum(["esquerda", "centro", "direita"]).nullish(),
+    fonte: z.string().nullish(),
+    peso: num.nullish(),
+    italico: z.boolean().nullish(),
+    caixa: z.enum(["normal", "alta", "baixa"]).nullish(),
+    tamanho: num, // % da largura do slide
+    entrelinha: num.nullish(),
+    espacamento: num.nullish(), // letter-spacing em em
+    cor: cor.nullish(),
+    corDestaque: cor.nullish(),
+    fundoDestaque: cor.nullish(), // marca-texto atrás das palavras em destaque
+    fundo: cor.nullish(), // caixa atrás do bloco (pílula, etiqueta)
+    raio: num.nullish(), // % da largura
+    pad: num.nullish(), // respiro interno da caixa, % da largura
+    sombra: z.boolean().nullish(),
+    opacidade: num.nullish(),
+    rot: num.nullish(),
+  }),
+  z.object({
+    tipo: z.literal("foto"),
+    foto: z.string().nullish(), // id de cria_fotos
+    x: num,
+    y: num,
+    w: num,
+    h: num,
+    foco: z.string().nullish(),
+    zoom: num.nullish(),
+    raio: num.nullish(),
+    borda: z.object({ cor: cor, esp: num }).nullish(),
+    sombra: z.boolean().nullish(),
+    rot: num.nullish(),
+  }),
+  z.object({
+    tipo: z.literal("forma"),
+    x: num,
+    y: num,
+    w: num,
+    h: num,
+    cor: cor.nullish(),
+    raio: num.nullish(), // % da largura; 50 com w=h vira círculo
+    opacidade: num.nullish(),
+    borda: z.object({ cor: cor, esp: num }).nullish(),
+    rot: num.nullish(),
+  }),
+  z.object({
+    tipo: z.literal("gradiente"), // escurecimento para leitura (ex.: topo escuro atrás do título)
+    lado: z.enum(["topo", "base", "esquerda", "direita", "tudo"]),
+    alcance: num.nullish(), // % do slide coberto a partir do lado
+    forca: num.nullish(), // 0 a 1
+    cor: cor.nullish(),
+  }),
+  z.object({
+    tipo: z.literal("linha"),
+    x1: num,
+    y1: num,
+    x2: num,
+    y2: num,
+    cor: cor.nullish(),
+    esp: num.nullish(), // px num slide de 1080
+    tracejada: z.boolean().nullish(),
+  }),
+]);
+export type ElementoMolde = z.infer<typeof elementoMoldeSchema>;
+export const moldeSchema = z.object({
+  fundo: cor.nullish(), // cor do fundo (atrás da foto)
+  foto: z.string().nullish(), // id de cria_fotos ocupando o slide inteiro
+  foco: z.string().nullish(),
+  zoom: num.nullish(),
+  // elemento malformado é descartado sozinho, sem derrubar o slide
+  elementos: z
+    .array(z.unknown())
+    .default([])
+    .transform((xs) =>
+      xs.flatMap((x) => {
+        const r = elementoMoldeSchema.safeParse(x);
+        return r.success ? [r.data] : [];
+      }),
+    ),
+});
+export type Molde = z.infer<typeof moldeSchema>;
 
 export const FUNDOS = ["escuro", "claro", "marca", "destaque"] as const;
 
@@ -198,6 +295,8 @@ export const slideSchema = z.object({
   alturaTexto: z.enum(["baixo", "meio", "alto"]).nullish().catch(null),
   escalaTexto: z.number().min(0.6).max(1.4).nullish().catch(null),
   semAutor: z.boolean().nullish(),
+  // layout "molde": estrutura copiada da referência (posições exatas)
+  molde: moldeSchema.nullish().catch(null),
 });
 export type Slide = z.infer<typeof slideSchema>;
 
