@@ -347,6 +347,43 @@ async function sistema(
     .eq("id", emp)
     .maybeSingle();
   const interna = !empresa || !!empresa.interna;
+  // O que fazemos de verdade: os anúncios que mais geraram demanda (MQL no CRM) e os posts
+  // orgânicos de maior alcance, para o roteiro tirar daí os exemplos (e não inventar).
+  let fazemos = "";
+  try {
+    const { data: ads } = await sb
+      .from("mads_v_criativos_metricas")
+      .select("meta_ad_id, ad_nome, mql_no_crm")
+      .order("mql_no_crm", { ascending: false, nullsFirst: false })
+      .limit(6);
+    const ids = (ads ?? []).map((a: any) => a.meta_ad_id).filter(Boolean);
+    const { data: pubs } = ids.length
+      ? await sb.from("publicacoes").select("meta_ad_id, legenda").in("meta_ad_id", ids)
+      : { data: [] };
+    const leg = new Map((pubs ?? []).map((p: any) => [p.meta_ad_id, p.legenda]));
+    const { data: org } = await sb
+      .from("publicacoes")
+      .select("nome, legenda, metricas")
+      .eq("destino", "instagram")
+      .eq("status", "publicado")
+      .eq("empresa_id", emp)
+      .order("publicado_em", { ascending: false })
+      .limit(20);
+    const topOrg = (org ?? [])
+      .filter((p: any) => p.metricas?.reach)
+      .sort((a: any, b: any) => (b.metricas.reach ?? 0) - (a.metricas.reach ?? 0))
+      .slice(0, 3);
+    const linhas = [
+      ...(interna ? (ads ?? []) : [])
+        .filter((a: any) => leg.get(a.meta_ad_id))
+        .map((a: any) => `- anúncio "${a.ad_nome}" (${a.mql_no_crm ?? 0} MQL): ${String(leg.get(a.meta_ad_id)).replace(/\s+/g, " ").slice(0, 500)}`),
+      ...topOrg.map((p: any) => `- post orgânico "${p.nome ?? ""}" (alcance ${p.metricas.reach}): ${String(p.legenda ?? "").replace(/\s+/g, " ").slice(0, 400)}`),
+    ];
+    if (linhas.length)
+      fazemos = `O QUE FAZEMOS DE VERDADE (conteúdos que mais geraram demanda e alcance; é daqui que saem os casos e exemplos, nunca copiados):\n${linhas.join("\n")}`;
+  } catch (_) {
+    /* sem histórico: segue sem */
+  }
   const lingua = IDIOMAS[idioma] ?? idioma;
   const quem = interna
     ? `Você é roteirista da IAplicada (IA aplicada a negócios, para donos de empresa) e escreve para a Mariana Marques gravar falando para a câmera. Ela foi executiva por 11 anos (AngloGold Ashanti, Mercado Livre, Suzano) e hoje constrói sistemas com IA para empresas.`
@@ -367,10 +404,12 @@ FINALIDADE: ${finalidade === "anuncio" ? `anúncio — termina chamando para ${i
 ${finalidade === "anuncio" ? "" : `ORGÂNICO NÃO É ANÚNCIO (regra dura):
 - Ninguém está vendendo nada: zero "se você tem indústria, distribuidora, clínica…", zero faixa de faturamento, zero "a ${interna ? "IAplicada" : "empresa"} faz", zero promessa de diagnóstico. Fala de criador de conteúdo para o feed, não de anúncio segmentado.
 - ${interna ? "A Mariana aparece como pessoa: fala em primeira pessoa, com opinião e bastidor dela (o que ela viu como executiva, o que ela faz hoje construindo sistemas com IA), do jeito que alguém se apresenta no próprio perfil, no ponto em que a referência traz a voz/opinião de quem fala." : "Quem fala aparece como pessoa, em primeira pessoa, com opinião e bastidor próprios."}
-- IA de verdade, concreta: diga O QUE a IA faz, em qual ferramenta/fluxo e com qual resultado (ex.: "um agente lê o WhatsApp, registra no CRM e me avisa quando o cliente esfria"; "o Claude monta o relatório de segunda sozinho a partir da planilha"). Proibido genérico ("colocar IA no bastidor", "IA que resolve", "transformação digital").
+- IA de verdade, concreta e LIGADA AO ASSUNTO: diga o que a IA resolve naquele problema, com o caso e o resultado. Tire o exemplo do que a ${interna ? "IAplicada" : "empresa"} faz de verdade (veja O QUE FAZEMOS DE VERDADE), escolhendo o caso que conversa com o assunto do vídeo. Não use sempre o mesmo exemplo (agente lendo WhatsApp, relatório de segunda) nem invente o que não fazemos. Proibido genérico ("colocar IA no bastidor", "IA que resolve", "transformação digital").
+- ARCO: o assunto do momento abre e FECHA o vídeo. A IA/o nosso trabalho entra no MEIO, como a virada (o que muda na prática); depois o roteiro VOLTA ao assunto e termina nele. A CTA continua o assunto do vídeo (a palavra-chave e a promessa são do tema, não de um material genérico solto).
 - Nada genérico: cada frase precisa de um detalhe específico (um caso, um número real do assunto, uma cena). Se a frase serviria para qualquer tema, reescreva.`}
 NICHO: ${cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
+${fazemos}
 
 CTA: nunca reaproveite a palavra-chave nem a oferta da referência. A palavra-chave sai do NOSSO assunto (ex.: APAGÃO) e o que ela recebe tem ligação direta com o que o vídeo acabou de mostrar (ex.: o teste que ela faz para descobrir o que trava quando alguém some), dito de forma específica. Proibido CTA genérico ("te mando o material no privado sem custo", "mapa das aplicações").
 
