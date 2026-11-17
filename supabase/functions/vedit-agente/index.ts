@@ -237,6 +237,7 @@ REGRAS DE EDIÇÃO (padrão de qualidade alto, nada amador)
 8. Só use tipos do catálogo disponível. Para mídias, use apenas ids da lista de MÍDIAS ENVIADAS, ids devolvidos por buscar_midia, ou "tempo" (trecho do próprio vídeo).
 8b. Imagens: quando a fala cita um app, canal ou ferramenta (WhatsApp, e-mail, planilha, Instagram, Google…) ou um objeto simples (dinheiro, relógio, gráfico), prefira o efeito "icones" (logos/ícones que saltam na tela, entrando na palavra exata) — não precisa buscar nada. Para FOTOS ou VÍDEOS reais da internet (cenário, pessoas, escritório), chame buscar_midia (consulta em inglês, concreta e visual) ANTES de aplicar_edicao e use os ids devolvidos em broll, fundo-imagem, dividir, reagir ou celular. Uma busca por vez. Nunca invente ids. Até 3 buscas por pedido.
 8c. A imagem é a PROVA do que está sendo dito naquele segundo. Quando a fala cita um fato, nome próprio ou notícia (um desenho, um canal, um órgão, um país, uma pessoa, uma empresa, um número do dia), busque com tipo "noticia" o fato exato (ex.: fala "um episódio dos Simpsons" → consulta "Simpsons episódio apagão"; "a CNN Brasil confirmou" → "CNN Brasil apagão mundial boato"; "orientação de defesa americana" → "FEMA alerta apagão Estados Unidos"). Banco de imagens genérico (pessoa no celular, cidade escura) só para o que é genérico na fala. Cada mídia entra UMA vez no vídeo: nunca repita o mesmo id em dois trechos; se faltar imagem, deixe a fala sem mídia em vez de repetir ou pôr algo sem ligação. Teste de cada mídia antes de usar: "quem assiste entende, só pela imagem, do que a frase fala?" Se não, não entra. Nunca use imagem decorativa (paisagem, pessoa genérica, textura, cidade qualquer) para uma fala que cita um fato concreto. Na resposta, liste cada mídia com a frase em que ela entra.
+8e. Quando a pessoa se apresenta ou fala da própria trajetória/empresa (ex.: "eu fui executiva...", "hoje eu construo...", "na IAplicada..."), a imagem é sobre ELA: busque com tipo "noticia" o que ela cita (as empresas onde trabalhou, a IAplicada) e nunca ponha imagem de outro assunto (obra, escritório genérico) nesse trecho. Imagem de um caso (ex.: construtora) só no trecho em que o caso é contado.
 8d. Tela dividida em sequência (como nas referências de split): os "dividir" ficam EMENDADOS (o "ate" de um é o "de" do próximo, mesmo lado e proporção), trocando a mídia no corte seco. Nunca deixe buracos de 1–3 s entre eles: o painel some e volta e fica "descendo" toda hora. Em todo /dividir e /broll passe "frase": as 2–4 palavras EXATAS da transcrição em que a imagem entra (a que ela prova); o sistema ancora a entrada nessa palavra. Use a descrição "MOSTRA:" de cada mídia para escolher: a imagem tem que mostrar o que a frase diz.
 9. Fim: orgânico termina com "cta-final" (palavra-chave para comentar). Anúncio termina com CTA falado + título de ação, sem pedir comentário.
 10. Música de fundo: anúncio SEMPRE tem música (dá ritmo); orgânico quase sempre (só não quando a pessoa pedir). Escolha da lista TRILHAS DISPONÍVEIS pelo clima do vídeo e use "musica": {"midia": "trilha:<id>", "volume": 0.16 em anúncio / 0.12 em orgânico, "abaixarNaVoz": true, "abaixarPara": 0.3, "fade": true}. Prefira trilhas da marca quando combinarem. "/musica" sem detalhe = escolha e aplique; "/musica mais alta|mais baixa|outra|sem" ajusta. Volume nunca acima de 0.3 (a voz manda).
@@ -1060,8 +1061,19 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
       const tiposNossos = nossos.map((x) => x?.tipo).join(",");
       let alvo: any = null;
       let melhor = -1;
-      for (const L of layoutsRef) {
-        const els = ((L?.elementos ?? []) as any[]).filter((x) => x?.tipo !== "pessoa" && x?.tipo !== "midia");
+      // Composição no começo do vídeo é o gancho: usa o layout de gancho dela, se houver.
+      const ehGancho = Number(e.de) <= (Number((tl.cortes ?? [])[0]?.de ?? 0) + 6);
+      const gancho = layoutsRef.find((L) => /gancho|hook/i.test(`${L?.nome ?? ""} ${L?.quando ?? ""}`));
+      const candidatos = ehGancho && gancho ? [gancho] : layoutsRef;
+      for (const L of candidatos) {
+        // Filete/linha fina não é o desenho dela (vem de leitura errada): sai.
+        const els = ((L?.elementos ?? []) as any[]).filter(
+          (x) =>
+            x?.tipo !== "pessoa" &&
+            x?.tipo !== "midia" &&
+            x?.tipo !== "linha" &&
+            !(x?.tipo === "caixa" && Number(x?.w ?? 1) < 0.03),
+        );
         if (!els.length) continue;
         const usados = new Set<number>();
         let casou = 0;
@@ -1073,17 +1085,18 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
           }
         }
         const nota = casou / Math.max(els.length, nossos.length);
-        if (casou === els.length && nota > melhor) {
+        if ((casou === els.length || (ehGancho && gancho)) && nota > melhor) {
           melhor = nota;
           alvo = els;
         }
       }
       if (!alvo) continue;
       const usados = new Set<number>();
+      const textoNosso = nossos.find((x) => x?.tipo === "texto")?.texto;
       e.props.elementos = alvo.map((r: any) => {
         const k = nossos.findIndex((x, i) => !usados.has(i) && x?.tipo === r.tipo);
         usados.add(k);
-        const n = nossos[k] ?? {};
+        const n = nossos[k] ?? (r.tipo === "texto" && textoNosso ? { texto: textoNosso } : {});
         return { ...r, ...(n.texto != null ? { texto: n.texto } : {}), ...(n.midia ? { midia: n.midia } : {}) };
       });
       // Enquanto a caixa de texto (gancho) está na tela, a legenda some, como na referência.
