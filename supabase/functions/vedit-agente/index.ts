@@ -647,7 +647,16 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       hashes.add(hash);
       // Foto de matéria: o que ela MOSTRA de fato (visto na imagem), para o editor pôr na frase certa.
       if (args.tipo === "noticia")
-        a.credito = `${await descreverImagem(bytes, blob.type || "image/jpeg")} — fonte: ${a.credito}`;
+        a.credito = `${await descreverImagem(
+          bytes,
+          bytes[0] === 0x89
+            ? "image/png"
+            : bytes[0] === 0x52 && bytes[8] === 0x57
+              ? "image/webp"
+              : bytes[0] === 0x47
+                ? "image/gif"
+                : "image/jpeg",
+        )} — fonte: ${a.credito}`;
       a.credito = `${a.credito} [h:${hash}]`;
       const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
       const up = await sb.storage.from("video-edicao").upload(path, blob, {
@@ -942,6 +951,10 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
       e.ate = +(i + 1 < divs.length ? divs[i + 1].de : paraFonte(Math.max(0, b.o1 - 0.01))).toFixed(2);
     });
   }
+  // Duas telas divididas nunca ao mesmo tempo: cada uma acaba onde a próxima começa.
+  const dvs = (tl.efeitos as any[]).filter((e) => e.tipo === "dividir").sort((x, y) => x.de - y.de);
+  for (let i = 0; i + 1 < dvs.length; i++) if (dvs[i].ate > dvs[i + 1].de) dvs[i].ate = dvs[i + 1].de;
+  tl.efeitos = (tl.efeitos as any[]).filter((e) => e.tipo !== "dividir" || e.ate - e.de > 0.3);
   // Legenda na mesma posição/tamanho/caixa da referência.
   const lg = dec.legenda ?? {};
   tl.legenda = {
@@ -959,6 +972,70 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
   if (/zoom/.test(nao) && tl.zoom) tl.zoom = { ...tl.zoom, eventos: [], alternar: false };
 }
 
+/** Revisão final: cada imagem da tela dividida tem que provar a frase do seu trecho. Um modelo
+ *  rápido lê o que cada foto MOSTRA e a fala de cada trecho e redistribui (sem repetir); o que não
+ *  combina com nada sai do trecho e o trecho anterior segue. */
+async function casarMidiasComFala(sb: any, tl: any, proj: any) {
+  const chave = Deno.env.get("ANTHROPIC_API_KEY") ?? Deno.env.get("CLAUDE_API_KEY");
+  const slots = ((tl.efeitos ?? []) as any[])
+    .filter((e) => e.tipo === "dividir" && e.props?.midia)
+    .sort((x, y) => x.de - y.de);
+  if (!chave || slots.length < 2) return;
+  const { data: ms } = await sb.from("vedit_midias").select("id, descricao").eq("projeto_id", proj.id);
+  const desc = new Map<string, string>(
+    (ms ?? []).map((m: any) => [m.id, String(m.descricao ?? "").replace(/\s*\[h:[0-9a-f]+\]/, "").slice(0, 220)]),
+  );
+  const cortes = (tl.cortes ?? []) as any[];
+  const dentro = (t: number) => !cortes.length || cortes.some((c) => t >= c.de && t <= c.ate);
+  const fala = (a: number, b: number) =>
+    ((proj.palavras ?? []) as any[])
+      .filter((w) => w.i >= a - 0.05 && w.i < b && dentro(w.i))
+      .map((w) => w.p)
+      .join(" ");
+  const lista = slots.map((e, i) => `T${i}: "${fala(e.de, e.ate).slice(0, 200)}"`).join("\n");
+  const midias = [...desc.entries()].map(([id, d]) => `${id}: ${d}`).join("\n");
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": chave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: MODELO,
+        max_tokens: 2000,
+        messages: [
+          {
+            role: "user",
+            content: `Trechos de um vídeo (fala de cada trecho, em ordem):\n${lista}\n\nImagens disponíveis (id: o que a imagem MOSTRA / de onde veio):\n${midias}\n\nPara cada trecho escolha a imagem que PROVA o que está sendo dito naquele trecho (quem vê entende do que a frase fala). Nunca mostre algo antes de ser citado (ex.: foto dos Simpsons só no trecho que fala dos Simpsons ou depois). Não repita imagem. Se nenhuma imagem combina com o trecho, use null. Responda só JSON: {"T0":"<id ou null>", ...}`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    const j = await r.json();
+    const txt = (j?.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("");
+    const mapa = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
+    const usadas = new Set<string>();
+    const fora = new Set<any>();
+    slots.forEach((e, i) => {
+      const id = mapa[`T${i}`];
+      if (typeof id === "string" && desc.has(id) && !usadas.has(id)) {
+        e.props.midia = id;
+        usadas.add(id);
+      } else fora.add(e);
+    });
+    if (!fora.size) return;
+    // Trecho sem imagem que combine: o anterior (mesmo bloco) cobre o tempo dele.
+    const ord = slots;
+    for (let i = 0; i < ord.length; i++) {
+      if (!fora.has(ord[i])) continue;
+      const ant = ord.slice(0, i).reverse().find((x) => !fora.has(x));
+      if (ant && Math.abs(ant.ate - ord[i].de) < 0.05) ant.ate = ord[i].ate;
+    }
+    tl.efeitos = (tl.efeitos as any[]).filter((e) => !fora.has(e));
+  } catch {
+    /* revisão é melhoria; se falhar, fica a escolha do editor */
+  }
+}
+
 async function limparReferencia(sb: any, tl: any, refId: string, marca: any, proj: any) {
   const { data: ref } = await sb
     .from("vedit_referencias")
@@ -970,6 +1047,7 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
   if (a.decupagem) {
     const { data: refDur } = await sb.from("vedit_referencias").select("duracao").eq("id", refId).maybeSingle();
     imporEstrutura(tl, a.decupagem, Number(refDur?.duracao ?? 0), (proj.palavras ?? []) as any[]);
+    await casarMidiasComFala(sb, tl, proj);
   }
   // Grafismos no molde EXATO da referência: a composição que tem os mesmos tipos de elemento de um
   // layout dela recebe as posições, tamanhos e fonte dele (fica só o texto nosso); elemento a mais
