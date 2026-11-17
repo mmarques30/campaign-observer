@@ -966,6 +966,9 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
     ...(lg.tamanho ? { tamanho: lg.tamanho === "pequena" ? 0.72 : lg.tamanho === "grande" ? 1.25 : 1 } : {}),
     ...(typeof lg.caixa_alta === "boolean" ? { caixaAlta: lg.caixa_alta } : {}),
   };
+  // Corte entre tomadas da fala: fusão curta (sem pulo seco nem zoom alternando a cada corte).
+  tl.visual = { ...(tl.visual ?? {}), transicao: "suave" };
+  if (tl.zoom) tl.zoom = { ...tl.zoom, alternar: false };
   // O que ela não usa, não entra.
   const nao = JSON.stringify(dec.nao_usa ?? []).toLowerCase();
   if (/m[uú]sica|trilha/.test(nao)) tl.musica = { ...(tl.musica ?? {}), midia: null };
