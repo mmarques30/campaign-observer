@@ -6,9 +6,15 @@ import type { Analise, Referencia } from "@/lib/referencias";
 import { dosagemLuz, lookCompativel, type Luz } from "@/lib/luz";
 import { FONTES } from "@/video/fontes";
 
-// Ao seguir referência, todo o visual sai da composição livre (cards, telas, ícones e imagens
-// viram elementos dela): os modelos prontos (cards-flutuantes, mockup, broll…) destoavam.
+// Ao seguir referência, o visual sai da composição livre (cards, telas, ícones e imagens viram
+// elementos dela) MAIS os formatos de tela que a própria referência usa (tela dividida, b-roll em
+// tela cheia/janela, react): sem eles o vídeo não fica com a cara dela.
 const PALETA_REFERENCIA = ["composicao", "cta-final"];
+const FORMATOS_DE_TELA: [RegExp, string][] = [
+  [/divid|split|metade de cima|empilhad/i, "dividir"],
+  [/b-?roll|tela cheia|tela-cheia|janela|corte para/i, "broll"],
+  [/react|reag/i, "reagir"],
+];
 
 const valido = <T extends string>(lista: readonly T[], v?: string | null): T | undefined =>
   v && (lista as readonly string[]).includes(v) ? (v as T) : undefined;
@@ -33,7 +39,30 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
   const tl = normalizarTimeline(p.timeline ?? {}).timeline;
   const pr = a.preset_estilo ?? {};
   // Paleta fechada ao seguir referência: o visual vem da composição livre, não dos modelos prontos.
-  const efeitos = PALETA_REFERENCIA.filter((t) => EFEITO_POR_TIPO[t]?.disponivel);
+  const textoRef = JSON.stringify([a.estilo, a.tecnicas, a.layouts, a.preset_estilo]);
+  const formatosRef = FORMATOS_DE_TELA.filter(([re]) => re.test(textoRef)).map(([, t]) => t);
+  const efeitos = [...PALETA_REFERENCIA, ...formatosRef].filter(
+    (t) => EFEITO_POR_TIPO[t]?.disponivel,
+  );
+  // Roteiro ligado ao vídeo: o plano de edição bloco a bloco (o que aparece em cada fala).
+  const roteiroId = (proj as { roteiro_id?: string | null }).roteiro_id;
+  const { data: rot } = roteiroId
+    ? await db().from("vedit_roteiros").select("roteiro").eq("id", roteiroId).maybeSingle()
+    : { data: null };
+  const blocosRot = (
+    ((rot as { roteiro?: { blocos?: unknown[] } } | null)?.roteiro?.blocos ?? []) as {
+      fala: string;
+      visual?: { formato?: string; midia?: string; tipo?: string; busca?: string };
+    }[]
+  ).filter((b) => b.visual?.formato);
+  const planoRoteiro = blocosRot.length
+    ? `PLANO DE EDIÇÃO DO ROTEIRO (siga bloco a bloco; ache a fala na transcrição e ponha o visual exatamente nela):\n${blocosRot
+        .map(
+          (b) =>
+            `- "${b.fala.slice(0, 90)}" → ${b.visual!.formato}${b.visual!.midia ? `: ${b.visual!.midia}` : ""}${b.visual!.busca ? ` (buscar_midia: "${b.visual!.busca}")` : ""}`,
+        )
+        .join("\n")}`
+    : "";
   const estiloLeg = valido(ESTILOS_LEGENDA, pr.legenda ?? a.ritmo?.legenda_estilo);
   // O look da referência só entra se não brigar com a luz do nosso vídeo (medida no editor).
   const look = valido(LOOKS, lookCompativel(pr.look, luz));
@@ -106,7 +135,7 @@ export async function aplicarReferencia(projetoId: string, r: Referencia, a: Ana
     .map(
       (t) =>
         // O "efeito_nosso" da análise apontava para modelos prontos; aqui tudo vira composição.
-        `- ${t.nome} (${t.de}s–${t.ate}s, ${t.categoria}): ${t.como_reproduzir} → faça como elementos da /composicao`,
+        `- ${t.nome} (${t.de}s–${t.ate}s, ${t.categoria}): ${t.como_reproduzir}`,
     )
     .join("\n");
   const pedido = enviarAoClaude(
@@ -129,18 +158,20 @@ ${JSON.stringify(a.layouts).slice(0, 6000)}`
     : ""
 }
 
+${planoRoteiro}
+
 REGRAS AO SEGUIR A REFERÊNCIA:
 1. Copie a ESTRUTURA ao pé da letra: layout de cada grafismo (posição, tamanho, fonte, caixa, acabamento), ritmo, transições, estilo e posição da legenda. Da marca, só as cores. NUNCA copie textos, marcas, nomes de produto, @, assunto, números ou palavra do CTA da referência: todo texto na tela sai da fala DESTE vídeo (a TRANSCRIÇÃO) e da nossa marca. NUNCA invente dados, números, depoimentos, nomes de clientes nem textos de preenchimento ("Cliente 1", "Cargo · Empresa"): se a referência tem depoimento, ranking ou número e a fala deste vídeo não tem, PULE essa técnica.
 2. Não encurte o vídeo. Se já houver cortes, mantenha-os; se não houver, tire só silêncios e tomadas repetidas.
-3. Os efeitos antigos foram apagados. TODO o visual é feito com /composicao (composição livre, elemento por elemento, no desenho da referência): cards, listas, telas de app, números, ícones e imagens são ELEMENTOS da composição (caixa, texto, icone, midia, linha, brilho, pessoa). NÃO use nenhum modelo pronto: nada de cards-flutuantes, mockup, icones, broll, dividir, reagir, fundo-imagem, palavra-gigante, letreiro, colagem, rabisco ou partículas. Só /cta-final no fim, como último efeito.
-4. A pessoa NUNCA some da tela. Em /composicao use fundo "nenhum" (grafismos sobre o vídeo, no espaço livre) ou, para telas de UI com fundo sólido, inclua obrigatoriamente um elemento {"tipo":"pessoa"} num card arredondado (ex.: x 0.06, y 0.5, w 0.88, h 0.44) como na referência. Fundo sólido sem "pessoa" vira só escurecer.
-5. IMAGENS DA REFERÊNCIA (obrigatório): para CADA técnica de categoria "midia" acima (ilustrações, fotos, prints, b-roll, janelinhas, tela dividida), coloque a equivalente com o assunto DESTE vídeo, no mesmo momento relativo, como elemento da /composicao com o mesmo acabamento da referência (tamanho, posição, cantos arredondados, borda, sombra, giro, entrada):
+3. Os efeitos antigos foram apagados. FORMATO DE TELA igual ao da referência: ${formatosRef.length ? `ela usa ${formatosRef.map((t) => "/" + t).join(", ")} — use os mesmos, nos mesmos momentos relativos, com a mesma proporção e lado (ex.: tela dividida com mídia em cima ocupando ~38% e você embaixo; b-roll em tela cheia de 1,5–2 s cortando na palavra concreta)` : "ela não divide a tela nem corta para outra mídia"}. Grafismos, cards, listas, telas de app, números e ícones são ELEMENTOS da /composicao no desenho da referência. Não use modelos prontos que ela não usa (cards-flutuantes, mockup, icones, palavra-gigante, letreiro, colagem, rabisco, partículas). /cta-final no fim, como último efeito.
+4. A pessoa só sai da tela onde a referência também tira (b-roll em tela cheia curto); no resto ela fica visível. Em /composicao com fundo sólido, inclua um elemento {"tipo":"pessoa"} como na referência.
+5. IMAGENS E VÍDEOS DA REFERÊNCIA (obrigatório): para CADA técnica de categoria "midia" ou "formato" acima (vídeos, fotos, prints, b-roll, janelinhas, tela dividida), coloque a equivalente com o assunto DESTE vídeo, no mesmo momento relativo e no mesmo formato de tela (/dividir, /broll ou elemento da /composicao, como ela fez), com o mesmo acabamento (tamanho, posição, cantos, borda, sombra, entrada). Prefira VÍDEO quando ela usou vídeo:
    - ilustração, objeto, app ou logo → elemento {"tipo":"icone"} (ex.: planilha, whatsapp, dinheiro) entrando na palavra exata;
-   - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 3 buscas) e use o id devolvido num elemento {"tipo":"midia","midia":"<id>"} (janela com borda e raio, como na referência, ou grande atrás dos textos);
+   - foto ou b-roll do que é dito (pessoa trabalhando, escritório, planilha, dinheiro, cliente…) → chame buscar_midia ANTES (consulta em inglês, concreta e visual; até 8 buscas, peça várias de uma vez na mesma resposta, tipo "video" quando ela usou vídeo) e use o id devolvido num elemento {"tipo":"midia","midia":"<id>"} (janela com borda e raio, como na referência, ou grande atrás dos textos);
    - print ou gravação de tela → mídia enviada deste vídeo num elemento "midia"; sem print enviado, desenhe a tela com caixas e textos dentro da composição.
    Use só ids de MÍDIAS ENVIADAS ou devolvidos por buscar_midia (id inventado é descartado). Nada de molduras vazias. Na resposta, diga em uma frase quais imagens você colocou e em que momento.
 6. Ritmo: o MESMO da referência${ritmoRef ? ` (um estímulo a cada ~${ritmoRef}s)` : ""}, com grafismos da mesma duração dos dela e nos mesmos momentos relativos do vídeo.
-7. Nada em cima do rosto. O rosto está em ${rosto ? `x ${rosto.x.toFixed(2)}, y ${rosto.y.toFixed(2)}, w ${rosto.w.toFixed(2)}, h ${rosto.h.toFixed(2)}` : "no centro do quadro"} (frações do quadro): imagens e cards ficam ACIMA (y + h < ${rosto ? (rosto.y - 0.02).toFixed(2) : "0.30"}) ou ABAIXO (y > ${rosto ? (rosto.y + rosto.h + 0.02).toFixed(2) : "0.66"}) dele, e cabem nesse espaço (uma imagem acima da cabeça tem no máximo essa altura). Nada de imagem grande no meio do quadro.
+7. Fora da tela dividida e do b-roll em tela cheia, nada em cima do rosto. O rosto está em ${rosto ? `x ${rosto.x.toFixed(2)}, y ${rosto.y.toFixed(2)}, w ${rosto.w.toFixed(2)}, h ${rosto.h.toFixed(2)}` : "no centro do quadro"} (frações do quadro): imagens e cards ficam ACIMA (y + h < ${rosto ? (rosto.y - 0.02).toFixed(2) : "0.30"}) ou ABAIXO (y > ${rosto ? (rosto.y + rosto.h + 0.02).toFixed(2) : "0.66"}) dele, e cabem nesse espaço (uma imagem acima da cabeça tem no máximo essa altura). Nada de imagem grande no meio do quadro.
 8. LUZ E COR: a cor da referência NÃO se copia (foi gravada com outra luz). A correção de imagem (visual.brilho/contraste/saturacao/temperatura/sombras) já foi dosada pela medição deste vídeo — ${dose.resumo} — e você NÃO mexe nela nem no look. Lembre que a compressão da Meta puxa vermelho e satura: nada de look quente, saturação acima de 1 ou grafismo laranja/vermelho grande perto do rosto. Cores dos grafismos: as da marca, escolhendo fundo escuro ou claro pelo que contrasta com o quadro (quadro ${luz ? (luz.lumaMedia < 0.3 ? "escuro → grafismos claros/vidro" : luz.lumaMedia > 0.65 ? "claro → grafismos escuros" : "médio") : "não medido"}).
 9. Tudo precisa caber no formato deste vídeo (${p.formato ?? "9:16"}) e nos trechos em que a fala acontece.`,
   );

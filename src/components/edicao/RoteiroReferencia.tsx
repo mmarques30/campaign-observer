@@ -65,6 +65,21 @@ export type Bloco = {
   pausa_depois_s: number;
   como_falar?: string;
   na_tela?: string;
+  // plano de edição do bloco, igual ao formato da referência naquele momento
+  visual?: {
+    formato?: "dividida-cima" | "dividida-lado" | "tela-cheia" | "janela" | "so-fala" | "texto";
+    midia?: string;
+    tipo?: "video" | "foto" | "print" | "nenhum";
+    busca?: string;
+  };
+};
+const NOME_FORMATO: Record<string, string> = {
+  "dividida-cima": "Tela dividida (mídia em cima)",
+  "dividida-lado": "Tela dividida (lado a lado)",
+  "tela-cheia": "Mídia em tela cheia",
+  janela: "Mídia em janela",
+  "so-fala": "Só a fala",
+  texto: "Texto na tela",
 };
 export type RoteiroLinha = {
   id: string;
@@ -524,6 +539,14 @@ export function PainelRoteiro({ id, onFechar }: { id: string | null; onFechar: (
                     {b.na_tela && (
                       <p className="text-xs text-muted-foreground">
                         <b>Na tela:</b> {b.na_tela}
+                      </p>
+                    )}
+                    {b.visual?.formato && (
+                      <p className="text-xs text-muted-foreground">
+                        <b>Edição:</b> {NOME_FORMATO[b.visual.formato] ?? b.visual.formato}
+                        {b.visual.midia
+                          ? ` · ${b.visual.tipo && b.visual.tipo !== "nenhum" ? `${b.visual.tipo}: ` : ""}${b.visual.midia}`
+                          : ""}
                       </p>
                     )}
                   </div>

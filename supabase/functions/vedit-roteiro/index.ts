@@ -175,6 +175,27 @@ async function montarEstrutura(sb: any, reelId?: string | null, refId?: string |
   };
 }
 
+/**
+ * A edição da referência, momento a momento (o que aparece na tela em cada trecho: tela dividida,
+ * vídeo/foto em tela cheia, janela, só a fala, texto). Lida sempre da análise atual da referência,
+ * para roteiros antigos também receberem.
+ */
+async function edicaoDaReferencia(sb: any, refId?: string | null) {
+  if (!refId) return "";
+  const { data } = await sb.from("vedit_referencias").select("analise").eq("id", refId).maybeSingle();
+  const a = data?.analise;
+  if (!a) return "";
+  const linhas: string[] = [];
+  if (a.estilo) linhas.push(`FORMATO VISUAL DA REFERÊNCIA: ${a.estilo.nome ?? ""} — ${a.estilo.descricao ?? ""}`);
+  const tecs = (a.tecnicas ?? []) as any[];
+  if (tecs.length) {
+    linhas.push("EDIÇÃO DA REFERÊNCIA, MOMENTO A MOMENTO (segundos · tipo · o que aparece):");
+    for (const t of [...tecs].sort((x, y) => (x.de ?? 0) - (y.de ?? 0)))
+      linhas.push(`${t.de ?? "?"}–${t.ate ?? "?"}s · ${t.categoria ?? ""} · ${t.nome ?? ""}: ${String(t.como_reproduzir ?? "").slice(0, 220)}`);
+  }
+  return linhas.join("\n");
+}
+
 function textoEstrutura(e: any) {
   const linhas: string[] = [];
   linhas.push(
@@ -258,6 +279,30 @@ const FERRAMENTA = {
                   type: "string",
                   description: "Texto/efeito na tela nesse momento, se fizer sentido.",
                 },
+                visual: {
+                  type: "object",
+                  description:
+                    "O que aparece na tela neste bloco, IGUAL ao formato da referência neste mesmo momento (é o plano de edição).",
+                  properties: {
+                    formato: {
+                      type: "string",
+                      enum: ["dividida-cima", "dividida-lado", "tela-cheia", "janela", "so-fala", "texto"],
+                      description:
+                        "dividida-cima = mídia em cima e a pessoa falando embaixo; dividida-lado = lado a lado; tela-cheia = mídia ocupa a tela (a voz continua); janela = mídia num quadro sobre a fala; so-fala = só a pessoa; texto = palavra/frase grande na tela.",
+                    },
+                    midia: {
+                      type: "string",
+                      description:
+                        "O que mostrar, concreto (ex.: 'print da manchete do boato do apagão', 'vídeo de cidade apagando à noite', 'foto do episódio dos Simpsons'). Vazio em so-fala/texto.",
+                    },
+                    tipo: { type: "string", enum: ["video", "foto", "print", "nenhum"] },
+                    busca: {
+                      type: "string",
+                      description:
+                        "Consulta curta em inglês para achar a mídia num banco de vídeos/fotos (ex.: 'city blackout night'); vazio se for print/arquivo que a Mariana precisa enviar.",
+                    },
+                  },
+                },
               },
               required: ["papel", "fala", "duracao_s", "pausa_depois_s"],
             },
@@ -312,11 +357,19 @@ TAREFA: escrever um roteiro ORIGINAL sobre o ASSUNTO pedido, espelhando o esquel
 - mesma sequência de papéis (gancho, viradas, prova, payoff, CTA) e a mesma quantidade de blocos — junte frases muito curtas da referência num bloco só quando fizer sentido e diga em "ref" quais frases o bloco espelha;
 - em cada bloco, o mesmo tamanho de fala da referência (nº de palavras ±20%) para caber no mesmo tempo, e "pausa_depois_s" igual à pausa da referência naquele ponto (as pausas são parte do ritmo: mantenha todas as que passam de 0,3 s);
 - "inicio_s" e "duracao_s" calculados para o roteiro bater com a duração da referência;
-- o mesmo tipo de gancho e de mecanismo (curiosidade, quebra de crença, lista, história…), nunca a mesma frase: nada copiado, tema e exemplos nossos.
+- o mesmo tipo de gancho e de mecanismo (curiosidade, quebra de crença, lista, história…), nunca a mesma frase: nada copiado, tema e exemplos nossos;
+- o MESMO FORMATO VISUAL: cada bloco tem "visual" igual ao que a referência mostra naquele momento (veja EDIÇÃO DA REFERÊNCIA, MOMENTO A MOMENTO): se ali ela usa tela dividida com vídeo em cima, o nosso bloco também; se corta para vídeo em tela cheia na palavra concreta, o nosso também, com uma mídia do NOSSO assunto que prove aquela fala (o equivalente ao que ela mostrou). Mesma quantidade de trocas de mídia e mesmos momentos; nada de bloco "só fala" onde ela tem imagem.
+- a CONEXÃO: o assunto do momento é a porta de entrada; o roteiro tem que ligar esse assunto, sem forçar, à dor da empresa que a Mariana indicar e à IA aplicada como saída. Se ela disser qual é a ponte (ex.: "depender de uma pessoa só, de um sistema só, de processo na cabeça do dono"), essa ponte é o miolo do roteiro, com as palavras dela.
+- INSTRUÇÕES DA MARIANA têm prioridade: se ela sugerir gancho, frase na tela ou visual (ex.: "tela dividida: o print do boato de um lado e você do outro com 'Se a internet caísse hoje, sua empresa parava?'"), use exatamente isso no ponto indicado.
 
 IDIOMA: escreva TODA fala, CTA e legenda em ${lingua}${idioma === "pt-BR" ? "" : " (natural para nativos, sem soar traduzido); as indicações 'como_falar' e 'na_tela' ficam em português"}.
 VOZ: direta, concreta, de quem já fez; ${interna ? "exemplos de empresa real (WhatsApp, CRM, comercial, atendimento, operação, relatórios)" : "exemplos concretos do dia a dia do público dessa empresa"}; números quando houver. Sem emojis, sem jargão, nunca a palavra "PME" (use "empresa"), nunca "teu/tua".
 FINALIDADE: ${finalidade === "anuncio" ? `anúncio — termina chamando para ${interna ? "agendar um diagnóstico com a IAplicada" : `falar com a ${empresa.nome}`}.` : "orgânico — termina pedindo um comentário com palavra-chave."}
+${finalidade === "anuncio" ? "" : `ORGÂNICO NÃO É ANÚNCIO (regra dura):
+- Ninguém está vendendo nada: zero "se você tem indústria, distribuidora, clínica…", zero faixa de faturamento, zero "a ${interna ? "IAplicada" : "empresa"} faz", zero promessa de diagnóstico. Fala de criador de conteúdo para o feed, não de anúncio segmentado.
+- ${interna ? "A Mariana aparece como pessoa: fala em primeira pessoa, com opinião e bastidor dela (o que ela viu como executiva, o que ela faz hoje construindo sistemas com IA), do jeito que alguém se apresenta no próprio perfil, no ponto em que a referência traz a voz/opinião de quem fala." : "Quem fala aparece como pessoa, em primeira pessoa, com opinião e bastidor próprios."}
+- IA de verdade, concreta: diga O QUE a IA faz, em qual ferramenta/fluxo e com qual resultado (ex.: "um agente lê o WhatsApp, registra no CRM e me avisa quando o cliente esfria"; "o Claude monta o relatório de segunda sozinho a partir da planilha"). Proibido genérico ("colocar IA no bastidor", "IA que resolve", "transformação digital").
+- Nada genérico: cada frase precisa de um detalhe específico (um caso, um número real do assunto, uma cena). Se a frase serviria para qualquer tema, reescreva.`}
 NICHO: ${cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
 
@@ -330,14 +383,14 @@ async function gerar(sb: any, id: string) {
     const j = await claude(
       sb,
       {
-        max_tokens: 6000,
+        max_tokens: 12000,
         system: await sistema(sb, r.idioma, r.finalidade, r.empresa_id),
         tools: [FERRAMENTA],
         tool_choice: { type: "tool", name: "salvar_roteiro" },
         messages: [
           {
             role: "user",
-            content: `${textoEstrutura(est)}\n\nASSUNTO DO NOSSO VÍDEO: ${r.tema}${r.notas ? `\nOBSERVAÇÕES DA MARIANA: ${r.notas}` : ""}\n\nEscreva o roteiro e chame salvar_roteiro.`,
+            content: `${textoEstrutura(est)}\n\n${await edicaoDaReferencia(sb, est.fonte?.referencia_id ?? r.referencia_id)}\n\nASSUNTO DO NOSSO VÍDEO: ${r.tema}${r.notas ? `\nOBSERVAÇÕES DA MARIANA: ${r.notas}` : ""}\n\nEscreva o roteiro e chame salvar_roteiro.`,
           },
         ],
       },
@@ -378,14 +431,14 @@ async function ajustar(sb: any, r: any, msgs: any[], pedido: string) {
     const j = await claude(
       sb,
       {
-        max_tokens: 6000,
+        max_tokens: 12000,
         system: await sistema(sb, r.idioma, r.finalidade, r.empresa_id),
         tools: [FERRAMENTA],
         tool_choice: { type: "tool", name: "salvar_roteiro" },
         messages: [
           {
             role: "user",
-            content: `${textoEstrutura(r.estrutura ?? {})}\n\nASSUNTO: ${r.tema}\n${historico ? `PEDIDOS ANTERIORES (já aplicados):\n${historico}\n` : ""}\nROTEIRO ATUAL (versão ${r.versao}):\n${JSON.stringify(r.roteiro)}\n\nPEDIDO DE AJUSTE DA MARIANA: ${pedido}\n\nAplique só esse ajuste e chame salvar_roteiro com o roteiro completo.`,
+            content: `${textoEstrutura(r.estrutura ?? {})}\n\n${await edicaoDaReferencia(sb, r.estrutura?.fonte?.referencia_id ?? r.referencia_id)}\n\nASSUNTO: ${r.tema}\n${historico ? `PEDIDOS ANTERIORES (já aplicados):\n${historico}\n` : ""}\nROTEIRO ATUAL (versão ${r.versao}):\n${JSON.stringify(r.roteiro)}\n\nPEDIDO DE AJUSTE DA MARIANA: ${pedido}\n\n${(r.roteiro?.blocos ?? []).some((b: any) => b.visual) ? "" : "O roteiro atual ainda não tem o plano visual: além do ajuste, preencha 'visual' em TODOS os blocos seguindo a edição da referência momento a momento.\\n"}Aplique só esse ajuste e chame salvar_roteiro com o roteiro completo.`,
           },
         ],
       },

@@ -995,13 +995,17 @@ Deno.serve(async (req) => {
     proj.duracao_alvo ?? null,
     marketing,
   );
-  // Laço: o Claude pode buscar mídias na internet (até 3 vezes) antes de aplicar a edição.
+  // Laço: o Claude pode buscar mídias na internet antes de aplicar a edição. Seguindo uma
+  // referência com muito b-roll/tela dividida, precisa de mais mídias (até 8 buscas, em paralelo).
+  const seguindoRef =
+    typeof proj.timeline?.modelo?.id === "string" && proj.timeline.modelo.id.startsWith("ref-");
+  const maxBuscas = seguindoRef ? 8 : 3;
   const conversa: any[] = msgs;
   let resp: any = null;
   let uso: any = {};
   let buscas = 0;
   for (let volta = 0; volta < 5; volta++) {
-    const ultima = volta >= 4 || buscas >= 3;
+    const ultima = volta >= 4 || buscas >= maxBuscas;
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -1037,22 +1041,21 @@ Deno.serve(async (req) => {
     }
     if (!chamadas.length) break;
     // Toda chamada de ferramenta precisa de resposta (o Claude às vezes pede várias buscas de uma vez).
-    const respostas = [];
-    for (const c of chamadas) {
-      let resultado: unknown;
-      if (c.name === "buscar_midia" && buscas < 3) {
-        buscas++;
-        resultado = await buscarMidia(sb, projeto_id, c.input ?? {});
-      } else
-        resultado = {
-          erro: "Limite de buscas atingido. Use as mídias que já tem e aplique a edição.",
-        };
-      respostas.push({
-        type: "tool_result",
-        tool_use_id: c.id,
-        content: JSON.stringify(resultado),
-      });
-    }
+    const respostas = await Promise.all(
+      chamadas.map(async (c: any) => {
+        let resultado: unknown;
+        if (c.name === "buscar_midia" && buscas < maxBuscas) {
+          buscas++;
+          resultado = await buscarMidia(sb, projeto_id, c.input ?? {}).catch((e: unknown) => ({
+            erro: e instanceof Error ? e.message : String(e),
+          }));
+        } else
+          resultado = {
+            erro: "Limite de buscas atingido. Use as mídias que já tem e aplique a edição.",
+          };
+        return { type: "tool_result", tool_use_id: c.id, content: JSON.stringify(resultado) };
+      }),
+    );
     conversa.push({ role: "assistant", content: resp.content });
     conversa.push({ role: "user", content: respostas });
   }
