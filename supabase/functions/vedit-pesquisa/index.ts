@@ -245,6 +245,16 @@ async function sugerirPerfis(sb: any, key: string, ig: string, tk: string) {
   return { validos, invalidos };
 }
 
+/** Roda fn em até n itens ao mesmo tempo (sem estourar o limite de chamadas da Meta). */
+async function emParalelo<T>(itens: T[], n: number, fn: (t: T) => Promise<void>) {
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(n, itens.length) }, async () => {
+      while (i < itens.length) await fn(itens[i++]);
+    }),
+  );
+}
+
 const mediana = (xs: number[]) => {
   if (!xs.length) return 0;
   const s = [...xs].sort((a, b) => a - b);
@@ -252,13 +262,18 @@ const mediana = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-async function coletar(sb: any, ig: string, tk: string) {
+async function coletar(sb: any, ig: string, tk: string, opcoes: { frescoMs?: number } = {}) {
   const { data: cfg } = await sb.from("vedit_nicho_config").select("*").eq("empresa_id", emp(sb)).single();
   const { data: perfis } = await sb.from("vedit_nicho_perfis").select("*").eq("empresa_id", emp(sb)).eq("ativo", true);
   const desde = Date.now() - (cfg?.dias_janela ?? 90) * 86400_000;
   let total = 0;
   const erros: string[] = [];
-  for (const p of perfis ?? []) {
+  // Perfil coletado há menos de `fresco` ms não precisa ir de novo à Meta.
+  const fresco = opcoes.frescoMs ?? 0;
+  const pendentes = (perfis ?? []).filter(
+    (p: any) => !fresco || !p.ultima_coleta || Date.now() - new Date(p.ultima_coleta).getTime() > fresco,
+  );
+  await emParalelo(pendentes, 8, async (p: any) => {
     try {
       const d = await descobrir(p.username, ig, tk, 50);
       const midias = (d.media?.data ?? []).filter(
@@ -316,7 +331,7 @@ async function coletar(sb: any, ig: string, tk: string) {
         .update({ erro: msg.slice(0, 300) })
         .eq("id", p.id);
     }
-  }
+  });
   // Hashtags: top_media (limite do Meta: 30 hashtags distintas por 7 dias).
   // Sem hashtags cadastradas: padrões pelo alcance (as internacionais trazem os virais de fora).
   const padrao =
@@ -326,13 +341,13 @@ async function coletar(sb: any, ig: string, tk: string) {
         ? ["artificialintelligence", "ainews", "aitools"]
         : ["artificialintelligence", "aitools", "inteligenciaartificial"];
   const tags: string[] = cfg?.hashtags?.length ? cfg.hashtags : padrao;
-  for (const h of tags.slice(0, 10)) {
+  await emParalelo(tags.slice(0, 10), 4, async (h: string) => {
     try {
       const tag = String(h).replace(/^#/, "").trim();
-      if (!tag) continue;
+      if (!tag) return;
       const s = await graph("ig_hashtag_search", { user_id: ig, q: tag }, tk);
       const hid = s.data?.[0]?.id;
-      if (!hid) continue;
+      if (!hid) return;
       // Mídia de hashtag tem menos campos (sem username/thumbnail/media_product_type): pedir campo
       // inexistente derruba a chamada inteira.
       const top = await graph(
@@ -374,7 +389,7 @@ async function coletar(sb: any, ig: string, tk: string) {
     } catch (e) {
       erros.push(`#${h}: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }
+  });
   await sb
     .from("vedit_nicho_config")
     .update({ ultima_busca: new Date().toISOString() })
@@ -385,14 +400,22 @@ async function coletar(sb: any, ig: string, tk: string) {
 // ─── relevância para o tema ──────────────────────────────────────────────────
 // A API só devolve o que os perfis monitorados postaram; para a busca responder ao ASSUNTO
 // digitado, cada reel ganha uma nota (0 = nada a ver, 3 = exatamente o tema) pela legenda.
-async function classificarRelevancia(sb: any, key: string, tema: string, soNovos = true) {
+async function classificarRelevancia(
+  sb: any,
+  key: string,
+  tema: string,
+  soNovos = true,
+  prazo = Infinity, // Date.now() limite: lotes que não começarem até lá ficam para a próxima
+) {
   let q = sb.from("vedit_nicho_reels").select("id, caption, username").eq("empresa_id", emp(sb)).eq("descartado", false);
   if (soNovos) q = q.or(`relevancia.is.null,relevancia_tema.neq.${JSON.stringify(tema)}`);
   const { data: reels } = await q.limit(600);
   if (!reels?.length) return 0;
   let n = 0;
-  for (let i = 0; i < reels.length; i += 60) {
-    const lote = reels.slice(i, i + 60);
+  const lotes: any[][] = [];
+  for (let i = 0; i < reels.length; i += 60) lotes.push(reels.slice(i, i + 60));
+  await emParalelo(lotes, 4, async (lote) => {
+    if (Date.now() > prazo) return;
     const lista = lote
       .map(
         (r: any, k: number) =>
@@ -445,22 +468,22 @@ async function classificarRelevancia(sb: any, key: string, tema: string, soNovos
       );
       const notas: { i: number; nota: number }[] =
         j.content?.find((c: any) => c.type === "tool_use")?.input?.notas ?? [];
+      // Uma gravação por nota (até 4), em vez de uma por reel.
+      const porNota = new Map<number, string[]>();
       for (const x of notas) {
         const r = lote[x.i];
         if (!r) continue;
-        await sb
-          .from("vedit_nicho_reels")
-          .update({
-            relevancia: Math.max(0, Math.min(3, Number(x.nota) || 0)),
-            relevancia_tema: tema,
-          })
-          .eq("id", r.id);
-        n++;
+        const nota = Math.max(0, Math.min(3, Number(x.nota) || 0));
+        porNota.set(nota, [...(porNota.get(nota) ?? []), r.id]);
+      }
+      for (const [nota, ids] of porNota) {
+        await sb.from("vedit_nicho_reels").update({ relevancia: nota, relevancia_tema: tema }).in("id", ids);
+        n += ids.length;
       }
     } catch (_) {
       /* lote com erro: fica sem nota e entra na próxima busca */
     }
-  }
+  });
   return n;
 }
 
@@ -473,17 +496,26 @@ async function buscar(sb: any, key: string, ig: string, tk: string) {
     .select("id", { count: "exact", head: true })
     .eq("empresa_id", emp(sb))
     .eq("ativo", true);
+  const inicio = Date.now();
   let sugeridos = 0;
+  const temaNovo = !!tema && cfg?.tema_buscado !== tema;
   // Tema novo (ou nenhum perfil ativo): o Claude sugere perfis do assunto antes de coletar.
-  if (tema && (!ativos || cfg?.tema_buscado !== tema)) {
+  // Já tendo perfis ativos, só sugere se ainda houver poucos (a sugestão sozinha leva ~1 min).
+  if (tema && (!ativos || (temaNovo && (ativos ?? 0) < 15))) {
     const r = await sugerirPerfis(sb, key, ig, tk).catch(() => ({ validos: [] as any[] }));
     sugeridos = r.validos.length;
   }
-  const col = await coletar(sb, ig, tk);
+  // Marca o tema já aqui: se algo abaixo passar do tempo, o próximo clique não recomeça do zero.
+  if (temaNovo) await sb.from("vedit_nicho_config").update({ tema_buscado: tema }).eq("empresa_id", emp(sb));
+  // Perfis coletados nas últimas 6 h não voltam à Meta.
+  const col = await coletar(sb, ig, tk, { frescoMs: 6 * 3600_000 });
   let classificados = 0;
   if (tema) {
-    classificados = await classificarRelevancia(sb, key, tema, cfg?.tema_buscado === tema);
-    await sb.from("vedit_nicho_config").update({ tema_buscado: tema }).eq("empresa_id", emp(sb));
+    // A função tem 150 s: classifica o que der até ~110 s e deixa o resto rodando em segundo
+    // plano depois da resposta (o que sobrar entra na próxima busca).
+    classificados = await classificarRelevancia(sb, key, tema, !temaNovo, inicio + 110_000);
+    const resto = classificarRelevancia(sb, key, tema, true, inicio + 140_000).catch(() => 0);
+    (globalThis as any).EdgeRuntime?.waitUntil?.(resto);
   }
   const { count: noTema } = tema
     ? await sb
