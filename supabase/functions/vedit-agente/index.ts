@@ -373,7 +373,7 @@ function emendarDivisoes(tl: any) {
 }
 
 /** Olha a foto e diz em poucas palavras o que ela mostra (o título da matéria nem sempre bate). */
-async function descreverImagem(url: string) {
+async function descreverImagem(bytes: Uint8Array, mime: string) {
   const chave = Deno.env.get("ANTHROPIC_API_KEY") ?? Deno.env.get("CLAUDE_API_KEY");
   if (!chave) return "foto de matéria";
   try {
@@ -387,7 +387,19 @@ async function descreverImagem(url: string) {
           {
             role: "user",
             content: [
-              { type: "image", source: { type: "url", url } },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: /png|webp|gif/.test(mime) ? mime : "image/jpeg",
+                  data: (() => {
+                    let b = "";
+                    for (let i = 0; i < bytes.length; i += 0x8000)
+                      b += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+                    return btoa(b);
+                  })(),
+                },
+              },
               { type: "text", text: "Descreva em até 12 palavras, em português, o que esta imagem mostra de fato (pessoas, logos, telas, texto legível). Só a descrição." },
             ],
           },
@@ -634,7 +646,8 @@ async function buscarMidia(sb: any, projetoId: string, args: any) {
       if (hashes.has(hash)) continue;
       hashes.add(hash);
       // Foto de matéria: o que ela MOSTRA de fato (visto na imagem), para o editor pôr na frase certa.
-      if (args.tipo === "noticia") a.credito = `${await descreverImagem(a.url)} — fonte: ${a.credito}`;
+      if (args.tipo === "noticia")
+        a.credito = `${await descreverImagem(bytes, blob.type || "image/jpeg")} — fonte: ${a.credito}`;
       a.credito = `${a.credito} [h:${hash}]`;
       const path = `${projetoId}/midias/${Date.now()}-${a.nome}`;
       const up = await sb.storage.from("video-edicao").upload(path, blob, {
@@ -760,9 +773,25 @@ const luma = (hex: string) => {
  *  mídia cheia) caem nos mesmos momentos relativos do nosso vídeo (ajustados ao fim da frase), a
  *  tela dividida fica contínua dentro de cada bloco, sai tudo que ela não usa e a legenda vai para
  *  a mesma posição e tamanho. O Claude escolhe as mídias; a estrutura não fica a critério dele. */
-function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number; f: number }[]) {
-  const trechosRef = (dec?.trechos ?? []) as any[];
-  if (!trechosRef.length || !(durRef > 0)) return;
+function mapaEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number; f: number }[]) {
+  let trechosRef = ((dec?.trechos ?? []) as any[]).map((t) => ({ ...t }));
+  if (!trechosRef.length || !(durRef > 0)) return null;
+  // Respiro curto de "só fala" (< 3 s) entre dois blocos de tela dividida é do assunto DELA, não
+  // da estrutura: vira continuação da dividida (senão briga com o momento em que o nosso assunto
+  // pede imagem).
+  for (let i = 1; i + 1 < trechosRef.length; i++) {
+    const t = trechosRef[i];
+    if (
+      t.layout === "so-fala" &&
+      t.ate - t.de < 3 &&
+      trechosRef[i - 1].layout === "dividida" &&
+      trechosRef[i + 1].layout === "dividida"
+    ) {
+      trechosRef[i - 1].ate = trechosRef[i + 1].ate;
+      trechosRef.splice(i, 2);
+      i--;
+    }
+  }
   const cortes = ((Array.isArray(tl.cortes) && tl.cortes.length ? tl.cortes : null) ?? [
     { de: 0, ate: Number(tl.duracaoFonte ?? palavras.at(-1)?.f ?? 0) },
   ]) as { de: number; ate: number }[];
@@ -816,8 +845,35 @@ function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number
     o0: i === 0 ? 0 : encaixa((t.de / durRef) * D),
     o1: i === trechosRef.length - 1 ? D : encaixa((t.ate / durRef) * D),
   }));
-  const blocoEm = (o: number) => blocos.find((b) => o >= b.o0 && o < b.o1) ?? blocos.at(-1);
-  const layouts = new Set(blocos.map((b) => b.layout));
+  return { cortes, D, paraSaida, paraFonte, blocos };
+}
+
+/** As janelas da estrutura no tempo do vídeo ORIGINAL, com a fala de cada uma (vai no contexto do
+ *  Claude, para ele pôr cada imagem dentro do bloco certo e na frase certa). */
+function janelasEstrutura(tl: any, dec: any, durRef: number, palavras: any[]) {
+  const m = mapaEstrutura(tl, dec, durRef, palavras);
+  if (!m) return "";
+  const { cortes, paraFonte, blocos } = m;
+  const dentro = (t: number) => cortes.some((c: any) => t >= c.de && t <= c.ate);
+  return blocos
+    .map((b: any) => {
+      const f0 = paraFonte(b.o0 + 0.01),
+        f1 = paraFonte(Math.max(0, b.o1 - 0.01));
+      const fala = palavras
+        .filter((w: any) => w.i >= f0 - 0.05 && w.i <= f1 && dentro(w.i))
+        .map((w: any) => w.p)
+        .join(" ");
+      return `- ${b.layout.toUpperCase()} de ${f0.toFixed(2)}s a ${f1.toFixed(2)}s (no vídeo final ${b.o0.toFixed(1)}–${b.o1.toFixed(1)}s)${b.layout === "dividida" ? ` → imagens trocando a cada ~${b.troca_midia_s ?? 2}s do começo ao fim, cada uma na frase que ela prova` : b.layout === "so-fala" ? " → nenhuma imagem" : ""}: "${fala.slice(0, 600)}"`;
+    })
+    .join("\n");
+}
+
+function imporEstrutura(tl: any, dec: any, durRef: number, palavras: { i: number; f: number }[]) {
+  const m = mapaEstrutura(tl, dec, durRef, palavras);
+  if (!m) return;
+  const { cortes, paraSaida, paraFonte, blocos } = m;
+  const blocoEm = (o: number) => blocos.find((b: any) => o >= b.o0 && o < b.o1) ?? blocos.at(-1);
+  const layouts = new Set(blocos.map((b: any) => b.layout));
   const comSobrepos = blocos.filter((b) => (b.sobreposicoes ?? []).length);
   const permitido = new Set<string>(["cta-final"]);
   if (layouts.has("dividida")) permitido.add("dividir");
@@ -1281,7 +1337,27 @@ Deno.serve(async (req) => {
     ? `pele ${luz.quente > 0.34 ? "alaranjada (luz quente)" : luz.quente > 0.28 ? "levemente quente" : luz.quente < 0.12 ? "fria/pálida" : "neutra"} (índice ${Number(luz.quente).toFixed(2)}), rosto ${luz.lumaRosto < 0.36 ? "escuro" : luz.lumaRosto > 0.72 ? "muito claro" : "bem exposto"} (${Math.round(luz.lumaRosto * 100)}%), quadro ${luz.lumaMedia < 0.3 ? "escuro" : luz.lumaMedia > 0.65 ? "claro" : "médio"} (${Math.round(luz.lumaMedia * 100)}%), contraste ${luz.contraste < 0.14 ? "baixo" : luz.contraste > 0.3 ? "alto" : "normal"}, saturação ${Math.round(luz.saturacao * 100)}%`
     : "(não medida ainda)";
   const rostoProj = proj.rosto as Record<string, number> | null;
-  const contexto = `ROSTO DA PESSOA (frações do quadro; nada de grafismo em cima): ${rostoProj ? `x ${rostoProj.x}, y ${rostoProj.y}, w ${rostoProj.w}, h ${rostoProj.h}` : "(não detectado; assuma o centro)"}\n\nLUZ E COR DO VÍDEO GRAVADO (medida nos quadros): ${descLuz}. Regra: correção sutil rumo à pele neutra; a compressão da Meta puxa vermelho e satura, então nunca esquente nem sature uma imagem que já está quente; grafismos nas cores da marca, com fundo que contraste com o quadro.\n\nTRILHAS DISPONÍVEIS:\n${listaTrilhas}\n\nTRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\nEDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
+  // Seguindo referência com decupagem: as janelas da estrutura no tempo deste vídeo, com a fala.
+  let estruturaTxt = "";
+  const refIdCtx =
+    typeof proj.timeline?.modelo?.id === "string" && proj.timeline.modelo.id.startsWith("ref-")
+      ? proj.timeline.modelo.id.slice(4)
+      : null;
+  if (refIdCtx) {
+    const { data: rf } = await sb
+      .from("vedit_referencias")
+      .select("analise, duracao")
+      .eq("id", refIdCtx)
+      .maybeSingle();
+    if (rf?.analise?.decupagem)
+      estruturaTxt = janelasEstrutura(
+        proj.timeline,
+        rf.analise.decupagem,
+        Number(rf.duracao ?? 0),
+        (proj.palavras ?? []) as any[],
+      );
+  }
+  const contexto = `ROSTO DA PESSOA (frações do quadro; nada de grafismo em cima): ${rostoProj ? `x ${rostoProj.x}, y ${rostoProj.y}, w ${rostoProj.w}, h ${rostoProj.h}` : "(não detectado; assuma o centro)"}\n\nLUZ E COR DO VÍDEO GRAVADO (medida nos quadros): ${descLuz}. Regra: correção sutil rumo à pele neutra; a compressão da Meta puxa vermelho e satura, então nunca esquente nem sature uma imagem que já está quente; grafismos nas cores da marca, com fundo que contraste com o quadro.\n\nTRILHAS DISPONÍVEIS:\n${listaTrilhas}\n\nTRANSCRIÇÃO (${palavras.length} palavras):\n${transcricao || "(sem transcrição)"}\n\nFALAS REPETIDAS DETECTADAS (${reps.length}; a anterior sai, a última fica):\n${reps.length ? descreverRepeticoes(reps) : "(nenhuma pelo detector — ainda assim confira reformulações)"}\n\nMÍDIAS ENVIADAS:\n${(midias ?? []).map((m) => `- id "${m.id}" ${m.tipo} "${m.nome}"${m.duracao ? ` ${m.duracao}s` : ""}${m.descricao ? ` — ${m.descricao}` : ""}`).join("\n") || "(nenhuma)"}\n\n${estruturaTxt ? `ESTRUTURA DA REFERÊNCIA NESTE VÍDEO (obrigatória; tempos do vídeo original, os mesmos de "de"/"ate"). Toda imagem fica DENTRO de um bloco DIVIDIDA e entra na frase que ela prova; nos blocos SO-FALA nada entra:\n${estruturaTxt}\n\n` : ""}EDIÇÃO ATUAL (versão ${proj.versao}):\n${proj.timeline ? JSON.stringify(proj.timeline) : "(nenhuma ainda)"}${proj.storyboard ? `\n\nSTORYBOARD PROPOSTO ANTES:\n${JSON.stringify(proj.storyboard)}` : ""}`;
 
   const historico = (hist ?? [])
     .reverse()
