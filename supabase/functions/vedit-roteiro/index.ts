@@ -354,9 +354,8 @@ async function sistema(
   return `${quem}
 
 TAREFA: escrever um roteiro ORIGINAL sobre o ASSUNTO pedido, espelhando o esqueleto de um vídeo que performou muito bem:
-- mesma sequência de papéis (gancho, viradas, prova, payoff, CTA) e a mesma quantidade de blocos — junte frases muito curtas da referência num bloco só quando fizer sentido e diga em "ref" quais frases o bloco espelha;
-- em cada bloco, o mesmo tamanho de fala da referência (nº de palavras ±20%) para caber no mesmo tempo, e "pausa_depois_s" igual à pausa da referência naquele ponto (as pausas são parte do ritmo: mantenha todas as que passam de 0,3 s);
-- "inicio_s" e "duracao_s" calculados para o roteiro bater com a duração da referência;
+- o que se copia da referência é a MECÂNICA: a sequência de papéis (gancho, contexto, virada, prova, payoff, CTA), o ritmo (frases curtas onde ela é curta, pausas antes das viradas), a duração aproximada e o formato visual. Não é molde de frase: a quantidade de blocos e o tamanho de cada fala se adaptam ao NOSSO assunto (pode ter mais ou menos blocos), desde que cada papel apareça na mesma ordem e o vídeo fique com duração parecida. Em "ref", diga qual trecho da referência o bloco espelha;
+- "inicio_s", "duracao_s" e "pausa_depois_s" calculados para o nosso roteiro (pausas maiores antes das viradas, como ela faz);
 - o mesmo tipo de gancho e de mecanismo (curiosidade, quebra de crença, lista, história…), nunca a mesma frase: nada copiado, tema e exemplos nossos;
 - o MESMO FORMATO VISUAL: cada bloco tem "visual" igual ao que a referência mostra naquele momento (veja EDIÇÃO DA REFERÊNCIA, MOMENTO A MOMENTO): se ali ela usa tela dividida com vídeo em cima, o nosso bloco também; se corta para vídeo em tela cheia na palavra concreta, o nosso também, com uma mídia do NOSSO assunto que prove aquela fala (o equivalente ao que ela mostrou). Mesma quantidade de trocas de mídia e mesmos momentos; nada de bloco "só fala" onde ela tem imagem.
 - a CONEXÃO: o assunto do momento é a porta de entrada; o roteiro tem que ligar esse assunto, sem forçar, à dor da empresa que a Mariana indicar e à IA aplicada como saída. Se ela disser qual é a ponte (ex.: "depender de uma pessoa só, de um sistema só, de processo na cabeça do dono"), essa ponte é o miolo do roteiro, com as palavras dela.
@@ -373,7 +372,13 @@ ${finalidade === "anuncio" ? "" : `ORGÂNICO NÃO É ANÚNCIO (regra dura):
 NICHO: ${cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
 
-AJUSTES: quando a Mariana pedir mudanças, mude SÓ o que ela pediu e mantenha o resto palavra por palavra; continue respeitando o esqueleto e as pausas, a não ser que ela peça para sair dele. Grave sempre o roteiro completo com salvar_roteiro.`;
+CTA: nunca reaproveite a palavra-chave nem a oferta da referência. A palavra-chave sai do NOSSO assunto (ex.: APAGÃO) e o que ela recebe tem ligação direta com o que o vídeo acabou de mostrar (ex.: o teste que ela faz para descobrir o que trava quando alguém some), dito de forma específica. Proibido CTA genérico ("te mando o material no privado sem custo", "mapa das aplicações").
+
+AJUSTES: leia o pedido da Mariana pelo que ela QUER, não ao pé da letra das palavras soltas:
+- pedido pontual ("troca a CTA", "encurta o bloco 3") → mude só aquilo e mantenha o resto;
+- crítica de direção ("ficou péssimo", "não falou do assunto", "parece anúncio", "não conectou") → reescreva TODAS as partes afetadas por inteiro, quantas forem, até o problema sumir; não troque só uma frase;
+- o pedido mais recente vale mais que os anteriores, mas não desfaça o que ela já pediu antes (veja PEDIDOS ANTERIORES) a não ser que ela mande;
+- antes de salvar, releia o roteiro inteiro como a Mariana: se ainda tem o problema que ela apontou, corrija. Grave sempre o roteiro completo com salvar_roteiro e, na resposta, diga com honestidade o que mudou.`;
 }
 
 async function gerar(sb: any, id: string) {
@@ -438,7 +443,7 @@ async function ajustar(sb: any, r: any, msgs: any[], pedido: string) {
         messages: [
           {
             role: "user",
-            content: `${textoEstrutura(r.estrutura ?? {})}\n\n${await edicaoDaReferencia(sb, r.estrutura?.fonte?.referencia_id ?? r.referencia_id)}\n\nASSUNTO: ${r.tema}\n${historico ? `PEDIDOS ANTERIORES (já aplicados):\n${historico}\n` : ""}\nROTEIRO ATUAL (versão ${r.versao}):\n${JSON.stringify(r.roteiro)}\n\nPEDIDO DE AJUSTE DA MARIANA: ${pedido}\n\n${(r.roteiro?.blocos ?? []).some((b: any) => b.visual) ? "" : "O roteiro atual ainda não tem o plano visual: além do ajuste, preencha 'visual' em TODOS os blocos seguindo a edição da referência momento a momento.\\n"}Aplique só esse ajuste e chame salvar_roteiro com o roteiro completo.`,
+            content: `${textoEstrutura(r.estrutura ?? {})}\n\n${await edicaoDaReferencia(sb, r.estrutura?.fonte?.referencia_id ?? r.referencia_id)}\n\nTEMA DA CRIAÇÃO: ${r.tema} (se os pedidos trocaram o tema, vale o tema dos pedidos e do roteiro atual)\n${historico ? `PEDIDOS ANTERIORES (já aplicados):\n${historico}\n` : ""}\nROTEIRO ATUAL (versão ${r.versao}):\n${JSON.stringify(r.roteiro)}\n\nPEDIDO DE AJUSTE DA MARIANA: ${pedido}\n\n${(r.roteiro?.blocos ?? []).some((b: any) => b.visual) ? "" : "O roteiro atual ainda não tem o plano visual: além do ajuste, preencha 'visual' em TODOS os blocos seguindo a edição da referência momento a momento.\\n"}Atenda esse pedido seguindo as regras de AJUSTES e chame salvar_roteiro com o roteiro completo.`,
           },
         ],
       },
