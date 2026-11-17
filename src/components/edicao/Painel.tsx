@@ -114,7 +114,7 @@ export function Painel({
         <TabsTrigger value="midias">Mídias</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="edicao" className="flex-1 overflow-y-auto px-3 pb-3 space-y-5 mt-0">
+      <TabsContent value="edicao" className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-5 mt-0">
         <section className="space-y-2">
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Projeto
@@ -520,7 +520,7 @@ export function Painel({
         </section>
       </TabsContent>
 
-      <TabsContent value="roteiro" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+      <TabsContent value="roteiro" className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 mt-0">
         <JuntarVideo projeto={projeto} tl={tl} setTl={setTl} onIr={onIr} onJuntado={onJuntado} />
         {onRevisarRepeticoes && <RevisarRepeticoes onRevisar={onRevisarRepeticoes} />}
         <Roteiro
@@ -534,7 +534,7 @@ export function Painel({
         />
       </TabsContent>
 
-      <TabsContent value="biblioteca" className="flex-1 overflow-y-auto px-3 pb-3 mt-0">
+      <TabsContent value="biblioteca" className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 mt-0">
         <EfeitosVisuais
           tl={tl}
           setTl={setTl}
@@ -548,7 +548,7 @@ export function Painel({
         />
       </TabsContent>
 
-      <TabsContent value="midias" className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 mt-0">
+      <TabsContent value="midias" className="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-2 mt-0">
         <ImagensSugeridas
           projetoId={projeto.id}
           tl={tl}
