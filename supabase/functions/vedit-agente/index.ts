@@ -903,6 +903,45 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
     const { data: refDur } = await sb.from("vedit_referencias").select("duracao").eq("id", refId).maybeSingle();
     imporEstrutura(tl, a.decupagem, Number(refDur?.duracao ?? 0), (proj.palavras ?? []) as any[]);
   }
+  // Grafismos no molde EXATO da referência: a composição que tem os mesmos tipos de elemento de um
+  // layout dela recebe as posições, tamanhos e fonte dele (fica só o texto nosso); elemento a mais
+  // (filete, faixa colorida inventada) sai.
+  const layoutsRef = (Array.isArray(a.layouts) ? a.layouts : []) as any[];
+  if (layoutsRef.length)
+    for (const e of (tl.efeitos ?? []) as any[]) {
+      if (e.tipo !== "composicao" || !Array.isArray(e.props?.elementos)) continue;
+      const nossos = e.props.elementos as any[];
+      const tiposNossos = nossos.map((x) => x?.tipo).join(",");
+      let alvo: any = null;
+      let melhor = -1;
+      for (const L of layoutsRef) {
+        const els = ((L?.elementos ?? []) as any[]).filter((x) => x?.tipo !== "pessoa" && x?.tipo !== "midia");
+        if (!els.length) continue;
+        const usados = new Set<number>();
+        let casou = 0;
+        for (const r of els) {
+          const k = nossos.findIndex((x, i) => !usados.has(i) && x?.tipo === r.tipo);
+          if (k >= 0) {
+            usados.add(k);
+            casou++;
+          }
+        }
+        const nota = casou / Math.max(els.length, nossos.length);
+        if (casou === els.length && nota > melhor) {
+          melhor = nota;
+          alvo = els;
+        }
+      }
+      if (!alvo) continue;
+      const usados = new Set<number>();
+      e.props.elementos = alvo.map((r: any) => {
+        const k = nossos.findIndex((x, i) => !usados.has(i) && x?.tipo === r.tipo);
+        usados.add(k);
+        const n = nossos[k] ?? {};
+        return { ...r, ...(n.texto != null ? { texto: n.texto } : {}), ...(n.midia ? { midia: n.midia } : {}) };
+      });
+      void tiposNossos;
+    }
   // Cores da referência: paleta + todo hex que aparece nos layouts e no preset.
   const hexes = new Set<string>();
   const coletar = (o: unknown) =>

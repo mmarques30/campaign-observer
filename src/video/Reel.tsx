@@ -495,6 +495,7 @@ export function Reel(bruto: ReelProps) {
         w: Number(el.w ?? 0.92),
         h: Number(el.h ?? 0.53),
         raio: Number(el.raio ?? 36),
+        focoY: Number(el.focoY ?? 0.46),
         fundo: ["", "nenhum", "escurecer", "desfocar"].includes(fundo) ? "#1C1C1E" : fundo,
       };
     }
@@ -520,7 +521,7 @@ export function Reel(bruto: ReelProps) {
             const chAt = lerp(H, ch),
               s = lerp(1, esc);
             const rc = tl.rosto ? tl.rosto.y + tl.rosto.h * 0.45 : 0.36;
-            const alvo = chAt * 0.46 - chAt / 2 - (rc - 0.5) * H * s;
+            const alvo = chAt * card.focoY - chAt / 2 - (rc - 0.5) * H * s;
             const lim = Math.max(0, (H * s - chAt) / 2);
             return Math.max(-lim, Math.min(lim, alvo)) * card.p;
           })(),

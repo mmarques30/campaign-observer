@@ -68,6 +68,7 @@ export type EfeitoDef = {
     h: number;
     raio: number;
     fundo: string;
+    focoY?: number; // onde o rosto fica dentro da caixa (0–1); padrão 0,46
   } | null;
   inspiracao?: string;
   exemplo?: Record<string, any>; // props de demonstração na biblioteca de efeitos
@@ -717,9 +718,15 @@ export const EFEITOS: EfeitoDef[] = [
     // cortes): a mídia nunca cobre o rosto, e telas divididas emendadas não "pulsam" na troca.
     cardPessoa: (p) => {
       const lado = String(p.lado ?? "cima");
-      // Em degradê a mídia se dissolve sobre a pessoa: o quadro dela começa um pouco antes da emenda.
-      const prop =
-        Math.min(0.7, Math.max(0.3, Number(p.proporcao ?? 0.5))) - (p.emenda === "degrade" ? 0.06 : 0);
+      const prop = Math.min(0.7, Math.max(0.3, Number(p.proporcao ?? 0.5)));
+      if (p.emenda === "degrade" && (lado === "cima" || lado === "baixo")) {
+        // Degradê: a pessoa fica atrás de toda a faixa de transição (parede com parede, sem
+        // quadrado), com o rosto no meio da parte livre.
+        const livreMeio = lado === "cima" ? prop + (1 - prop) / 2 : (1 - prop) / 2;
+        const y = lado === "cima" ? Math.max(0, prop - 0.3) : 0;
+        const h = lado === "cima" ? 1 - y : Math.min(1, 1 - prop + 0.3);
+        return { x: 0, y, w: 1, h, raio: 0, fundo: "#000000", focoY: (livreMeio - y) / h };
+      }
       if (lado === "baixo") return { x: 0, y: 0, w: 1, h: 1 - prop, raio: 0, fundo: "#000000" };
       if (lado === "esquerda") return { x: prop, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };
       if (lado === "direita") return { x: 0, y: 0, w: 1 - prop, h: 1, raio: 0, fundo: "#000000" };

@@ -69,8 +69,8 @@ export function Dividir({ p, ctx, dur }: EfeitoProps) {
           // Emenda em degradê (como nos vídeos de comentário): a mídia se dissolve na pessoa, sem linha.
           ...(degrade
             ? {
-                WebkitMaskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 82%, transparent 100%)`,
-                maskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 82%, transparent 100%)`,
+                WebkitMaskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 62%, transparent 100%)`,
+                maskImage: `linear-gradient(${{ cima: "to bottom", baixo: "to top", esquerda: "to right", direita: "to left" }[lado] ?? "to bottom"}, #000 62%, transparent 100%)`,
               }
             : {}),
         }}
