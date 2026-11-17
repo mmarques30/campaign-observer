@@ -1108,26 +1108,24 @@ async function limparReferencia(sb: any, tl: any, refId: string, marca: any, pro
       const cx = e.props.elementos.find((x: any) => x?.tipo === "caixa" && Number(x?.w ?? 0) >= 0.2);
       const tx = e.props.elementos.find((x: any) => x?.tipo === "texto");
       if (ehGancho && cx && tx) {
-        const linhas = Math.max(2, Math.ceil(String(tx.texto ?? "").length / 34));
         const y = Number(cx.y ?? 0.34);
         const barra = (gancho?.elementos ?? []).find(
           (x: any) => x?.tipo === "linha" || (x?.tipo === "caixa" && Number(x?.w ?? 1) < 0.03),
         );
         e.props.elementos = [
-          ...(barra
-            ? [{ tipo: "caixa", x: 0.025, y, w: 0.012, h: +(linhas * 0.036).toFixed(3), fundo: barra.fundo ?? barra.cor, raio: 0, entrada: "nenhuma" }]
-            : []),
           {
             tipo: "texto",
-            x: 0.045,
+            x: 0.03,
             y,
-            w: 0.9,
+            w: 0.92,
             texto: tx.texto,
             fonte: tx.fonte,
             peso: 600,
             tamanho: 50,
             cor: "#111111",
             fundoLinha: cx.fundo ?? "#FFFFFF",
+            // A barra vai no próprio texto: acompanha a altura das linhas, nunca sobra.
+            ...(barra ? { barra: barra.fundo ?? barra.cor } : {}),
             alinhar: "esquerda",
             entrada: "nenhuma",
           },

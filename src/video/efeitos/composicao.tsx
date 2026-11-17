@@ -53,6 +53,7 @@ export function desviarDoRosto(c: Caixa, rosto?: Caixa | null): Caixa {
 type Elemento = {
   tipo?: "texto" | "caixa" | "icone" | "midia" | "brilho" | "linha" | "pessoa";
   fundoLinha?: string; // texto marca-texto: fundo justo em cada linha
+  barra?: string; // barrinha de cor colada à esquerda do texto, sempre da altura das linhas
   x?: number;
   y?: number;
   w?: number;
@@ -337,6 +338,9 @@ export function Composicao({ p, ctx, dur }: EfeitoProps) {
                 fontWeight: el.peso ?? 800,
                 fontSize: (el.tamanho ?? (tipo === "caixa" ? 36 : 64)) * k,
                 lineHeight: el.fundoLinha ? 1.42 : 1.08,
+                ...(el.barra
+                  ? { borderLeft: `${15 * k}px solid ${el.barra}`, paddingLeft: 0 }
+                  : {}),
                 letterSpacing: (el.espacamento ?? 0) * k,
                 color: el.cor ?? m.texto,
                 textAlign:
