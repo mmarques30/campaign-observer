@@ -370,7 +370,7 @@ export function AdsLayout() {
   const alertas = healthQ.data ?? 0;
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user.email ?? null));
   }, []);
 
   // Desktop: icon-only collapse. Mobile: off-canvas drawer.

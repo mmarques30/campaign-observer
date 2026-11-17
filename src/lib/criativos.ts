@@ -35,6 +35,44 @@ export function useFotos() {
   });
 }
 
+/**
+ * Miniaturas leves (WebP ~50–150 KB, em vez do PNG original de ~2 MB) para listas e grades.
+ * O Storage redimensiona e guarda em cache; o original continua sendo usado no editor e na
+ * exportação. Se o redimensionamento falhar, volta para o link do original.
+ */
+export function useMiniaturas(
+  fotos: FotoComUrl[] | undefined,
+  tamanho: { largura: number; altura: number } = { largura: 720, altura: 1080 },
+) {
+  const paths = [...new Set((fotos ?? []).map((f) => f.path))].sort();
+  return useQuery({
+    queryKey: ["cria", "miniaturas", tamanho.largura, tamanho.altura, paths.join("|")],
+    enabled: paths.length > 0,
+    staleTime: 6 * 60 * 60 * 1000,
+    queryFn: async () => {
+      const urls = await Promise.all(
+        paths.map(async (path) => {
+          const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60 * 12, {
+            transform: {
+              width: tamanho.largura,
+              height: tamanho.altura,
+              resize: "contain",
+              quality: 72,
+            },
+          });
+          return [path, data?.signedUrl ?? ""] as const;
+        }),
+      );
+      return new Map(urls.filter(([, u]) => u));
+    },
+  });
+}
+
+/** Troca o link das fotos pelo da miniatura, quando já existe. */
+export function comMiniaturas<T extends FotoComUrl>(fotos: T[], minis?: Map<string, string>) {
+  return minis ? fotos.map((f) => ({ ...f, url: minis.get(f.path) ?? f.url })) : fotos;
+}
+
 /** Reduz para no máx. 2048px (as APIs de imagem não precisam de mais) e salva na biblioteca. */
 export async function enviarFoto(file: File): Promise<CriaFoto> {
   const blob = await reduzirImagem(file, 2048);

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -47,7 +47,15 @@ import {
 } from "lucide-react";
 import { SlideEscalado } from "@/components/criativos/SlideView";
 import { EscolherModelo, type CriaModelo } from "@/components/criativos/Modelos";
-import { chamarAgente, carregarFontes, useFotos } from "@/lib/criativos";
+import {
+  chamarAgente,
+  carregarFontes,
+  comMiniaturas,
+  useFotos,
+  useMiniaturas,
+} from "@/lib/criativos";
+
+const UUID_G = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 import { db } from "@/lib/vedit";
 import {
   normalizarDesign,
@@ -214,7 +222,34 @@ function Criativos() {
   }
 
   const lista = projetos.data ?? [];
-  const minhas = (fotos.data?.lista ?? []).filter((f) => f.origem !== "referencia").slice(0, 40);
+  // Capas da lista: só as fotos que aparecem no 1º slide de cada criativo, em miniatura leve.
+  const fotosCapas = useMemo(() => {
+    const porId = fotos.data?.porId;
+    if (!porId) return [];
+    const ids = new Set<string>();
+    for (const p of lista) {
+      const s = normalizarDesign(p.design).slides[0];
+      for (const id of JSON.stringify(s ?? {}).match(UUID_G) ?? []) if (porId.has(id)) ids.add(id);
+    }
+    return [...ids].map((id) => porId.get(id)!);
+  }, [lista, fotos.data]);
+  const minisCapas = useMiniaturas(fotosCapas);
+  const porIdCapas = useMemo(() => {
+    const porId = fotos.data?.porId;
+    if (!porId) return null;
+    const m = new Map(porId);
+    for (const f of comMiniaturas(fotosCapas, minisCapas.data)) m.set(f.id, f);
+    return m;
+  }, [fotos.data, fotosCapas, minisCapas.data]);
+  const capasProntas = !fotosCapas.length || minisCapas.isSuccess || minisCapas.isError;
+  const minhasOriginais = (fotos.data?.lista ?? [])
+    .filter((f) => f.origem !== "referencia")
+    .slice(0, 40);
+  const minisEscolha = useMiniaturas(aberto ? minhasOriginais : undefined, {
+    largura: 160,
+    altura: 200,
+  });
+  const minhas = comMiniaturas(minhasOriginais, minisEscolha.data);
 
   return (
     <div className="space-y-6">
@@ -285,12 +320,12 @@ function Criativos() {
                     <Trash2 className="h-4 w-4" />
                   </Button>
                   <div className="bg-muted flex items-center justify-center aspect-[4/5] overflow-hidden">
-                    {s && fotos.data ? (
+                    {s && porIdCapas && capasProntas ? (
                       <SlideEscalado
                         slide={s}
                         design={d}
                         formato={p.formato}
-                        fotos={fotos.data.porId}
+                        fotos={porIdCapas}
                         indice={0}
                         total={d.slides.length}
                       />
@@ -533,7 +568,14 @@ function Criativos() {
                             on && "ring-2 ring-primary",
                           )}
                         >
-                          <img src={f.url} className="h-full w-full object-cover" loading="lazy" />
+                          {(minisEscolha.isSuccess || minisEscolha.isError) && (
+                            <img
+                              src={f.url}
+                              alt=""
+                              className="h-full w-full object-cover"
+                              loading="lazy"
+                            />
+                          )}
                           {on && (
                             <Check className="absolute top-1 right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground p-0.5" />
                           )}

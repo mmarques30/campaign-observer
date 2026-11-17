@@ -17,7 +17,11 @@ if (typeof window !== "undefined") {
 }
 
 export const getRouter = () => {
-  const queryClient = new QueryClient();
+  // Dados ficam frescos por 30 s: trocar de tela e voltar (ou focar a aba) não repete as
+  // mesmas consultas. Telas que precisam de dado novo já invalidam ou têm refetchInterval.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { staleTime: 30_000 } },
+  });
 
   const router = createRouter({
     routeTree,

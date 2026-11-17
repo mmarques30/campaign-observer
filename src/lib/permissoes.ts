@@ -148,7 +148,7 @@ export async function carregarPermissoes(force = false): Promise<Permissoes> {
   if (cache && !force) return cache;
   if (carregando && !force) return carregando;
   carregando = (async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = (await supabase.auth.getSession()).data.session?.user;
     if (!user) { cache = VAZIO; return cache; }
     const [prof, mu, emps] = await Promise.all([
       supabase.from("profiles").select("is_admin, full_name").eq("id", user.id).maybeSingle(),
@@ -266,7 +266,7 @@ export async function registrarAcesso(
   detalhes?: Record<string, unknown>,
 ) {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = (await supabase.auth.getSession()).data.session?.user;
     if (!user) return;
     const emp = cache?.empresa?.nome;
     await (supabase as any).from("mads_acessos").insert({
