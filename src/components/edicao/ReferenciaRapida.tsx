@@ -1,3 +1,5 @@
+// Aba "Meus publicados": os vídeos da própria empresa (a ativa, IAplicada ou cliente) que já
+// foram publicados no Instagram por aqui viram referência com um clique (o link é o do post).
 // Dentro do editor: cola o link de um vídeo de inspiração (ou escolhe uma referência salva)
 // e aplica o estilo neste vídeo, mesmo já editado. Baixar e analisar roda no servidor.
 import { useState } from "react";
@@ -62,6 +64,32 @@ export function ReferenciaRapida({
       ).data ?? []) as Referencia[],
   });
 
+  // Vídeos da empresa ativa já publicados no Instagram (a regra de acesso do banco filtra a empresa).
+  const meus = useQuery({
+    queryKey: ["vedit", "meus-publicados"],
+    enabled: aberto,
+    queryFn: async () =>
+      ((
+        await db()
+          .from("publicacoes")
+          .select("id, nome, permalink, publicado_em, legenda, metricas, ref_id")
+          .eq("destino", "instagram")
+          .eq("origem", "video")
+          .eq("status", "publicado")
+          .not("permalink", "is", null)
+          .order("publicado_em", { ascending: false })
+          .limit(40)
+      ).data ?? []) as {
+        id: string;
+        nome: string | null;
+        permalink: string;
+        publicado_em: string | null;
+        legenda: string | null;
+        metricas: any;
+        ref_id: string | null;
+      }[],
+  });
+
   async function aplicar(r: Referencia) {
     const a = analiseOk(r.analise);
     if (!a) {
@@ -79,12 +107,13 @@ export function ReferenciaRapida({
     onFechar();
   }
 
-  async function porLink() {
-    if (!/^https?:\/\/\S+/.test(url.trim()))
+  async function porLink(linkDireto?: string, legenda?: string) {
+    const link = (linkDireto ?? url).trim();
+    if (!/^https?:\/\/\S+/.test(link))
       return toast.error("Cole o link do vídeo (Instagram, TikTok ou YouTube).");
     setPasso("enviando");
     try {
-      const id = await criarReferenciaPorLink({ url, notas });
+      const id = await criarReferenciaPorLink({ url: link, notas, legenda });
       const r = await aguardarReferencia(id, (s) => s !== "pronta" && setPasso(s));
       await aplicar(r);
     } catch (e) {
@@ -133,8 +162,11 @@ export function ReferenciaRapida({
           </div>
         ) : (
           <Tabs defaultValue="link" className="min-w-0">
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-3">
               <TabsTrigger value="link">Link novo</TabsTrigger>
+              <TabsTrigger value="meus">
+                Meus publicados{meus.data?.length ? ` (${meus.data.length})` : ""}
+              </TabsTrigger>
               <TabsTrigger value="salvas">
                 Já analisadas{salvas.data?.length ? ` (${salvas.data.length})` : ""}
               </TabsTrigger>
@@ -157,9 +189,63 @@ export function ReferenciaRapida({
                   placeholder="ex.: a legenda amarela palavra por palavra e os zooms rápidos"
                 />
               </div>
-              <Button className="w-full" onClick={porLink}>
+              <Button className="w-full" onClick={() => porLink()}>
                 <Link2 className="h-4 w-4 mr-2" /> Analisar e aplicar
               </Button>
+            </TabsContent>
+            <TabsContent value="meus" className="pt-2">
+              {meus.isLoading ? (
+                <div className="py-8 flex justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : !meus.data?.length ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  Nenhum vídeo desta empresa publicado no Instagram por aqui ainda. Para um vídeo
+                  publicado por fora, cole o link dele na aba "Link novo".
+                </p>
+              ) : (
+                <div className="max-h-80 overflow-y-auto overflow-x-hidden divide-y rounded-md border min-w-0">
+                  {meus.data
+                    .filter((m) => m.ref_id !== projetoId)
+                    .map((m) => (
+                      <div key={m.id} className="flex items-stretch min-w-0">
+                        <button
+                          type="button"
+                          className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
+                          onClick={() => porLink(m.permalink, m.legenda ?? undefined)}
+                        >
+                          <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium truncate">{m.nome ?? "Vídeo"}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {[
+                                m.publicado_em
+                                  ? new Date(m.publicado_em).toLocaleDateString("pt-BR")
+                                  : null,
+                                m.metricas?.reach ? `${Number(m.metricas.reach).toLocaleString("pt-BR")} de alcance` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </div>
+                          </div>
+                        </button>
+                        <a
+                          href={m.permalink}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Abrir no Instagram"
+                          className="px-3 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
+                        >
+                          <Play className="h-4 w-4" />
+                        </a>
+                      </div>
+                    ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground pt-2">
+                Na primeira vez o sistema analisa o vídeo (1 a 2 minutos); depois ele fica em "Já
+                analisadas".
+              </p>
             </TabsContent>
             <TabsContent value="salvas" className="pt-2">
               {salvas.isLoading ? (
