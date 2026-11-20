@@ -93,26 +93,12 @@ async function gerar(
   if (!fala) throw new Error("a transcrição deste vídeo ainda não terminou");
   const modeloId = String(p.timeline?.modelo?.id ?? "");
   const refId = modeloId.startsWith("ref-") ? modeloId.slice(4) : (p.referencia_id ?? null);
-  // A voz de verdade: as últimas legendas que a própria conta publicou no Instagram.
-  const { data: pubs } = await sb
-    .from("publicacoes")
-    .select("legenda")
-    .eq("empresa_id", p.empresa_id)
-    .eq("destino", "instagram")
-    .eq("status", "publicado")
-    .not("legenda", "is", null)
-    .order("publicado_em", { ascending: false })
-    .limit(6);
-  const voz = ((pubs ?? []) as { legenda: string }[])
-    .map((x) => String(x.legenda).trim())
-    .filter((x) => x.length > 20)
-    .slice(0, 4);
   const { data: rot } = p.roteiro_id
     ? await sb.from("vedit_roteiros").select("tema, roteiro").eq("id", p.roteiro_id).maybeSingle()
     : { data: null };
   const [{ data: ref }, { data: marca }, { data: empresa }] = await Promise.all([
     refId
-      ? sb.from("vedit_referencias").select("autor, legenda, analise").eq("id", refId).maybeSingle()
+      ? sb.from("vedit_referencias").select("autor, legenda, analise, url").eq("id", refId).maybeSingle()
       : Promise.resolve({ data: null }),
     p.marca_id
       ? sb.from("vedit_marcas").select("instrucoes").eq("id", p.marca_id).maybeSingle()
@@ -125,6 +111,21 @@ async function gerar(
           .maybeSingle(),
     sb.from("mads_empresas").select("nome, interna").eq("id", p.empresa_id).maybeSingle(),
   ]);
+  // A referência é um vídeo que esta própria conta já publicou (aba "Meus publicados")? Então a
+  // legenda dela já foi usada e funcionou: a primeira opção é ela mesma, adaptada ao tema novo.
+  let propria = false;
+  if (ref?.url) {
+    const cod = String(ref.url).match(/\/(?:p|reel|reels)\/([A-Za-z0-9_-]+)/)?.[1];
+    if (cod) {
+      const { data: pub } = await sb
+        .from("publicacoes")
+        .select("id")
+        .eq("empresa_id", p.empresa_id)
+        .ilike("permalink", `%/${cod}%`)
+        .limit(1);
+      propria = !!pub?.length;
+    }
+  }
   const quem =
     !empresa || empresa.interna
       ? "da Mariana Marques (IAplicada, IA aplicada a negócios)"
@@ -143,7 +144,7 @@ async function gerar(
 """
 ${String(ref.legenda).slice(0, 2000)}
 """
-Ela é o MOLDE. Antes de escrever, leia parágrafo por parágrafo e anote a FUNÇÃO de cada um (ex.: "pergunta de opinião + pedido de comentário com a palavra-chave", "um detalhe que não está no vídeo", "uma observação sobre o caso", "a tese em uma frase"). A nossa legenda tem os MESMOS parágrafos, na MESMA ordem, com a mesma função, o mesmo tamanho e o mesmo jeito de falar (primeira pessoa, conversa, opinião), só que sobre o assunto DESTE vídeo. Se ela não vende nada no texto, a nossa também não vende. Não copie frases, assunto, nomes, números, @ nem a palavra de CTA dela: o conteúdo sai da fala DESTE vídeo. Parágrafo cuja função pede um fato que a fala não tem (ex.: "detalhe que pouca gente sabe") usa um fato que ESTÁ na fala e não foi o centro do vídeo; se não houver, o parágrafo sai.${ref.analise?.resumo ? `\nO que a referência faz: ${ref.analise.resumo}` : ""}
+Ela é o MOLDE. Antes de escrever, leia parágrafo por parágrafo e anote a FUNÇÃO de cada um (ex.: "pergunta de opinião + pedido de comentário com a palavra-chave", "um detalhe que não está no vídeo", "uma observação sobre o caso", "a tese em uma frase"). A nossa legenda tem os MESMOS parágrafos, na MESMA ordem, com a mesma função, o mesmo tamanho e o mesmo jeito de falar (primeira pessoa, conversa, opinião), só que sobre o assunto DESTE vídeo. Se ela não vende nada no texto, a nossa também não vende. ${propria ? "Como a referência é da própria conta, as frases de estrutura dela podem ser reaproveitadas; só o assunto, os fatos e a palavra de CTA mudam para os DESTE vídeo." : "Não copie frases, assunto, nomes, números, @ nem a palavra de CTA dela: o conteúdo sai da fala DESTE vídeo."} Parágrafo cuja função pede um fato que a fala não tem (ex.: "detalhe que pouca gente sabe") usa um fato que ESTÁ na fala e não foi o centro do vídeo; se não houver, o parágrafo sai.${ref.analise?.resumo ? `\nO que a referência faz: ${ref.analise.resumo}` : ""}
 `
     : "";
   const prompt = `Escreva 3 opções de legenda de Instagram para este Reel ${quem}. Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
@@ -152,10 +153,10 @@ O QUE ELA FALA NO VÍDEO (transcrição):
 """
 ${fala.slice(0, 6000)}
 """
-${rot?.tema ? `\nTEMA DO ROTEIRO deste vídeo (a legenda fala do mesmo assunto, pelo mesmo ângulo): ${String(rot.tema).slice(0, 600)}\n` : ""}${molde}${voz.length ? `\nCOMO ESTA CONTA ESCREVE (legendas que ela mesma publicou; pegue o jeito de falar, o tamanho das frases e o grau de informalidade; não copie o texto nem os emojis):\n${voz.map((v) => `"""\n${v.slice(0, 500)}\n"""`).join("\n")}\n` : ""}${palavraCta ? `\nO vídeo termina pedindo: "${palavraCta}". O CTA da legenda usa a mesma palavra.\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
+${rot?.tema ? `\nTEMA DO ROTEIRO deste vídeo (a legenda fala do mesmo assunto, pelo mesmo ângulo): ${String(rot.tema).slice(0, 600)}\n` : ""}${molde}${palavraCta ? `\nO vídeo termina pedindo: "${palavraCta}". O CTA da legenda usa a mesma palavra.\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
 Regras:
 - É legenda de CONTEÚDO, de gente falando com quem segue: primeira pessoa, conversa, opinião sobre o assunto do vídeo. NÃO é texto de anúncio${p.objetivo === "anuncio" ? " institucional" : ""}: nada de oferta, benefício do serviço, "a gente implementa", "nossos clientes", "quer entender como isso funcionaria no seu negócio", "agende", promessa de resultado ou apresentação da empresa. A empresa só aparece se a fala do vídeo a cita, e do mesmo tamanho que lá.
-- ${molde ? 'As 3 opções seguem o molde da referência parágrafo a parágrafo e mudam só a entrada: "Igual à referência" (a mais fiel à estrutura dela), "Pela história" (abre pelo caso/fato do vídeo) e "Pela opinião" (abre pela tese, puxando comentário).' : 'Cada opção com uma entrada diferente: "Pela história" (abre pelo caso/fato do vídeo), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Pela opinião" (abre pela tese, puxando comentário).'}
+- ${molde ? (propria ? 'A referência é um post desta mesma conta, que já foi publicado e funcionou. A opção 1, "A que já funcionou, adaptada", reaproveita a legenda dela quase inteira: mesmas frases de estrutura, mesmo jeito de falar e mesmo CTA, trocando só o que é do assunto antigo pelo assunto deste vídeo (e a palavra do CTA pela deste vídeo). ' : '') + 'As opções seguem o molde da referência parágrafo a parágrafo e mudam só a entrada: "Igual à referência" (a mais fiel à estrutura dela), "Pela história" (abre pelo caso/fato do vídeo) e "Pela opinião" (abre pela tese, puxando comentário).' : 'Cada opção com uma entrada diferente: "Pela história" (abre pelo caso/fato do vídeo), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Pela opinião" (abre pela tese, puxando comentário).'}
 - A 1ª linha é o gancho (aparece antes do "mais"): específica, até 12 palavras, sem repetir a primeira frase do vídeo palavra por palavra.
 - Continua a conversa do vídeo (um detalhe, a opinião, a pergunta); não transcreve a fala nem resume o vídeo em tópicos.
 - TAMANHO: cada opção tem entre ${faixa[0]} e ${faixa[1]} palavras no total (hashtags fora da conta).${nRef ? ` A legenda da referência tem ${nRef} palavras: se ela é de uma linha só, a nossa também é curta (gancho + CTA), sem parágrafos explicando o vídeo.` : ""}
