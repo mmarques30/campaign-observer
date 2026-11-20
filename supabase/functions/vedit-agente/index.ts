@@ -3,6 +3,7 @@
 // nova edição como JSON (nunca código). Storyboard primeiro quando a edição é
 // grande, para a pessoa aprovar antes de aplicar.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { cortesNoSilencio, silenciosDoWav } from "./silencio.ts";
 import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
 
 // Trilhas que vêm com o editor (espelho de src/video/trilhas.ts) + biblioteca da marca no bucket.
@@ -1710,6 +1711,30 @@ Deno.serve(async (req) => {
         }
         return ok(pr.midia) || typeof pr.tempo === "number";
       });
+    // Cortes novos desta edição encostam no silêncio do áudio (nenhuma palavra pela metade).
+    // Bordas que já existiam (inclusive as que a pessoa ajustou à mão) ficam como estão.
+    try {
+      const novos = (Array.isArray(tl.cortes) ? tl.cortes : []) as { de: number; ate: number }[];
+      const antigas = new Set<string>(
+        ((proj.timeline?.cortes ?? []) as any[]).flatMap((c) => [
+          Number(c.de).toFixed(2),
+          Number(c.ate).toFixed(2),
+        ]),
+      );
+      const temBordaNova = novos.some(
+        (c) => !antigas.has(Number(c.de).toFixed(2)) || !antigas.has(Number(c.ate).toFixed(2)),
+      );
+      if (proj.audio_path && novos.length && temBordaNova) {
+        const { data: wav } = await sb.storage.from("video-edicao").download(proj.audio_path);
+        if (wav && wav.size < 40 * 1024 * 1024) {
+          const sil = silenciosDoWav(new Uint8Array(await wav.arrayBuffer()));
+          const r = cortesNoSilencio(novos, sil, antigas);
+          if (r.mexidos) tl.cortes = r.cortes;
+        }
+      }
+    } catch (e) {
+      console.warn("[vedit-agente] ajuste dos cortes ao silêncio falhou:", (e as Error).message);
+    }
     emendarDivisoes(tl);
     // Seguindo referência: a identidade visual e os textos dela não podem vazar para o nosso vídeo.
     if (typeof tl.modelo?.id === "string" && tl.modelo.id.startsWith("ref-"))

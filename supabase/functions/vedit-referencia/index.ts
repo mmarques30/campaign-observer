@@ -375,15 +375,20 @@ const DECUPAGEM_SCHEMA = {
             description:
               "dividida = mídia numa parte e a pessoa falando na outra; so-fala = só a pessoa em tela cheia; midia-cheia = só imagem/vídeo de apoio; texto-cheio = tela de texto/grafismo.",
           },
-          lado_midia: { type: ["string", "null"], enum: ["cima", "baixo", "esquerda", "direita", null] },
+          lado_midia: {
+            type: ["string", "null"],
+            enum: ["cima", "baixo", "esquerda", "direita", null],
+          },
           midia_ocupa: {
             type: ["number", "null"],
-            description: "Fração da ALTURA (ou largura) que a mídia ocupa, medida nos quadros (ex.: 0.55).",
+            description:
+              "Fração da ALTURA (ou largura) que a mídia ocupa, medida nos quadros (ex.: 0.55).",
           },
           emenda: {
             type: ["string", "null"],
             enum: ["degrade", "linha", "seca", null],
-            description: "Como a mídia encontra a pessoa: degradê suave, linha/borda, ou corte reto.",
+            description:
+              "Como a mídia encontra a pessoa: degradê suave, linha/borda, ou corte reto.",
           },
           troca_midia_s: {
             type: ["number", "null"],
@@ -397,7 +402,8 @@ const DECUPAGEM_SCHEMA = {
           sobreposicoes: {
             type: "array",
             items: { type: "string" },
-            description: "Grafismos que existem de fato neste trecho (ex.: 'caixa branca com o gancho em 3 linhas no canto inferior esquerdo da mídia'). Vazio se não há.",
+            description:
+              "Grafismos que existem de fato neste trecho (ex.: 'caixa branca com o gancho em 3 linhas no canto inferior esquerdo da mídia'). Vazio se não há.",
           },
         },
         required: ["de", "ate", "layout"],
@@ -406,10 +412,14 @@ const DECUPAGEM_SCHEMA = {
     pessoa_na_dividida: {
       type: "object",
       properties: {
-        rosto_y: { type: "number", description: "Altura do centro do rosto no quadro quando a tela está dividida (0–1)." },
+        rosto_y: {
+          type: "number",
+          description: "Altura do centro do rosto no quadro quando a tela está dividida (0–1).",
+        },
         tamanho_relativo: {
           type: "number",
-          description: "Tamanho da pessoa na dividida em relação à tela cheia (1 = igual, 0.75 = menor).",
+          description:
+            "Tamanho da pessoa na dividida em relação à tela cheia (1 = igual, 0.75 = menor).",
         },
       },
     },
@@ -421,7 +431,10 @@ const DECUPAGEM_SCHEMA = {
         tamanho: { type: "string", enum: ["pequena", "media", "grande"] },
         cor: { type: "string" },
         caixa_alta: { type: "boolean" },
-        estilo: { type: "string", description: "Ex.: 'palavra solta branca sem fundo, fonte regular'." },
+        estilo: {
+          type: "string",
+          description: "Ex.: 'palavra solta branca sem fundo, fonte regular'.",
+        },
       },
     },
     nao_usa: {
@@ -432,7 +445,8 @@ const DECUPAGEM_SCHEMA = {
     },
     resumo_estrutura: {
       type: "string",
-      description: "Em 2–3 frases, a estrutura: como os blocos se alternam e em que proporção do vídeo.",
+      description:
+        "Em 2–3 frases, a estrutura: como os blocos se alternam e em que proporção do vídeo.",
     },
   },
   required: ["trechos", "legenda", "nao_usa", "resumo_estrutura"],
@@ -441,7 +455,11 @@ const DECUPAGEM_SCHEMA = {
 async function decupar(key: string, imagens: any[], duracao: number, fala: string) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
     body: JSON.stringify({
       model: MODELO,
       max_tokens: 6000,
@@ -462,10 +480,14 @@ async function decupar(key: string, imagens: any[], duracao: number, fala: strin
     }),
   });
   const j = await r.json().catch(() => null);
-  const txt = (j?.content ?? []).filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
+  const txt = (j?.content ?? [])
+    .filter((c: any) => c.type === "text")
+    .map((c: any) => c.text)
+    .join("\n");
   try {
     const d = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
-    if (!Array.isArray(d?.trechos) || !d.trechos.length) return { decupagem: null, usage: j?.usage };
+    if (!Array.isArray(d?.trechos) || !d.trechos.length)
+      return { decupagem: null, usage: j?.usage };
     d.trechos = d.trechos
       .filter((t: any) => typeof t.de === "number" && typeof t.ate === "number" && t.ate > t.de)
       .sort((a: any, b: any) => a.de - b.de);
@@ -579,6 +601,97 @@ ${JSON.stringify(FERRAMENTA.input_schema)}`;
   return json({ ok: true, analise });
 }
 
+/** Quais referências combinam com o negócio da empresa (cadastro de Marca): nota 0–3 e o porquê,
+ *  numa chamada barata, guardada na marca por 14 dias. Só olha o resumo de cada referência. */
+async function compatibilidade(sb: any) {
+  const emp = await empresaDoChamador(sb);
+  if (!emp) return { itens: {} };
+  const { data: marca } = await sb
+    .from("vedit_marcas")
+    .select("*")
+    .eq("empresa_id", emp)
+    .order("padrao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const perfil = [
+    marca?.o_que_faz ? `O que faz: ${marca.o_que_faz}` : "",
+    marca?.nicho ? `Nicho: ${marca.nicho}` : "",
+    marca?.publico ? `Público: ${marca.publico}` : "",
+    marca?.objetivo ? `Objetivo do conteúdo: ${marca.objetivo}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  if (!marca || !perfil) return { itens: {}, semPerfil: true };
+  const { data: refs } = await sb
+    .from("vedit_referencias")
+    .select("id, autor, analise, empresa_id")
+    .eq("status", "pronta")
+    .order("created_at", { ascending: false })
+    .limit(80);
+  const lista = ((refs ?? []) as any[]).filter((r) => r.analise?.resumo);
+  const assinatura = `${perfil}|${lista.map((r) => r.id).join(",")}`;
+  const cache = marca.sugestoes as { em?: string; assinatura?: string; itens?: any } | null;
+  if (
+    cache?.assinatura === assinatura &&
+    cache.em &&
+    Date.now() - new Date(cache.em).getTime() < 14 * 864e5
+  )
+    return { itens: cache.itens ?? {} };
+  const key = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("CLAUDE_API_KEY");
+  if (!key || !lista.length) return { itens: {} };
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: Deno.env.get("VEDIT_MODELO_BUSCA") || "claude-haiku-5-5",
+      max_tokens: 4000,
+      messages: [
+        {
+          role: "user",
+          content: `EMPRESA:\n${perfil}\n\nVÍDEOS DE REFERÊNCIA (formato de edição; o assunto deles não importa, importa se o FORMATO serve para esta empresa gravar e editar os próprios vídeos):\n${lista
+            .map(
+              (x, i) =>
+                `R${i}: ${x.analise?.estilo?.nome ?? ""} — ${String(x.analise.resumo).slice(0, 260)}${x.analise?.decupagem?.resumo_estrutura ? ` Estrutura: ${String(x.analise.decupagem.resumo_estrutura).slice(0, 200)}` : ""}`,
+            )
+            .join(
+              "\n",
+            )}\n\nPara cada referência, dê uma nota de 0 a 3 de quanto o formato combina com esta empresa (3 = dá para gravar igual amanhã; 0 = não serve) e, em até 14 palavras, o que ela traz de útil para a edição (estrutura, ritmo, tipo de imagem). Responda só JSON: {"R0":{"nota":2,"porque":"..."}, ...}`,
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(60000),
+  });
+  const j = await r.json().catch(() => null);
+  await logUso(sb, "vedit-referencia", j?.usage, null);
+  const txt = (j?.content ?? [])
+    .filter((c: any) => c.type === "text")
+    .map((c: any) => c.text)
+    .join("");
+  const itens: Record<string, { nota: number; porque: string }> = {};
+  try {
+    const o = JSON.parse(txt.slice(txt.indexOf("{"), txt.lastIndexOf("}") + 1));
+    lista.forEach((x, i) => {
+      const v = o[`R${i}`];
+      if (v)
+        itens[x.id] = {
+          nota: Math.max(0, Math.min(3, Number(v.nota) || 0)),
+          porque: String(v.porque ?? "").slice(0, 140),
+        };
+    });
+  } catch {
+    return { itens: {} };
+  }
+  await sb
+    .from("vedit_marcas")
+    .update({ sugestoes: { em: new Date().toISOString(), assinatura, itens } })
+    .eq("id", marca.id);
+  return { itens };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const sb = createClient(
@@ -598,6 +711,7 @@ Deno.serve(async (req) => {
       if (!url) return json({ error: "url obrigatória" }, 400);
       return json(await metadados(sb, url));
     }
+    if (acao === "compatibilidade") return json(await compatibilidade(sb));
     if (!id) return json({ error: "id obrigatório" }, 400);
     if (acao === "transcrever") return await transcrever(sb, id);
     if (acao === "analisar") {

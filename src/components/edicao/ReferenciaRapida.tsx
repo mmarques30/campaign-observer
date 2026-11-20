@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Link2, Loader2, Play, Wand2 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { db } from "@/lib/vedit";
+import { callEdgeFunction } from "@/lib/ads-mutations";
 import {
   aguardarReferencia,
   analiseOk,
@@ -92,6 +93,21 @@ export function ReferenciaRapida({
         ref_id: string | null;
       }[],
   });
+
+  // Compatibilidade das referências com o negócio cadastrado em Marca (calculada no servidor e
+  // guardada): as que mais combinam sobem e mostram o que trazem para a edição.
+  const compat = useQuery({
+    queryKey: ["vedit", "referencias-compat", empresaId, salvas.data?.length ?? 0],
+    enabled: aberto && !!salvas.data?.length,
+    staleTime: 6 * 60 * 60 * 1000,
+    queryFn: async () => {
+      const r = (await callEdgeFunction("vedit-referencia", { acao: "compatibilidade" })) as {
+        itens?: Record<string, { nota: number; porque: string }>;
+      };
+      return r?.itens ?? {};
+    },
+  });
+  const notaDe = (id: string) => compat.data?.[id]?.nota ?? -1;
 
   async function aplicar(r0: Referencia) {
     let r = r0;
@@ -280,7 +296,8 @@ export function ReferenciaRapida({
                     .sort(
                       (x, y) =>
                         Number(!!empresaId && x.empresa_id !== empresaId) -
-                        Number(!!empresaId && y.empresa_id !== empresaId),
+                          Number(!!empresaId && y.empresa_id !== empresaId) ||
+                        notaDe(y.id) - notaDe(x.id),
                     )
                     .map((r) => (
                       <div key={r.id} className="flex items-stretch min-w-0">
@@ -308,6 +325,19 @@ export function ReferenciaRapida({
                               {r.autor ? `@${r.autor} · ` : ""}
                               {analiseOk(r.analise)?.resumo}
                             </div>
+                            {compat.data?.[r.id]?.porque && (
+                              <div className="text-xs text-primary/90 break-words">
+                                {notaDe(r.id) >= 3
+                                  ? "Combina muito"
+                                  : notaDe(r.id) === 2
+                                    ? "Combina"
+                                    : notaDe(r.id) === 1
+                                      ? "Combina pouco"
+                                      : "Não combina"}
+                                {" com a sua marca: "}
+                                {compat.data[r.id].porque}
+                              </div>
+                            )}
                           </div>
                         </button>
                         <Link
