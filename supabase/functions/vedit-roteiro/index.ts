@@ -336,7 +336,7 @@ async function sistema(
     .maybeSingle();
   const { data: marca } = await sb
     .from("vedit_marcas")
-    .select("instrucoes")
+    .select("*")
     .eq("empresa_id", emp)
     .order("padrao", { ascending: false })
     .limit(1)
@@ -407,7 +407,7 @@ ${finalidade === "anuncio" ? "" : `ORGÂNICO NÃO É ANÚNCIO (regra dura):
 - IA de verdade, concreta e LIGADA AO ASSUNTO: diga o que a IA resolve naquele problema, com o caso e o resultado. Tire o exemplo do que a ${interna ? "IAplicada" : "empresa"} faz de verdade (veja O QUE FAZEMOS DE VERDADE), escolhendo o caso que conversa com o assunto do vídeo. Não use sempre o mesmo exemplo (agente lendo WhatsApp, relatório de segunda) nem invente o que não fazemos. Proibido genérico ("colocar IA no bastidor", "IA que resolve", "transformação digital").
 - ARCO: o assunto do momento abre e FECHA o vídeo. A IA/o nosso trabalho entra no MEIO, como a virada (o que muda na prática); depois o roteiro VOLTA ao assunto e termina nele. A CTA continua o assunto do vídeo (a palavra-chave e a promessa são do tema, não de um material genérico solto).
 - Nada genérico: cada frase precisa de um detalhe específico (um caso, um número real do assunto, uma cena). Se a frase serviria para qualquer tema, reescreva.`}
-NICHO: ${cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}
+NICHO: ${marca?.nicho ?? cfg?.nicho ?? (interna ? "IA aplicada a negócios" : "(não cadastrado)")} · PÚBLICO: ${marca?.publico ?? cfg?.publico ?? (interna ? "donos de empresa" : "(não cadastrado)")}${marca?.o_que_faz ? `\nO QUE A EMPRESA FAZ (cadastro de Marca): ${marca.o_que_faz}` : ""}${marca?.objetivo ? `\nOBJETIVO DO CONTEÚDO: ${marca.objetivo}` : ""}
 ${marca?.instrucoes ? `MARCA: ${marca.instrucoes}` : ""}
 ${fazemos}
 

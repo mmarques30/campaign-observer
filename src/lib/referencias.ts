@@ -55,6 +55,7 @@ export type Analise = {
 };
 export type Referencia = {
   id: string;
+  empresa_id?: string | null;
   created_at: string;
   updated_at: string;
   url: string | null;

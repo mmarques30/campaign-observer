@@ -150,6 +150,22 @@ const GROUPS: NavGroup[] = [
     ],
   },
   {
+    // Marca da empresa: logo, cores, o que a empresa faz, nicho e objetivo. Alimenta o editor de
+    // vídeo, os roteiros, as legendas e os criativos.
+    id: "marca",
+    label: "Marca",
+    icon: Palette,
+    items: [
+      {
+        to: "/ads/marca",
+        label: "Marca",
+        icon: Palette,
+        exact: true,
+        keywords: "marca logo cores fontes identidade nicho público objetivo empresa",
+      },
+    ],
+  },
+  {
     // Editor de vídeo com IA: edita, renderiza e publica sem sair do Ads.
     id: "edicao",
     label: "Edição de vídeos",
@@ -192,12 +208,6 @@ const GROUPS: NavGroup[] = [
         label: "Publicados",
         icon: Send,
         keywords: "publicado agendado instagram performance alcance reaproveitar",
-      },
-      {
-        to: "/ads/edicao/marca",
-        label: "Marca",
-        icon: Palette,
-        keywords: "cores fontes identidade",
       },
     ],
   },

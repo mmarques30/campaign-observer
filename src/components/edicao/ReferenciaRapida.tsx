@@ -24,10 +24,12 @@ import {
   aguardarReferencia,
   analiseOk,
   criarReferenciaPorLink,
+  reanalisar,
   type Referencia,
 } from "@/lib/referencias";
 import { aplicarReferencia } from "@/lib/aplicarReferencia";
 import { cn } from "@/lib/utils";
+import { usePermissoes } from "@/lib/permissoes";
 
 const PASSOS: { status: string; nome: string }[] = [
   { status: "enviando", nome: "Baixando o vídeo e separando quadros e áudio" },
@@ -50,6 +52,7 @@ export function ReferenciaRapida({
   const [url, setUrl] = useState("");
   const [notas, setNotas] = useState("");
   const [passo, setPasso] = useState<string | null>(null);
+  const empresaId = usePermissoes().empresa?.id;
   const salvas = useQuery({
     queryKey: ["vedit", "referencias-prontas"],
     enabled: aberto,
@@ -60,7 +63,7 @@ export function ReferenciaRapida({
           .select("*")
           .eq("status", "pronta")
           .order("created_at", { ascending: false })
-          .limit(40)
+          .limit(80)
       ).data ?? []) as Referencia[],
   });
 
@@ -90,7 +93,20 @@ export function ReferenciaRapida({
       }[],
   });
 
-  async function aplicar(r: Referencia) {
+  async function aplicar(r0: Referencia) {
+    let r = r0;
+    // Referência ainda sem a estrutura medida (análise antiga ou sugestão nunca usada): analisa
+    // agora, só esta, antes de aplicar. Assim ninguém gasta análise com o que não vai usar.
+    if (analiseOk(r.analise) && !(r.analise as { decupagem?: unknown } | null)?.decupagem) {
+      setPasso("analisando");
+      try {
+        await reanalisar(r.id);
+        await new Promise((ok) => setTimeout(ok, 2500));
+        r = await aguardarReferencia(r.id);
+      } catch {
+        r = r0; // sem a análise nova, aplica com a que existe
+      }
+    }
     const a = analiseOk(r.analise);
     if (!a) {
       setPasso(null);
@@ -222,7 +238,9 @@ export function ReferenciaRapida({
                                 m.publicado_em
                                   ? new Date(m.publicado_em).toLocaleDateString("pt-BR")
                                   : null,
-                                m.metricas?.reach ? `${Number(m.metricas.reach).toLocaleString("pt-BR")} de alcance` : null,
+                                m.metricas?.reach
+                                  ? `${Number(m.metricas.reach).toLocaleString("pt-BR")} de alcance`
+                                  : null,
                               ]
                                 .filter(Boolean)
                                 .join(" · ")}
@@ -258,40 +276,51 @@ export function ReferenciaRapida({
                 </p>
               ) : (
                 <div className="max-h-80 overflow-y-auto overflow-x-hidden divide-y rounded-md border min-w-0">
-                  {salvas.data.map((r) => (
-                    <div key={r.id} className="flex items-stretch min-w-0">
-                      <button
-                        type="button"
-                        className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
-                        onClick={() =>
-                          aplicar(r).catch((e) => {
-                            toast.error((e as Error).message);
-                            setPasso(null);
-                          })
-                        }
-                      >
-                        <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium truncate">
-                            {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
+                  {[...salvas.data]
+                    .sort(
+                      (x, y) =>
+                        Number(!!empresaId && x.empresa_id !== empresaId) -
+                        Number(!!empresaId && y.empresa_id !== empresaId),
+                    )
+                    .map((r) => (
+                      <div key={r.id} className="flex items-stretch min-w-0">
+                        <button
+                          type="button"
+                          className="flex-1 min-w-0 text-left px-3 py-2 hover:bg-muted flex items-start gap-2"
+                          onClick={() =>
+                            aplicar(r).catch((e) => {
+                              toast.error((e as Error).message);
+                              setPasso(null);
+                            })
+                          }
+                        >
+                          <Wand2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium truncate">
+                              {analiseOk(r.analise)?.estilo.nome ?? r.titulo ?? "Referência"}
+                              {r.empresa_id && empresaId && r.empresa_id !== empresaId && (
+                                <span className="ml-2 rounded-full border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground align-middle">
+                                  Sugestão
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground line-clamp-2 break-words">
+                              {r.autor ? `@${r.autor} · ` : ""}
+                              {analiseOk(r.analise)?.resumo}
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground line-clamp-2 break-words">
-                            {r.autor ? `@${r.autor} · ` : ""}
-                            {analiseOk(r.analise)?.resumo}
-                          </div>
-                        </div>
-                      </button>
-                      <Link
-                        to="/ads/edicao/referencias"
-                        search={{ id: r.id }}
-                        target="_blank"
-                        title="Ver o vídeo da referência"
-                        className="px-3 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
-                      >
-                        <Play className="h-4 w-4" />
-                      </Link>
-                    </div>
-                  ))}
+                        </button>
+                        <Link
+                          to="/ads/edicao/referencias"
+                          search={{ id: r.id }}
+                          target="_blank"
+                          title="Ver o vídeo da referência"
+                          className="px-3 inline-flex items-center border-l text-muted-foreground hover:text-foreground"
+                        >
+                          <Play className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    ))}
                 </div>
               )}
             </TabsContent>

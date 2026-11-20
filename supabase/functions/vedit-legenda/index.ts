@@ -98,13 +98,17 @@ async function gerar(
     : { data: null };
   const [{ data: ref }, { data: marca }, { data: empresa }] = await Promise.all([
     refId
-      ? sb.from("vedit_referencias").select("autor, legenda, analise, url").eq("id", refId).maybeSingle()
+      ? sb
+          .from("vedit_referencias")
+          .select("autor, legenda, analise, url")
+          .eq("id", refId)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     p.marca_id
-      ? sb.from("vedit_marcas").select("instrucoes").eq("id", p.marca_id).maybeSingle()
+      ? sb.from("vedit_marcas").select("*").eq("id", p.marca_id).maybeSingle()
       : sb
           .from("vedit_marcas")
-          .select("instrucoes")
+          .select("*")
           .eq("empresa_id", p.empresa_id)
           .order("padrao", { ascending: false })
           .limit(1)
@@ -149,6 +153,7 @@ Ela é o MOLDE. Antes de escrever, leia parágrafo por parágrafo e anote a FUN�
     : "";
   const prompt = `Escreva 3 opções de legenda de Instagram para este Reel ${quem}. Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
 ${marca?.instrucoes ? `Vocabulário da marca (só para palavras e restrições; NÃO é para vender nem citar público-alvo ou faturamento): ${marca.instrucoes}\n` : ""}
+${[marca?.o_que_faz ? `O que a empresa faz: ${marca.o_que_faz}` : "", marca?.nicho ? `Nicho: ${marca.nicho}` : "", marca?.publico ? `Público: ${marca.publico}` : ""].filter(Boolean).join(" · ") ? `Contexto da empresa (para acertar o assunto e as palavras; não é para vender): ${[marca?.o_que_faz ? `O que a empresa faz: ${marca.o_que_faz}` : "", marca?.nicho ? `Nicho: ${marca.nicho}` : "", marca?.publico ? `Público: ${marca.publico}` : ""].filter(Boolean).join(" · ")}\n` : ""}
 O QUE ELA FALA NO VÍDEO (transcrição):
 """
 ${fala.slice(0, 6000)}
@@ -156,7 +161,7 @@ ${fala.slice(0, 6000)}
 ${rot?.tema ? `\nTEMA DO ROTEIRO deste vídeo (a legenda fala do mesmo assunto, pelo mesmo ângulo): ${String(rot.tema).slice(0, 600)}\n` : ""}${molde}${palavraCta ? `\nO vídeo termina pedindo: "${palavraCta}". O CTA da legenda usa a mesma palavra.\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
 Regras:
 - É legenda de CONTEÚDO, de gente falando com quem segue: primeira pessoa, conversa, opinião sobre o assunto do vídeo. NÃO é texto de anúncio${p.objetivo === "anuncio" ? " institucional" : ""}: nada de oferta, benefício do serviço, "a gente implementa", "nossos clientes", "quer entender como isso funcionaria no seu negócio", "agende", promessa de resultado ou apresentação da empresa. A empresa só aparece se a fala do vídeo a cita, e do mesmo tamanho que lá.
-- ${molde ? (propria ? 'A referência é um post desta mesma conta, que já foi publicado e funcionou. A opção 1, "A que já funcionou, adaptada", reaproveita a legenda dela quase inteira: mesmas frases de estrutura, mesmo jeito de falar e mesmo CTA, trocando só o que é do assunto antigo pelo assunto deste vídeo (e a palavra do CTA pela deste vídeo). ' : '') + 'As opções seguem o molde da referência parágrafo a parágrafo e mudam só a entrada: "Igual à referência" (a mais fiel à estrutura dela), "Pela história" (abre pelo caso/fato do vídeo) e "Pela opinião" (abre pela tese, puxando comentário).' : 'Cada opção com uma entrada diferente: "Pela história" (abre pelo caso/fato do vídeo), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Pela opinião" (abre pela tese, puxando comentário).'}
+- ${molde ? (propria ? 'A referência é um post desta mesma conta, que já foi publicado e funcionou. A opção 1, "A que já funcionou, adaptada", reaproveita a legenda dela quase inteira: mesmas frases de estrutura, mesmo jeito de falar e mesmo CTA, trocando só o que é do assunto antigo pelo assunto deste vídeo (e a palavra do CTA pela deste vídeo). ' : "") + 'As opções seguem o molde da referência parágrafo a parágrafo e mudam só a entrada: "Igual à referência" (a mais fiel à estrutura dela), "Pela história" (abre pelo caso/fato do vídeo) e "Pela opinião" (abre pela tese, puxando comentário).' : 'Cada opção com uma entrada diferente: "Pela história" (abre pelo caso/fato do vídeo), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Pela opinião" (abre pela tese, puxando comentário).'}
 - A 1ª linha é o gancho (aparece antes do "mais"): específica, até 12 palavras, sem repetir a primeira frase do vídeo palavra por palavra.
 - Continua a conversa do vídeo (um detalhe, a opinião, a pergunta); não transcreve a fala nem resume o vídeo em tópicos.
 - TAMANHO: cada opção tem entre ${faixa[0]} e ${faixa[1]} palavras no total (hashtags fora da conta).${nRef ? ` A legenda da referência tem ${nRef} palavras: se ela é de uma linha só, a nossa também é curta (gancho + CTA), sem parágrafos explicando o vídeo.` : ""}

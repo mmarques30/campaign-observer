@@ -1437,6 +1437,29 @@ Deno.serve(async (req) => {
     .eq("projeto_id", projeto_id)
     .order("created_at", { ascending: false })
     .limit(12);
+  // Empresa do vídeo e o que ela cadastrou em Marca (o que faz, nicho, público, objetivo, logo).
+  const { data: empresaRow } = await sb
+    .from("mads_empresas")
+    .select("nome, interna")
+    .eq("id", proj.empresa_id)
+    .maybeSingle();
+  // A logo cadastrada na Marca fica disponível em todo vídeo da empresa, sem precisar subir.
+  if (marcaRow?.logo_path) {
+    const { data: jaTem } = await sb
+      .from("vedit_midias")
+      .select("id")
+      .eq("projeto_id", projeto_id)
+      .eq("path", marcaRow.logo_path)
+      .limit(1);
+    if (!jaTem?.length)
+      await sb.from("vedit_midias").insert({
+        projeto_id,
+        tipo: "imagem",
+        nome: "logo-da-marca.png",
+        path: marcaRow.logo_path,
+        descricao: `MOSTRA: logo da ${empresaRow?.nome ?? "empresa"} (use quando a pessoa se apresenta ou cita a empresa; elemento "midia" com encaixe "contem", sem cortar)`,
+      });
+  }
   const { data: midias } = await sb
     .from("vedit_midias")
     .select("id, tipo, nome, duracao, descricao")
@@ -1519,7 +1542,7 @@ Deno.serve(async (req) => {
     mensagem!.match(/^\/estilo\s+(viral|editorial|limpo)/i)?.[1]?.toLowerCase() ??
     proj.estilo ??
     "viral";
-  const sistemaTxt = sistema(
+  const sistemaBase = sistema(
     catalogo ?? "",
     marcaRow?.marca ?? proj.timeline?.marca ?? {},
     marcaRow?.instrucoes ?? "",
@@ -1530,6 +1553,19 @@ Deno.serve(async (req) => {
     proj.duracao_alvo ?? null,
     marketing,
   );
+  // O editor trabalha para a empresa do vídeo: nome, negócio, nicho, público e objetivo vêm do
+  // cadastro de Marca. Fora da IAplicada, nada no texto cita a IAplicada.
+  const nomeEmp = String(empresaRow?.nome ?? "IAplicada");
+  const ehInterna = !empresaRow || !!empresaRow.interna;
+  const perfilEmp = [
+    marcaRow?.o_que_faz ? `O que a empresa faz: ${marcaRow.o_que_faz}` : "",
+    marcaRow?.nicho ? `Nicho: ${marcaRow.nicho}` : "",
+    marcaRow?.publico ? `Público: ${marcaRow.publico}` : "",
+    marcaRow?.objetivo ? `Objetivo do conteúdo: ${marcaRow.objetivo}` : "",
+  ].filter(Boolean);
+  const sistemaTxt =
+    (ehInterna ? sistemaBase : sistemaBase.replaceAll("IAplicada", nomeEmp)) +
+    `\n\nA EMPRESA DESTE VÍDEO: ${nomeEmp}.${perfilEmp.length ? `\n${perfilEmp.join("\n")}` : ""}\nEscolha efeitos, imagens e palavras em destaque pelo negócio e pelo público DESTA empresa: imagem tem que ser do universo dela (um escritório de advocacia não ganha fluxo de automação nem tela de sistema; uma empresa de tecnologia pode). Efeito de processo/automação (/fluxo) só quando a fala descreve um processo de verdade. ${ehInterna ? "" : `Nunca cite, mostre ou sugira outra empresa que não a ${nomeEmp}.`}`;
   // Laço: o Claude pode buscar mídias na internet antes de aplicar a edição. Seguindo uma
   // referência com muito b-roll/tela dividida, precisa de mais mídias (até 8 buscas, em paralelo).
   const seguindoRef =

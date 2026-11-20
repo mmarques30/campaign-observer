@@ -93,6 +93,12 @@ export type Marca = {
   marca: Timeline["marca"];
   legenda_estilo: string;
   instrucoes: string | null;
+  // Perfil do negócio e logo: usados pelo editor, roteiro, legenda e criativos da empresa.
+  logo_path?: string | null;
+  o_que_faz?: string | null;
+  nicho?: string | null;
+  publico?: string | null;
+  objetivo?: string | null;
 };
 
 export const STATUS_LABEL: Record<string, string> = {
