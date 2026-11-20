@@ -63,12 +63,14 @@ export const RECURSOS: Recurso[] = [
   { key: "edicao.referencias", label: "Referências", grupo: "edicao", path: "/ads/edicao/referencias", empresa: true },
   { key: "edicao.roteiros", label: "Roteiros", grupo: "edicao", path: "/ads/edicao/roteiros", empresa: true },
   { key: "edicao.publicados", label: "Publicados", grupo: "edicao", path: "/ads/edicao/publicados", empresa: true },
+  { key: "edicao.proximos", label: "Próximos conteúdos", grupo: "edicao", path: "/ads/edicao/proximos", empresa: true },
   // Mesma chave de antes (as permissões já dadas continuam valendo); agora é um menu próprio.
   { key: "edicao.marca", label: "Marca", grupo: "marca", path: "/ads/marca", empresa: true },
   { key: "criar", label: "Criativos", grupo: "criativos", path: "/ads/criar", exact: true, empresa: true },
   { key: "criar.fotos", label: "Minhas fotos", grupo: "criativos", path: "/ads/criar/fotos", empresa: true },
   { key: "criar.referencias", label: "Referências", grupo: "criativos", path: "/ads/criar/referencias", empresa: true },
   { key: "criar.publicados", label: "Publicados", grupo: "criativos", path: "/ads/criar/publicados", empresa: true },
+  { key: "criar.proximos", label: "Próximos conteúdos", grupo: "criativos", path: "/ads/criar/proximos", empresa: true },
   { key: "gastos", label: "Gasto de API", grupo: "conta", path: "/ads/gastos", empresa: true },
 ];
 

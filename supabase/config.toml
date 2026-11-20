@@ -2,3 +2,6 @@ project_id = "ciwdlceyjsnlnunktqzx"
 # Webhook da Meta (sem JWT): comentários e mensagens do Instagram.
 [functions.ig-automacoes]
 verify_jwt = false
+
+[functions.vedit-proximos]
+verify_jwt = false

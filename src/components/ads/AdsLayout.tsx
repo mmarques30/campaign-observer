@@ -41,6 +41,7 @@ import {
   Building2,
   Wallet,
   ChevronsUpDown,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -209,6 +210,12 @@ const GROUPS: NavGroup[] = [
         icon: Send,
         keywords: "publicado agendado instagram performance alcance reaproveitar",
       },
+      {
+        to: "/ads/edicao/proximos",
+        label: "Próximos conteúdos",
+        icon: Lightbulb,
+        keywords: "sugestão pauta próximo conteúdo performance ads orgânico o que postar",
+      },
     ],
   },
   {
@@ -241,6 +248,12 @@ const GROUPS: NavGroup[] = [
         label: "Publicados",
         icon: Send,
         keywords: "publicado agendado instagram performance alcance reaproveitar",
+      },
+      {
+        to: "/ads/criar/proximos",
+        label: "Próximos conteúdos",
+        icon: Lightbulb,
+        keywords: "sugestão pauta próximo conteúdo performance ads orgânico o que postar",
       },
     ],
   },

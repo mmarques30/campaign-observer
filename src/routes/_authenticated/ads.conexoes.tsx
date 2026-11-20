@@ -402,15 +402,50 @@ function MapaNeural({ nos, realce, onFoco, onSel, sel, objLabel, base }: {
     ro.observe(el); return () => ro.disconnect();
   }, []);
 
-  // Colunas: os melhores primeiro (publicados por score; demais por quantos publicados alimentam).
+  // Colunas montadas pela CADEIA: primeiro os publicados de melhor resultado; depois, em cada
+  // coluna anterior, entram antes os pais do que já está na tela (assim nenhum publicado fica
+  // solto, sem a linha até a produção e a referência). A ordem vertical segue a dos filhos
+  // (cada pai fica na altura média dos filhos visíveis), para as linhas não se cruzarem.
   const colunas = useMemo(() => {
     const porCol: No[][] = [[], [], [], []];
     for (const n of nos) porCol[n.col].push(n);
-    const peso = (n: No) => (n.col === 3 ? (n.raw?._norm ?? 0) : nos.filter((x) => x.pais.includes(n.id) || x.sugerido?.includes(n.id)).length);
-    return porCol.map((c) => {
-      const ord = [...c].sort((a, b) => peso(b) - peso(a));
-      return { itens: ord.slice(0, LIMITE), resto: Math.max(0, ord.length - LIMITE) };
-    });
+    const filhosDe = new Map<string, No[]>();
+    for (const n of nos) for (const p of [...n.pais, ...(n.sugerido ?? [])]) filhosDe.set(p, [...(filhosDe.get(p) ?? []), n]);
+    const memo = new Map<string, number>();
+    const melhor = (n: No): number => {
+      if (memo.has(n.id)) return memo.get(n.id)!;
+      memo.set(n.id, -1);
+      const v = n.col === 3 ? (n.raw?._norm ?? 0) : Math.max(-1, ...(filhosDe.get(n.id) ?? []).map(melhor));
+      memo.set(n.id, v);
+      return v;
+    };
+    const res: { itens: No[]; resto: number }[] = [];
+    const naTela = new Set<string>();
+    const posIdx = new Map<string, number>();
+    for (let c = 3; c >= 0; c--) {
+      const lista = porCol[c];
+      const filhosNaTela = (n: No) => (filhosDe.get(n.id) ?? []).filter((f) => naTela.has(f.id));
+      const prioridade = [...lista].sort(
+        (a, b) =>
+          Number(filhosNaTela(b).length > 0) - Number(filhosNaTela(a).length > 0) ||
+          melhor(b) - melhor(a) ||
+          (filhosDe.get(b.id)?.length ?? 0) - (filhosDe.get(a.id)?.length ?? 0),
+      );
+      let itens = prioridade.slice(0, LIMITE);
+      if (c < 3) {
+        const centro = (n: No) => {
+          const fs = filhosNaTela(n);
+          return fs.length ? fs.reduce((t, f) => t + (posIdx.get(f.id) ?? 0), 0) / fs.length : Infinity;
+        };
+        itens = [...itens].sort((a, b) => centro(a) - centro(b) || melhor(b) - melhor(a));
+      }
+      itens.forEach((n, i) => {
+        naTela.add(n.id);
+        posIdx.set(n.id, i / Math.max(1, itens.length - 1));
+      });
+      res[c] = { itens, resto: Math.max(0, lista.length - LIMITE) };
+    }
+    return res;
   }, [nos]);
 
   const ROW = 56, TOP = 56, nodeW = Math.min(240, Math.max(140, w * 0.18));

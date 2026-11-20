@@ -68,8 +68,14 @@ import { cn } from "@/lib/utils";
 const LINK_POST = /instagram\.com\/(?:[A-Za-z0-9_.]+\/)?(?:p|reel|reels|tv)\/[A-Za-z0-9_-]+/i;
 
 export const Route = createFileRoute("/_authenticated/ads/criar/")({
-  validateSearch: (s: Record<string, unknown>): { ref?: string } =>
-    typeof s.ref === "string" ? { ref: s.ref } : {},
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { ref?: string; briefing?: string; tipo?: "carrossel" | "unico"; objetivo?: "organico" | "anuncio" } => ({
+    ...(typeof s.ref === "string" ? { ref: s.ref } : {}),
+    ...(typeof s.briefing === "string" ? { briefing: s.briefing } : {}),
+    ...(s.tipo === "carrossel" || s.tipo === "unico" ? { tipo: s.tipo } : {}),
+    ...(s.objetivo === "organico" || s.objetivo === "anuncio" ? { objetivo: s.objetivo } : {}),
+  }),
   component: Criativos,
 });
 
@@ -84,7 +90,8 @@ const STATUS: Record<string, string> = {
 function Criativos() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { ref } = Route.useSearch();
+  const busca = Route.useSearch();
+  const { ref } = busca;
   const fotos = useFotos();
   const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState("");
@@ -110,6 +117,15 @@ function Criativos() {
       setAberto(true);
     }
   }, [ref]);
+  // Vindo de Próximos conteúdos: a janela de novo criativo abre com a pauta preenchida.
+  useEffect(() => {
+    if (!busca.briefing) return;
+    setBriefing(busca.briefing);
+    setNome(busca.briefing.split("\n")[0].slice(0, 60));
+    if (busca.tipo) setTipo(busca.tipo);
+    if (busca.objetivo) setObjetivo(busca.objetivo);
+    setAberto(true);
+  }, [busca.briefing]);
 
   const projetos = useQuery({
     queryKey: ["cria", "projetos"],

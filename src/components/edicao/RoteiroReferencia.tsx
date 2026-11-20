@@ -269,6 +269,9 @@ export function NovoRoteiro({
   origem,
   comTempos,
   onCriado,
+  temaInicial,
+  finalidadeInicial,
+  notasInicial,
 }: {
   aberto: boolean;
   onFechar: () => void;
@@ -277,11 +280,21 @@ export function NovoRoteiro({
   origem: string;
   comTempos: boolean;
   onCriado: (id: string) => void;
+  temaInicial?: string;
+  finalidadeInicial?: string;
+  notasInicial?: string;
 }) {
   const [tema, setTema] = useState("");
   const [idioma, setIdioma] = useState("pt-BR");
   const [finalidade, setFinalidade] = useState("organico");
   const [notas, setNotas] = useState("");
+  // Vindo de uma sugestão (Próximos conteúdos): a janela abre já preenchida.
+  useEffect(() => {
+    if (!aberto) return;
+    if (temaInicial) setTema(temaInicial);
+    if (finalidadeInicial) setFinalidade(finalidadeInicial);
+    if (notasInicial) setNotas(notasInicial);
+  }, [aberto, temaInicial, finalidadeInicial, notasInicial]);
   const [enviando, setEnviando] = useState(false);
 
   async function criar() {
