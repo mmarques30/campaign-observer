@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -160,6 +161,7 @@ function Editor() {
   const campoLegenda = useRef<HTMLInputElement>(null);
   const [publicar, setPublicar] = useState(false);
   const [refRapida, setRefRapida] = useState(false);
+  const [abaCel, setAbaCel] = useState<"video" | "ajustes" | "chat">("video");
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
   async function recortarPessoa() {
@@ -251,7 +253,9 @@ function Editor() {
   const faltaMidia = (() => {
     const tem = new Set((midiasQ.data ?? []).map((m) => m.id));
     const efs = (((proj?.timeline as any)?.efeitos ?? []) as any[]).map((e) => e?.props?.midia);
-    return efs.filter((m) => typeof m === "string" && /^[0-9a-f-]{36}$/.test(m) && !tem.has(m)).join(",");
+    return efs
+      .filter((m) => typeof m === "string" && /^[0-9a-f-]{36}$/.test(m) && !tem.has(m))
+      .join(",");
   })();
   useEffect(() => {
     if (faltaMidia) void midiasQ.refetch();
@@ -744,7 +748,7 @@ function Editor() {
 
   return (
     <TooltipProvider>
-      <div className="flex flex-col gap-3 h-[calc(100dvh-112px)] sm:h-[calc(100dvh-120px)] lg:h-[calc(100dvh-132px)] min-h-[560px]">
+      <div className="flex flex-col gap-2 sm:gap-3 h-[calc(100dvh-96px)] sm:h-[calc(100dvh-120px)] lg:h-[calc(100dvh-132px)] min-h-[480px] lg:min-h-[560px]">
         {/* Barra superior */}
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border/70 px-3 sm:px-4 py-2 bg-card/80 backdrop-blur-md shadow-card">
           <Button variant="ghost" size="icon" asChild className="h-8 w-8">
@@ -754,7 +758,7 @@ function Editor() {
           </Button>
           <div className="min-w-0">
             <div className="font-semibold truncate max-w-[40vw]">{proj.nome}</div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="hidden sm:block text-[11px] text-muted-foreground">
               {proj.objetivo === "anuncio" ? "Anúncio" : "Orgânico"} · {tl.formato} · {proj.estilo}
               {proj.duracao_alvo ? ` · alvo ${proj.duracao_alvo}s` : ""} · v{proj.versao} ·{" "}
               {fmtTempo(duracaoFonte)} bruto → {fmtTempo(durFinal)} final
@@ -763,7 +767,7 @@ function Editor() {
           <Badge variant="outline" className="ml-1">
             {STATUS_LABEL[proj.status] ?? proj.status}
           </Badge>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -792,8 +796,8 @@ function Editor() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="outline" size="sm" onClick={() => setRefRapida(true)}>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Usar referência
+                  <Sparkles className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Usar referência</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -807,11 +811,11 @@ function Editor() {
               disabled={proj.status === "renderizando" || !palavras.length}
             >
               {proj.status === "renderizando" ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <Loader2 className="h-4 w-4 sm:mr-2 animate-spin" />
               ) : (
-                <Clapperboard className="h-4 w-4 mr-2" />
+                <Clapperboard className="h-4 w-4 sm:mr-2" />
               )}
-              Renderizar
+              <span className="hidden sm:inline">Renderizar</span>
             </Button>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -828,8 +832,10 @@ function Editor() {
                     </>
                   ) : (
                     <>
-                      <UserRound className="h-4 w-4 mr-2" />
-                      {urlsQ.data?.recorte ? "Recorte ok" : "Recortar pessoa"}
+                      <UserRound className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">
+                        {urlsQ.data?.recorte ? "Recorte ok" : "Recortar pessoa"}
+                      </span>
                     </>
                   )}
                 </Button>
@@ -848,8 +854,8 @@ function Editor() {
                   disabled={!proj.render_path}
                   onClick={() => baixarRender(proj).catch((e) => toast.error(e.message))}
                 >
-                  <Download className="h-4 w-4 mr-2" />
-                  Baixar
+                  <Download className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Baixar</span>
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
@@ -861,8 +867,8 @@ function Editor() {
               </TooltipContent>
             </Tooltip>
             <Button size="sm" onClick={() => setPublicar(true)} disabled={!proj.render_path}>
-              <Send className="h-4 w-4 mr-2" />
-              Publicar
+              <Send className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Publicar</span>
             </Button>
             <AutomacaoDoProjeto origem="video" refId={proj.id} />
             {proj.render_path && renderDesatualizado(proj) && proj.status !== "renderizando" && (
@@ -951,8 +957,35 @@ function Editor() {
           </div>
         )}
 
+        {/* Celular: uma área por vez (vídeo, ajustes ou chat). No computador ficam as três lado a lado. */}
+        <div className="lg:hidden grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-card p-1 text-sm">
+          {(
+            [
+              ["video", "Vídeo"],
+              ["ajustes", "Ajustes"],
+              ["chat", "Editor IA"],
+            ] as const
+          ).map(([k, nome]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setAbaCel(k)}
+              className={cn(
+                "h-9 rounded-lg font-medium",
+                abaCel === k ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              {nome}
+            </button>
+          ))}
+        </div>
         <div className="flex-1 min-h-0 grid grid-cols-1 gap-3 lg:grid-cols-[320px_1fr_380px]">
-          <aside className="hidden lg:flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden">
+          <aside
+            className={cn(
+              "lg:flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden",
+              abaCel === "ajustes" ? "flex" : "hidden",
+            )}
+          >
             <Painel
               projeto={proj}
               onAtualizar={async (patch) => {
@@ -1034,7 +1067,12 @@ function Editor() {
             />
           </aside>
 
-          <main className="flex flex-col gap-3 min-h-0 min-w-0">
+          <main
+            className={cn(
+              "lg:flex flex-col gap-2 sm:gap-3 min-h-0 min-w-0",
+              abaCel === "video" ? "flex" : "hidden",
+            )}
+          >
             <div className="relative flex-1 min-h-0 flex items-center justify-center p-4 rounded-2xl border border-border/70 overflow-hidden bg-[radial-gradient(ellipse_at_50%_40%,color-mix(in_oklch,var(--color-primary)_10%,transparent),transparent_65%)] bg-muted/30 shadow-card">
               {!proj.fonte_path ? (
                 <div className="text-center space-y-3 text-muted-foreground max-w-sm">
@@ -1374,7 +1412,12 @@ function Editor() {
             </div>
           </main>
 
-          <aside className="flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden">
+          <aside
+            className={cn(
+              "lg:flex flex-col min-h-0 rounded-2xl border border-border/70 bg-card shadow-card overflow-hidden",
+              abaCel === "chat" ? "flex" : "hidden",
+            )}
+          >
             <div className="px-4 py-3 border-b border-border/60 text-sm font-semibold flex items-center gap-2">
               Editor IA{" "}
               <span className="text-xs font-normal text-muted-foreground">

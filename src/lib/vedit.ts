@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 // Camada de dados do módulo Edição (editor de vídeo com IA).
 import { supabase } from "@/integrations/supabase/client";
 import { callEdgeFunction } from "@/lib/ads-mutations";
@@ -132,10 +133,40 @@ export async function baixarRender(p: Pick<Projeto, "render_path" | "nome">) {
     .from(BUCKET)
     .createSignedUrl(p.render_path, 600, { download: nome });
   if (error || !data) throw new Error(`Não consegui baixar: ${error?.message}`);
+  // Celular: o link de download abre em outra tela e muitas vezes não salva nada (iPhone, app
+  // instalado na tela inicial). Baixa o arquivo aqui e abre a folha de compartilhar do aparelho,
+  // que tem "Salvar vídeo" (vai para a galeria). O toque no aviso é o gesto que o aparelho exige.
+  const celular = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (celular && typeof navigator.share === "function") {
+    const aviso = toast.loading("Preparando o vídeo…");
+    try {
+      const blob = await (await fetch(data.signedUrl)).blob();
+      const arquivo = new File([blob], nome, { type: "video/mp4" });
+      if (navigator.canShare?.({ files: [arquivo] })) {
+        toast.success("Vídeo pronto", {
+          id: aviso,
+          duration: 60000,
+          action: {
+            label: "Salvar no celular",
+            onClick: () => {
+              void navigator.share({ files: [arquivo], title: nome }).catch(() => {});
+            },
+          },
+        });
+        return;
+      }
+    } catch {
+      /* cai no download comum */
+    }
+    toast.dismiss(aviso);
+  }
   const a = document.createElement("a");
   a.href = data.signedUrl;
   a.download = nome;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
+  a.remove();
 }
 
 /** Lê duração e tamanho do vídeo no navegador. */
@@ -373,9 +404,14 @@ export async function criarProjetoPorLink(dados: {
     .single();
   if (error) throw new Error(error.message);
   const id = proj.id as string;
-  const job = await db().from("vedit_jobs").insert({ projeto_id: id, tipo: "importar", params: { url } });
+  const job = await db()
+    .from("vedit_jobs")
+    .insert({ projeto_id: id, tipo: "importar", params: { url } });
   if (job.error) {
-    await db().from("vedit_projetos").update({ status: "erro", erro: job.error.message }).eq("id", id);
+    await db()
+      .from("vedit_projetos")
+      .update({ status: "erro", erro: job.error.message })
+      .eq("id", id);
     throw new Error(job.error.message);
   }
   return id;
