@@ -72,6 +72,37 @@ async function whisper(key: string, wavBytes: Uint8Array, comPrompt: boolean) {
   return { palavras, texto: String(t.text ?? "") };
 }
 
+const NOME_GENERICO =
+  /^(v[ií]deo( do drive)?( \(\d+\))?|img[_ -]?\d+.*|mov[_ -]?\d+.*|vid[_ -]?\d+.*|video[_ -]?\d+.*|\d{8}[_-]\d+.*|whatsapp video.*|untitled.*|sem t[ií]tulo.*|.*-\d{8}-\d{6}.*)$/i;
+
+/** Título curto do vídeo, tirado do que é dito nele. */
+async function tituloDaFala(fala: string): Promise<string | null> {
+  const key = Deno.env.get("ANTHROPIC_API_KEY") || Deno.env.get("CLAUDE_API_KEY");
+  if (!key || fala.trim().split(/\s+/).length < 12) return null;
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: Deno.env.get("VEDIT_MODELO_BUSCA") || "claude-haiku-5-5",
+      max_tokens: 60,
+      messages: [
+        {
+          role: "user",
+          content: `Dê um título interno, de 3 a 7 palavras, para este vídeo, que deixe claro o assunto para quem procura na lista (ex.: "Boato do beijo e decisão sem fonte"). Só o título, sem aspas, sem emoji, sem ponto final.\n\nFALA:\n${fala.slice(0, 3000)}`,
+        },
+      ],
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const j = await r.json();
+  const t = (j?.content ?? []).find((c: any) => c.type === "text")?.text?.trim();
+  return t ? t.replace(/^["“]|["”.]$/g, "").slice(0, 80) : null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const sb = createClient(
@@ -86,7 +117,7 @@ Deno.serve(async (req) => {
 
   const { data: proj, error } = await sb
     .from("vedit_projetos")
-    .select("id, audio_path")
+    .select("id, audio_path, nome, nome_automatico")
     .eq("id", projeto_id)
     .single();
   if (error || !proj?.audio_path) return json({ error: "projeto sem áudio" }, 400);
@@ -124,11 +155,21 @@ Deno.serve(async (req) => {
       console.warn("[vedit-transcrever] revisão pelo áudio falhou:", (e as Error).message);
     }
 
+    // Título automático a partir da fala, quando o nome ainda é o do arquivo ("IMG_4744",
+    // "Vídeo do Drive"). Nome que a pessoa digitou nunca é trocado.
+    let nome: string | null = null;
+    if (proj.nome_automatico || NOME_GENERICO.test(String(proj.nome ?? "").trim()))
+      nome = await tituloDaFala(t.texto).catch(() => null);
     await sb
       .from("vedit_projetos")
-      .update({ palavras, transcricao_texto: t.texto, status: "pronto_para_editar" })
+      .update({
+        palavras,
+        transcricao_texto: t.texto,
+        status: "pronto_para_editar",
+        ...(nome ? { nome, nome_automatico: true } : {}),
+      })
       .eq("id", projeto_id);
-    return json({ ok: true, palavras: palavras.length });
+    return json({ ok: true, palavras: palavras.length, nome });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await sb

@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowLeft,
+  Pencil,
   Clapperboard,
   Loader2,
   RotateCcw,
@@ -162,6 +163,7 @@ function Editor() {
   const [publicar, setPublicar] = useState(false);
   const [refRapida, setRefRapida] = useState(false);
   const [abaCel, setAbaCel] = useState<"video" | "ajustes" | "chat">("video");
+  const [editNome, setEditNome] = useState(false);
   const navigate = useNavigate();
   const [recortando, setRecortando] = useState<{ p: number; etapa: string } | null>(null);
   async function recortarPessoa() {
@@ -757,7 +759,38 @@ function Editor() {
             </Link>
           </Button>
           <div className="min-w-0">
-            <div className="font-semibold truncate max-w-[40vw]">{proj.nome}</div>
+            {editNome ? (
+              <input
+                autoFocus
+                defaultValue={proj.nome}
+                className="h-8 w-[52vw] max-w-[420px] rounded-md border bg-background px-2 text-sm font-semibold"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setEditNome(false);
+                }}
+                onBlur={async (e) => {
+                  const v = e.target.value.trim();
+                  setEditNome(false);
+                  if (!v || v === proj.nome) return;
+                  try {
+                    await atualizarProjeto(proj, { nome: v });
+                    await projQ.refetch();
+                  } catch (er) {
+                    toast.error((er as Error).message);
+                  }
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                title="Toque para mudar o título"
+                onClick={() => setEditNome(true)}
+                className="group flex items-center gap-1.5 font-semibold max-w-[46vw] text-left"
+              >
+                <span className="truncate">{proj.nome}</span>
+                <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-60 group-hover:opacity-100" />
+              </button>
+            )}
             <div className="hidden sm:block text-[11px] text-muted-foreground">
               {proj.objetivo === "anuncio" ? "Anúncio" : "Orgânico"} · {tl.formato} · {proj.estilo}
               {proj.duracao_alvo ? ` · alvo ${proj.duracao_alvo}s` : ""} · v{proj.versao} ·{" "}

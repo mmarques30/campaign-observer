@@ -81,7 +81,9 @@ async function gerar(
 ) {
   const { data: p } = await sb
     .from("vedit_projetos")
-    .select("id, objetivo, transcricao_texto, timeline, marca_id, empresa_id")
+    .select(
+      "id, objetivo, transcricao_texto, timeline, marca_id, empresa_id, roteiro_id, referencia_id",
+    )
     .eq("id", projetoId)
     .single();
   // Só vídeos da conta de quem pediu.
@@ -90,7 +92,24 @@ async function gerar(
   const fala = String(p.transcricao_texto ?? "").trim();
   if (!fala) throw new Error("a transcrição deste vídeo ainda não terminou");
   const modeloId = String(p.timeline?.modelo?.id ?? "");
-  const refId = modeloId.startsWith("ref-") ? modeloId.slice(4) : null;
+  const refId = modeloId.startsWith("ref-") ? modeloId.slice(4) : (p.referencia_id ?? null);
+  // A voz de verdade: as últimas legendas que a própria conta publicou no Instagram.
+  const { data: pubs } = await sb
+    .from("publicacoes")
+    .select("legenda")
+    .eq("empresa_id", p.empresa_id)
+    .eq("destino", "instagram")
+    .eq("status", "publicado")
+    .not("legenda", "is", null)
+    .order("publicado_em", { ascending: false })
+    .limit(6);
+  const voz = ((pubs ?? []) as { legenda: string }[])
+    .map((x) => String(x.legenda).trim())
+    .filter((x) => x.length > 20)
+    .slice(0, 4);
+  const { data: rot } = p.roteiro_id
+    ? await sb.from("vedit_roteiros").select("tema, roteiro").eq("id", p.roteiro_id).maybeSingle()
+    : { data: null };
   const [{ data: ref }, { data: marca }, { data: empresa }] = await Promise.all([
     refId
       ? sb.from("vedit_referencias").select("autor, legenda, analise").eq("id", refId).maybeSingle()
@@ -124,20 +143,21 @@ async function gerar(
 """
 ${String(ref.legenda).slice(0, 2000)}
 """
-Siga a FORMA dela: tamanho, estrutura (gancho, quebras de linha, lista, pergunta), tom e tipo de CTA. Não copie frases, assunto, nomes, números, @ nem a palavra de CTA dela: o conteúdo sai da fala DESTE vídeo.${ref.analise?.resumo ? `\nO que a referência faz: ${ref.analise.resumo}` : ""}
+Ela é o MOLDE. Antes de escrever, leia parágrafo por parágrafo e anote a FUNÇÃO de cada um (ex.: "pergunta de opinião + pedido de comentário com a palavra-chave", "um detalhe que não está no vídeo", "uma observação sobre o caso", "a tese em uma frase"). A nossa legenda tem os MESMOS parágrafos, na MESMA ordem, com a mesma função, o mesmo tamanho e o mesmo jeito de falar (primeira pessoa, conversa, opinião), só que sobre o assunto DESTE vídeo. Se ela não vende nada no texto, a nossa também não vende. Não copie frases, assunto, nomes, números, @ nem a palavra de CTA dela: o conteúdo sai da fala DESTE vídeo. Parágrafo cuja função pede um fato que a fala não tem (ex.: "detalhe que pouca gente sabe") usa um fato que ESTÁ na fala e não foi o centro do vídeo; se não houver, o parágrafo sai.${ref.analise?.resumo ? `\nO que a referência faz: ${ref.analise.resumo}` : ""}
 `
     : "";
   const prompt = `Escreva 3 opções de legenda de Instagram para este Reel ${quem}. Objetivo: ${p.objetivo === "anuncio" ? "anúncio" : "orgânico (salvamentos, compartilhamentos e comentários)"}.
-${marca?.instrucoes ? `Tom da marca: ${marca.instrucoes}\n` : ""}
+${marca?.instrucoes ? `Vocabulário da marca (só para palavras e restrições; NÃO é para vender nem citar público-alvo ou faturamento): ${marca.instrucoes}\n` : ""}
 O QUE ELA FALA NO VÍDEO (transcrição):
 """
 ${fala.slice(0, 6000)}
 """
-${molde}${palavraCta ? `\nO vídeo termina pedindo: "${palavraCta}". O CTA da legenda usa a mesma palavra.\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
+${rot?.tema ? `\nTEMA DO ROTEIRO deste vídeo (a legenda fala do mesmo assunto, pelo mesmo ângulo): ${String(rot.tema).slice(0, 600)}\n` : ""}${molde}${voz.length ? `\nCOMO ESTA CONTA ESCREVE (legendas que ela mesma publicou; pegue o jeito de falar, o tamanho das frases e o grau de informalidade; não copie o texto nem os emojis):\n${voz.map((v) => `"""\n${v.slice(0, 500)}\n"""`).join("\n")}\n` : ""}${palavraCta ? `\nO vídeo termina pedindo: "${palavraCta}". O CTA da legenda usa a mesma palavra.\n` : ""}${pedido ? `\nPEDIDO DA MARIANA PARA ESTAS OPÇÕES: ${pedido}\n` : ""}
 Regras:
-- ${molde ? "As 3 opções seguem o molde da referência e variam o gancho: uma direta (resultado/benefício), uma pela curiosidade ou tensão do vídeo e uma que puxa comentário (pergunta ou opinião)." : 'Cada opção com uma abordagem diferente: "Direta" (resultado/benefício logo de cara), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Conversa" (pergunta ou opinião que puxa comentário).'}
+- É legenda de CONTEÚDO, de gente falando com quem segue: primeira pessoa, conversa, opinião sobre o assunto do vídeo. NÃO é texto de anúncio${p.objetivo === "anuncio" ? " institucional" : ""}: nada de oferta, benefício do serviço, "a gente implementa", "nossos clientes", "quer entender como isso funcionaria no seu negócio", "agende", promessa de resultado ou apresentação da empresa. A empresa só aparece se a fala do vídeo a cita, e do mesmo tamanho que lá.
+- ${molde ? 'As 3 opções seguem o molde da referência parágrafo a parágrafo e mudam só a entrada: "Igual à referência" (a mais fiel à estrutura dela), "Pela história" (abre pelo caso/fato do vídeo) e "Pela opinião" (abre pela tese, puxando comentário).' : 'Cada opção com uma entrada diferente: "Pela história" (abre pelo caso/fato do vídeo), "Curiosidade" (abre o que o vídeo revela sem entregar tudo) e "Pela opinião" (abre pela tese, puxando comentário).'}
 - A 1ª linha é o gancho (aparece antes do "mais"): específica, até 12 palavras, sem repetir a primeira frase do vídeo palavra por palavra.
-- Complementa o vídeo (contexto, por que importa, o próximo passo); não transcreve a fala.
+- Continua a conversa do vídeo (um detalhe, a opinião, a pergunta); não transcreve a fala nem resume o vídeo em tópicos.
 - TAMANHO: cada opção tem entre ${faixa[0]} e ${faixa[1]} palavras no total (hashtags fora da conta).${nRef ? ` A legenda da referência tem ${nRef} palavras: se ela é de uma linha só, a nossa também é curta (gancho + CTA), sem parágrafos explicando o vídeo.` : ""}
 - Parágrafos curtos com linha em branco entre eles.
 - Hashtags: no máximo 3, só se forem relevantes, na última linha.
