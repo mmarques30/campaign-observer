@@ -5,6 +5,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { cortesNoSilencio, silenciosDoWav } from "./silencio.ts";
 import { detectarRepeticoes, descreverRepeticoes } from "./repeticoes.ts";
+import { revisarEdicao, textoRevisao } from "./revisao.ts";
 
 // Trilhas que vêm com o editor (espelho de src/video/trilhas.ts) + biblioteca da marca no bucket.
 const TRILHAS_BASE = [
@@ -1631,7 +1632,7 @@ Deno.serve(async (req) => {
     conversa.push({ role: "assistant", content: resp.content });
     conversa.push({ role: "user", content: respostas });
   }
-  const resposta = String(uso.resposta ?? "Pronto.");
+  let resposta = String(uso.resposta ?? "Pronto.");
 
   let versao = proj.versao as number;
   const upd: Record<string, unknown> = { status: "editando" };
@@ -1745,6 +1746,17 @@ Deno.serve(async (req) => {
         marcaRow?.marca ?? tl.marca ?? {},
         proj,
       );
+    // Revisão automática: corrige tela preta / mídia fora do vídeo / sobreposição e avisa o resto.
+    try {
+      const { data: mRev } = await sb
+        .from("vedit_midias")
+        .select("id, tipo, path, duracao")
+        .eq("projeto_id", projeto_id);
+      const rev = revisarEdicao(tl, palavras, (mRev ?? []) as any[], reps, Number(proj.fonte_duracao ?? 0));
+      resposta += textoRevisao(rev);
+    } catch (e) {
+      console.warn("[vedit-agente] revisão automática falhou:", (e as Error).message);
+    }
     // A versão sempre sobe a partir da atual do banco: enquanto o Claude trabalhava, a tela pode
     // ter salvo outras (v5…v11). Gravar "a de antes + 1" deixava a versão menor que a da tela, que
     // então ignorava a edição nova e seguia mostrando só cortes e legenda.
