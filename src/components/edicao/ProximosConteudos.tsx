@@ -29,7 +29,7 @@ export function ProximosConteudos({ foco }: { foco: "video" | "criativo" }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [lado, setLado] = useState<Lado>("anuncio");
-  const [formato, setFormato] = useState<Formato>(foco === "video" ? "reel" : "todos");
+  const [formato, setFormato] = useState<Formato>("todos");
   const [roteiro, setRoteiro] = useState<Sugestao | null>(null);
   const [pedindo, setPedindo] = useState(false);
 
