@@ -275,7 +275,20 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   let empresa: any = null;
   // Chamada interna (agendamento no banco, com a chave de serviço): empresa vem no corpo.
-  if (jwt && jwt === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+  const ehServico = async () => {
+    if (!jwt) return false;
+    if (jwt === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return true;
+    try {
+      const claims = JSON.parse(atob(jwt.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (claims?.role !== "service_role") return false;
+      // Confere a assinatura de verdade: só a chave de serviço consegue listar usuários.
+      const { error } = await createClient(Deno.env.get("SUPABASE_URL")!, jwt).auth.admin.listUsers({ perPage: 1 });
+      return !error;
+    } catch {
+      return false;
+    }
+  };
+  if (await ehServico()) {
     const q = sb.from("mads_empresas").select("id, interna");
     ({ data: empresa } = await (body.empresa_id ? q.eq("id", body.empresa_id) : q.eq("interna", true)).limit(1).maybeSingle());
   } else {
